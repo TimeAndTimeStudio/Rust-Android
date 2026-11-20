@@ -4,5 +4,12 @@
         <item name="android:statusBarColor">#FF16161C</item>
         <item name="android:navigationBarColor">#FF16161C</item>
         <item name="android:windowBackground">#FF16161C</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+    <style name="Starling.Launcher" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:statusBarColor">#FF16161C</item>
+        <item name="android:navigationBarColor">#FF16161C</item>
+        <item name="android:windowBackground">#FF16161C</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>

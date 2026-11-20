@@ -49,7 +49,7 @@
             android:taskAffinity="@APPLICATION_ID@.launcher"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:theme="@style/Starling.Launcher">
             <!-- Packs, worlds, shader packs, mods and prepared resources as .zip, opened with
                  or shared to Starling. -->
             <intent-filter>

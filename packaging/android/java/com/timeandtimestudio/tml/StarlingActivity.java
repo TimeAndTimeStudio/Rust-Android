@@ -188,6 +188,8 @@ public class StarlingActivity extends NativeActivity {
         // As games do: watching, a controller or a benchmark can go minutes without a touch.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= 21) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
             getWindow().setStatusBarColor(0xFF16161C);
             getWindow().setNavigationBarColor(0xFF16161C);
         }
