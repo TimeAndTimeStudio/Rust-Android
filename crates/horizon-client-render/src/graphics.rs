@@ -1143,6 +1143,12 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
     // A phone's GPU is held back by geometry: Mobile far detail and Hidden leaf culling.
     g.far_detail = FarDetail::Mobile;
     g.leaf_culling = LeafCullingMode::Hidden;
+    // Enable distant terrain LOD by default on Android phones
+    g.lod_distance = match tier {
+        Tier::High => 128,
+        Tier::Mid => 64,
+        Tier::Low => 32,
+    };
 }
 
 #[cfg(test)]
@@ -1180,6 +1186,8 @@ mod tests {
         );
         // Leaf faces no one sees left out, crowns as they were.
         assert_eq!(high.horizon.leaf_culling, LeafCullingMode::Hidden);
+        assert_eq!(high.horizon.lod_distance, 128);
+        assert_eq!(low.horizon.lod_distance, 32);
         // What the options screens read back.
         let file = high.to_file();
         let back = crate::settings::Settings::from_file(file);
