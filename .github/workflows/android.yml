@@ -18,6 +18,9 @@ jobs:
         include:
           - { abi: arm64-v8a, target: aarch64-linux-android }
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_JOBS: 4
+      CARGO_TERM_COLOR: always
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +56,9 @@ jobs:
   release:
     needs: apk
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_JOBS: 4
+      CARGO_TERM_COLOR: always
     permissions:
       contents: write
     steps:

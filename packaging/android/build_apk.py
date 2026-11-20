@@ -193,7 +193,7 @@ def compile_java(build_tools, android_jar, out):
     for folder in (classes, dex):
         shutil.rmtree(folder, ignore_errors=True)
         folder.mkdir()
-    sources = sorted((HERE / "java").rglob("*.java")) + [out / "generated" / "io/github/juanluci/starling/R.java"]
+    sources = sorted((HERE / "java").rglob("*.java")) + [out / "generated" / "com/timeandtimestudio/tml/R.java"]
     run("javac", "--release", "8", "-nowarn", "-classpath", android_jar, "-d", classes, *sources)
     # A single archive also avoids cmd.exe's command-line limit on Windows.
     archive = out / "classes.jar"
