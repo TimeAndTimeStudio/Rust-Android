@@ -3192,6 +3192,14 @@ impl OptionsUi {
                     self.calibration = Some(crate::hdr_calibration::Calibration::new(s));
                     self.push(Page::HdrCalibration);
                 }
+                Action::ShaderPacks => {
+                    events.push(Event::ButtonClick);
+                    events.push(Event::ListShaderPacks);
+                    self.refresh_shader_profiles(s);
+                    s.shader_options = None;
+                    events.push(Event::OpenShaderOptions);
+                    self.push(Page::ShaderPacks);
+                }
                 Action::Done => events.extend(self.back(s)),
             }
         }
@@ -4431,7 +4439,7 @@ impl OptionsUi {
                     // Everywhere for the layers and Main Hand; `skin_page` adds the name and skin.
                     ("options.skinCustomisation", Some(Page::Skin)),
                     ("options.sounds", Some(Page::Sound)),
-                    ("options.video", Some(Page::Video)),
+                    ("options.video", Some(Page::Graphics)),
                     ("options.controls", Some(Page::Controls)),
                     (
                         "options.language",

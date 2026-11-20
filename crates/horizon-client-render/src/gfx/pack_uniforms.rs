@@ -474,14 +474,11 @@ impl FrameUniforms {
         // and end together) of the one that is complete nearer (OQ-36). Mixing the nearer start
         // of one with the nearer end of the other made fog begin at the camera on clear days.
         let (fog_color, fog_start, fog_end) = match &frame.fog {
-            Some(f) => {
-                let (start, end) = if f.environmental_end < f.render_distance_end {
-                    (f.environmental_start, f.environmental_end)
-                } else {
-                    (f.render_distance_start, f.render_distance_end)
-                };
-                ([f.color[0], f.color[1], f.color[2]], start, end)
-            }
+            Some(f) => (
+                [f.color[0], f.color[1], f.color[2]],
+                f.environmental_start,
+                f.environmental_end,
+            ),
             None => (frame.sky.fog_color, frame.distance * 0.9, frame.distance),
         };
         let light = shadow_light(frame, &self.shadow);
@@ -553,12 +550,13 @@ impl FrameUniforms {
                 "thunderStrength" => Value::f(&[inputs.thunder]),
                 "fogColor" => Value::f(&fog_color),
                 "skyColor" => Value::f(&frame.sky.sky_color),
-                // GL_LINEAR: vanilla's fog is linear.
-                "fogMode" => Value::i(&[9729]),
+                // Iris 1.11.7: outside a draw, programs read no fog mode (0), shape (-1)
+                // and fogDensity (0.0).
+                "fogMode" => Value::i(&[0]),
                 "fogStart" => Value::f(&[fog_start]),
                 "fogEnd" => Value::f(&[fog_end]),
-                "fogDensity" => Value::f(&[1.0]),
-                "fogShape" => Value::i(&[0]),
+                "fogDensity" => Value::f(&[0.0]),
+                "fogShape" => Value::i(&[-1]),
                 "isEyeInWater" => Value::i(&[inputs.eye_in]),
                 "blindness" => Value::f(&[inputs.blindness]),
                 "nightVision" => Value::f(&[frame.night_vision]),
@@ -610,7 +608,12 @@ impl FrameUniforms {
         let (color, start, end) = (get("fogColor"), get("fogStart")[0], get("fogEnd")[0]);
         [
             Vec4::new(color[0], color[1], color[2], 1.0),
-            Vec4::new(1.0, start, end, 1.0 / (end - start).max(1e-3)),
+            Vec4::new(
+                get("fogDensity")[0],
+                start,
+                end,
+                1.0 / (end - start).max(1e-3),
+            ),
         ]
     }
 }

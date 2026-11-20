@@ -23,15 +23,17 @@ pub enum Page {
     General,
     Quality,
     Performance,
+    Shaders,
     Advanced,
     /// HDR output's own settings.
     Hdr,
 }
 impl Page {
-    pub const ALL: [Page; 5] = [
+    pub const ALL: [Page; 6] = [
         Page::General,
         Page::Quality,
         Page::Performance,
+        Page::Shaders,
         Page::Advanced,
         Page::Hdr,
     ];
@@ -40,6 +42,7 @@ impl Page {
             Page::General => "General",
             Page::Quality => "Quality",
             Page::Performance => "Performance",
+            Page::Shaders => "Shaders",
             Page::Advanced => "Advanced",
             Page::Hdr => "HDR",
         }
@@ -50,6 +53,7 @@ impl Page {
             Page::General => "How far you see, the window and the HUD.",
             Page::Quality => "The sky and weather, lighting, textures and the image.",
             Page::Performance => "Chunk loading, culling and power use.",
+            Page::Shaders => "Shader packs, Horizon's and shaders/ folder ones, and their options.",
             Page::Advanced => "How frames reach the screen, and the performance overlay.",
             Page::Hdr => "Brighter-than-white output on an HDR display.",
         }
@@ -101,6 +105,8 @@ pub enum H {
     HdrUiBrightness,
     BatteryMode,
     ShadowCache,
+    /// Picks a shader pack and opens shader options.
+    ShaderPacks,
     GraphicsApi,
     TranslucentBatching,
 }
@@ -384,11 +390,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                             Saves,
                             "Draws or drops leaf faces inside canopies. Off keeps vanilla's fancy leaves.",
                         ),
-                        h(
-                            H::ShadowCache,
-                            Saves,
-                            "Reuses the pack shadow map when sun, view and world match. Off by default.",
-                        ),
                     ],
                 ),
                 (
@@ -440,6 +441,24 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                     )],
                 ),
             ],
+        ),
+        (
+            Page::Shaders,
+            vec![(
+                "Shader packs",
+                vec![
+                    h(
+                        H::ShaderPacks,
+                        High,
+                        "Picks a shader pack, Horizon's or a shaders/ folder one, and sets its options.",
+                    ),
+                    h(
+                        H::ShadowCache,
+                        Saves,
+                        "Reuses the pack shadow map when sun, view and world match. Off by default.",
+                    ),
+                ],
+            )],
         ),
         (
             Page::Advanced,
@@ -791,6 +810,7 @@ impl H {
             }
             H::BatteryMode => labelled("Battery Mode", on_off(g.battery)),
             H::ShadowCache => labelled("Shadow Cache", on_off(g.shadow_cache)),
+            H::ShaderPacks => Text::literal(lang::get("Shader Packs...")),
             H::GraphicsApi => labelled("Graphics API", g.api.label()),
             // Greyed out where the device can't (`Item::blocked`): Off, as it is there,
             // while the saved value waits for a device that can.
@@ -975,7 +995,7 @@ impl Item {
     fn steps(self, s: &Settings) -> bool {
         self.switch(s).is_none()
             && self.slider(s).is_none()
-            && !matches!(self, Item::Horizon(H::HdrKey | H::HdrCalibrate))
+            && !matches!(self, Item::Horizon(H::HdrKey | H::HdrCalibrate | H::ShaderPacks))
     }
     /// On/off settings and their value.
     pub fn switch(self, s: &Settings) -> Option<bool> {
@@ -1129,6 +1149,8 @@ pub enum Action {
     BindKey(&'static str),
     /// Start HDR calibration.
     Calibrate,
+    /// Open the shader packs options screen.
+    ShaderPacks,
     Done,
 }
 
@@ -1989,6 +2011,7 @@ impl GraphicsUi {
                 vec![Action::ButtonClick, Action::Changed]
             }
             Item::Horizon(H::HdrCalibrate) => vec![Action::ButtonClick, Action::Calibrate],
+            Item::Horizon(H::ShaderPacks) => vec![Action::ButtonClick, Action::ShaderPacks],
             Item::Horizon(H::HdrKey) => {
                 vec![
                     Action::ButtonClick,

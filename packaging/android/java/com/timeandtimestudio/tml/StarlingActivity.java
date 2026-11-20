@@ -187,6 +187,10 @@ public class StarlingActivity extends NativeActivity {
         clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         // As games do: watching, a controller or a benchmark can go minutes without a touch.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (Build.VERSION.SDK_INT >= 21) {
+            getWindow().setStatusBarColor(0xFF000000);
+            getWindow().setNavigationBarColor(0xFF000000);
+        }
         // A NativeActivity's window counts as drawn at once, so the system's starting window (the
         // app icon) went and the screen behind showed until the game's first frame: the window
         // is held back until the game says it has drawn, or ten seconds at most.

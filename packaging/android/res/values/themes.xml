@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- The game's window: black, without a title, over the whole screen. -->
-    <style name="Starling.Game" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+    <style name="Starling.Game" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:statusBarColor">#FF000000</item>
+        <item name="android:navigationBarColor">#FF000000</item>
+        <item name="android:windowBackground">#FF000000</item>
+    </style>
 </resources>
