@@ -21,9 +21,14 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 4
       CARGO_TERM_COLOR: always
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - name: Run sccache-action
+        uses: mozilla-actions/sccache-action@v0.0.8
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -59,10 +64,15 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 4
       CARGO_TERM_COLOR: always
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: Run sccache-action
+        uses: mozilla-actions/sccache-action@v0.0.8
+
       - uses: actions/download-artifact@v4
         with:
           pattern: tml-apk-*
