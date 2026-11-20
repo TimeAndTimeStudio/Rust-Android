@@ -12,4 +12,3 @@ pub mod mod_api;
 pub mod diagnostics;
 pub mod performance;
 
-pub mod content_files;
