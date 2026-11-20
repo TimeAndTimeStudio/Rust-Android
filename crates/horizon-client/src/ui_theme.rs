@@ -417,7 +417,7 @@ impl<'a> Ui<'a> {
         }
     }
     /// A filled rectangle with rounded corners.
-    pub fn rounded(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
+    pub fn rounded(&mut self, x: f32, y: f32, w: f32, h: f32, _radius: f32, color: u32) {
         if color >> 24 == 0 {
             return;
         }
@@ -427,22 +427,11 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        let r = (radius * self.density)
-            .round()
-            .min(((x1 - x0) / 2.0).floor())
-            .min(((y1 - y0) / 2.0).floor())
-            .max(0.0);
-        if r < 1.0 {
-            self.raw_fill(x0, y0, x1, y1, color);
-            return;
-        }
-        self.raw_fill(x0 + r, y0, x1 - r, y1, color);
-        self.raw_fill(x0, y0 + r, x0 + r, y1 - r, color);
-        self.raw_fill(x1 - r, y0 + r, x1, y1 - r, color);
-        self.corners(x0, y0, x1, y1, r, false, color);
+        // Pure sharp square corners
+        self.raw_fill(x0, y0, x1, y1, color);
     }
     /// A 1px rounded border.
-    pub fn border(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
+    pub fn border(&mut self, x: f32, y: f32, w: f32, h: f32, _radius: f32, color: u32) {
         if color >> 24 == 0 {
             return;
         }
@@ -452,16 +441,11 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        let r = (radius * self.density)
-            .round()
-            .min(((x1 - x0) / 2.0).floor())
-            .min(((y1 - y0) / 2.0).floor())
-            .max(0.0);
-        self.raw_fill(x0 + r, y0, x1 - r, y0 + 1.0, color);
-        self.raw_fill(x0 + r, y1 - 1.0, x1 - r, y1, color);
-        self.raw_fill(x0, y0 + r, x0 + 1.0, y1 - r, color);
-        self.raw_fill(x1 - 1.0, y0 + r, x1, y1 - r, color);
-        self.corners(x0, y0, x1, y1, r, true, color);
+        // Pure sharp rectangular border
+        self.raw_fill(x0, y0, x1, y0 + 1.0, color);
+        self.raw_fill(x0, y1 - 1.0, x1, y1, color);
+        self.raw_fill(x0, y0, x0 + 1.0, y1, color);
+        self.raw_fill(x1 - 1.0, y0, x1, y1, color);
     }
 
     // ---- text ----

@@ -5918,6 +5918,8 @@ impl OptionsUi {
                             if p == Page::ShaderPacks {
                                 events.push(Event::ListShaderPacks);
                                 self.refresh_shader_profiles(s);
+                                s.shader_options = None;
+                                events.push(Event::OpenShaderOptions);
                             }
                             if p == Page::Mods {
                                 events.push(Event::ListMods);
@@ -7156,6 +7158,9 @@ impl OptionsUi {
                             self.can_change_value = false;
                             if p == Page::ShaderPacks {
                                 events.push(Event::ListShaderPacks);
+                                self.refresh_shader_profiles(s);
+                                s.shader_options = None;
+                                events.push(Event::OpenShaderOptions);
                             }
                             if p == Page::Mods {
                                 events.push(Event::ListMods);

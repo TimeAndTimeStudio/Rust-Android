@@ -34,7 +34,7 @@ pub const TYPE: [Step; 4] = [DISPLAY, TITLE, UI, CAPTION];
 /// vanishes on a pale fill and reads as notches on a thin ring. Pills are [`crate::RADIUS_PILL`],
 /// for chips only.
 pub const PIXEL_CORNER: f32 = 4.;
-pub const RADIUS_CONTROL: f32 = 8.;
+pub const RADIUS_CONTROL: f32 = 0.;
 /// The main action (Play) is taller than the other controls.
 pub const PLAY: f32 = 56.;
 

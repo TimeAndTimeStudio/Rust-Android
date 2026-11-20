@@ -1007,15 +1007,9 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        let r = (radius * self.density)
-            .round()
-            .min(((x1 - x0) / 2.0).floor())
-            .min(((y1 - y0) / 2.0).floor())
-            .max(0.0);
-        if r < 1.0 {
-            self.raw_fill(x0, y0, x1, y1, color);
-            return;
-        }
+        // Pure sharp rectangle
+        self.raw_fill(x0, y0, x1, y1, color);
+        return;
         self.raw_fill(x0 + r, y0, x1 - r, y1, color);
         self.raw_fill(x0, y0 + r, x0 + r, y1 - r, color);
         self.raw_fill(x1 - r, y0 + r, x1, y1 - r, color);
@@ -1478,30 +1472,24 @@ impl<'a> Ui<'a> {
             return;
         }
         let t = (stroke_w * self.density).round().clamp(1.0, 24.0);
-        let r = (radius * self.density)
-            .round()
-            .min(((x1 - x0) / 2.0).floor())
-            .min(((y1 - y0) / 2.0).floor())
-            .max(0.0);
-        if r < 1.0 {
-            self.raw_fill(x0, y0, x1, (y0 + t).min(y1), color);
-            self.raw_fill(x0, (y1 - t).max(y0), x1, y1, color);
-            self.raw_fill(
-                x0,
-                (y0 + t).min(y1),
-                (x0 + t).min(x1),
-                (y1 - t).max(y0),
-                color,
-            );
-            self.raw_fill(
-                (x1 - t).max(x0),
-                (y0 + t).min(y1),
-                x1,
-                (y1 - t).max(y0),
-                color,
-            );
-            return;
-        }
+        // Pure sharp square stroke
+        self.raw_fill(x0, y0, x1, (y0 + t).min(y1), color);
+        self.raw_fill(x0, (y1 - t).max(y0), x1, y1, color);
+        self.raw_fill(
+            x0,
+            (y0 + t).min(y1),
+            (x0 + t).min(x1),
+            (y1 - t).max(y0),
+            color,
+        );
+        self.raw_fill(
+            (x1 - t).max(x0),
+            (y0 + t).min(y1),
+            x1,
+            (y1 - t).max(y0),
+            color,
+        );
+        return;
         self.raw_fill(x0 + r, y0, x1 - r, (y0 + t).min(y1), color);
         self.raw_fill(x0 + r, (y1 - t).max(y0), x1 - r, y1, color);
         self.raw_fill(x0, y0 + r, (x0 + t).min(x1), y1 - r, color);
