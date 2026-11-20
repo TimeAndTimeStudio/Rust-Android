@@ -3210,7 +3210,6 @@ impl OptionsUi {
         match page {
             Page::Graphics => Some(crate::graphics_ui::Page::General),
             Page::GraphicsAdvanced => Some(crate::graphics_ui::Page::Advanced),
-            Page::GraphicsHdr => Some(crate::graphics_ui::Page::Hdr),
             _ => None,
         }
     }
@@ -3447,10 +3446,6 @@ impl OptionsUi {
                     |key: &str, page: Page| button(0.0, 0.0, 150.0, tr(key), Act::Push(page));
                 vec![
                     Row::Buttons(
-                        button(0.0, 0.0, 310.0, Text::literal("Shader Packs..."), Act::Push(Page::ShaderPacks)),
-                        None,
-                    ),
-                    Row::Buttons(
                         open("horizon.pages.open.graphics", Page::Graphics),
                         Some(open(
                             "horizon.pages.open.graphics_advanced",
@@ -3632,16 +3627,6 @@ impl OptionsUi {
                         Act::Push(Page::GraphicsAdvanced),
                     )),
                 )];
-                rows.push(Row::Buttons(
-                    button(
-                        0.0,
-                        0.0,
-                        310.0,
-                        Text::literal("Shader Packs..."),
-                        Act::Push(Page::ShaderPacks),
-                    ),
-                    None,
-                ));
                 rows.push(Row::Header("options.video.display.header"));
                 // A phone's app always fills its screen.
                 let display: &[Opt] = if cfg!(target_os = "android") {
@@ -4451,10 +4436,7 @@ impl OptionsUi {
                         (!self.split_guest).then_some(Page::Packs),
                     ),
                     ("options.accessibility", Some(Page::Accessibility)),
-                    // Vanilla's Telemetry Data and Credits slots: Horizon's
-                    // settings and its mods, as a mod adds its button here.
-                    // Credits & Attribution (WinScreen's credits) follows them.
-                    ("horizon.pages.open.horizon_settings", Some(Page::Horizon)),
+                    // Credits & Attribution (WinScreen's credits).
                     ("options.credits_and_attribution", Some(Page::Credits)),
                 ];
                 let entries = with_diagnostics(entries);
@@ -9493,12 +9475,12 @@ mod tests {
                 })
                 .collect()
         };
-        // Vanilla's Options buttons, Horizon's two in the Telemetry and Credits slots, then
+        // Vanilla's Options buttons, then
         // Credits & Attribution (WinScreen's credits).
         let main = pushes(&mut ui);
         assert_eq!(
-            &main[main.len() - 3..],
-            [Page::Horizon, Page::Mods, Page::Credits]
+            &main[main.len() - 2..],
+            [Page::Mods, Page::Credits]
         );
         ui.push(Page::Horizon);
         assert_eq!(
@@ -9506,7 +9488,6 @@ mod tests {
             [
                 Page::Graphics,
                 Page::GraphicsAdvanced,
-                Page::ShaderPacks,
                 Page::Controller,
                 Page::Extras,
                 Page::Mods,

@@ -1298,7 +1298,7 @@ pub fn main(app: AndroidApp) {
             log::info!("{note}");
         }
         // Read from the APK's assets, which the app above opens.
-        crate::preparer::put_shader_pack(&home);
+        crate::preparer::put_resource_packs(&home);
         // The saved Microsoft sign-in renews while the game loads.
         crate::accounts::resume();
         winit::platform::android::set_input_hook(input::hook);

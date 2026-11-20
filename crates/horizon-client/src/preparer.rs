@@ -272,29 +272,33 @@ pub fn skin() -> Option<PathBuf> {
     }
 }
 
-/// TML Visuals, the shader pack the app carries (packaging/shaderpacks/starling-visuals, the
-/// APK's `assets/TMLVisuals.zip`), put in `shaderpacks/` of the game folder: again only when
-/// the app carries another one than it put there last, so a pack the player deleted stays deleted
-/// until an update brings a new one.
-pub fn put_shader_pack(game_folder: &Path) {
-    let Some(bytes) = crate::platform::asset("TMLVisuals.zip") else {
-        return;
-    };
-    let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
-    let marker = crate::logging::private_home().join(".starling-visuals");
-    if std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
-        return;
-    }
-    let dir = game_folder.join("shaderpacks");
-    match std::fs::create_dir_all(&dir)
-        .and_then(|()| std::fs::write(dir.join("TMLVisuals.zip"), &bytes))
-        .and_then(|()| std::fs::write(&marker, &stamp))
-    {
-        Ok(()) => log::info!("Horizon: TML Visuals put in {}", dir.display()),
-        Err(e) => log::warn!(
-            "Horizon: TML Visuals could not be put in {}: {e}",
-            dir.display()
-        ),
+/// Bundled resource packs the app carries (e.g. Faithful 32x, OrangeBlack UI Pack),
+/// put in `resourcepacks/` of the game folder so the player can choose to activate them.
+pub fn put_resource_packs(game_folder: &Path) {
+    let packs = [
+        "Faithful 32x - 26.3.zip",
+        "OrangeBlack_UI_Pack_26.2_26.3.zip",
+    ];
+    let dir = game_folder.join("resourcepacks");
+    for pack_name in packs {
+        let Some(bytes) = crate::platform::asset(pack_name) else {
+            continue;
+        };
+        let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
+        let marker = crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
+        if std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
+            continue;
+        }
+        match std::fs::create_dir_all(&dir)
+            .and_then(|()| std::fs::write(dir.join(pack_name), &bytes))
+            .and_then(|()| std::fs::write(&marker, &stamp))
+        {
+            Ok(()) => log::info!("Horizon: {pack_name} put in {}", dir.display()),
+            Err(e) => log::warn!(
+                "Horizon: {pack_name} could not be put in {}: {e}",
+                dir.display()
+            ),
+        }
     }
 }
 

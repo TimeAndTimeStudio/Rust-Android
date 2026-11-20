@@ -23,28 +23,21 @@ pub enum Page {
     General,
     Quality,
     Performance,
-    Shaders,
     Advanced,
-    /// HDR output's own settings.
-    Hdr,
 }
 impl Page {
-    pub const ALL: [Page; 6] = [
+    pub const ALL: [Page; 4] = [
         Page::General,
         Page::Quality,
         Page::Performance,
-        Page::Shaders,
         Page::Advanced,
-        Page::Hdr,
     ];
     pub fn name(self) -> &'static str {
         match self {
             Page::General => "General",
             Page::Quality => "Quality",
             Page::Performance => "Performance",
-            Page::Shaders => "Shaders",
             Page::Advanced => "Advanced",
-            Page::Hdr => "HDR",
         }
     }
     /// What the page holds, in the strip while no setting is pointed at.
@@ -53,9 +46,7 @@ impl Page {
             Page::General => "How far you see, the window and the HUD.",
             Page::Quality => "The sky and weather, lighting, textures and the image.",
             Page::Performance => "Chunk loading, culling and power use.",
-            Page::Shaders => "Shader packs, Horizon's and shaders/ folder ones, and their options.",
             Page::Advanced => "How frames reach the screen, and the performance overlay.",
-            Page::Hdr => "Brighter-than-white output on an HDR display.",
         }
     }
 }
@@ -443,24 +434,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
             ],
         ),
         (
-            Page::Shaders,
-            vec![(
-                "Shader packs",
-                vec![
-                    h(
-                        H::ShaderPacks,
-                        High,
-                        "Picks a shader pack, Horizon's or a shaders/ folder one, and sets its options.",
-                    ),
-                    h(
-                        H::ShadowCache,
-                        Saves,
-                        "Reuses the pack shadow map when sun, view and world match. Off by default.",
-                    ),
-                ],
-            )],
-        ),
-        (
             Page::Advanced,
             vec![
                 (
@@ -494,59 +467,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                         H::Overlay,
                         None,
                         "Frame rate and frame times over the game, with a graph.",
-                    )],
-                ),
-            ],
-        ),
-        (
-            Page::Hdr,
-            vec![
-                (
-                    "Output",
-                    vec![
-                        h(
-                            H::Hdr,
-                            None,
-                            "Lava, fire and sunlight shine brighter than white. Needs an HDR display.",
-                        ),
-                        h(
-                            H::HdrCalibrate,
-                            None,
-                            "Sets the three below full screen, one test picture at a time.",
-                        ),
-                    ],
-                ),
-                (
-                    "Brightness",
-                    vec![
-                        h(
-                            H::HdrBlackLevel,
-                            None,
-                            "Your display's darkest black. 0 for OLED; LCDs glow a little.",
-                        ),
-                        h(
-                            H::HdrPeak,
-                            None,
-                            "How bright highlights get. Auto: the peak your system reports.",
-                        ),
-                        h(
-                            H::HdrPaperWhite,
-                            None,
-                            "How bright white paper and menus look. Auto: your desktop's white.",
-                        ),
-                        h(
-                            H::HdrUiBrightness,
-                            None,
-                            "How bright the HUD and menus are, against paper white.",
-                        ),
-                    ],
-                ),
-                (
-                    "Shortcut",
-                    vec![h(
-                        H::HdrKey,
-                        None,
-                        "A key that opens this screen from the game. Not bound at first.",
                     )],
                 ),
             ],
@@ -2464,10 +2384,10 @@ mod tests {
                 pair[0].y + style::GROUP_ROW + panel + style::GROUP_GAP
             );
         }
-        // Opened at a page (Advanced..., the HDR key), it shows that page.
+        // Opened at a page, it shows that page.
         let mut ui = GraphicsUi::default();
-        ui.open(Page::Hdr);
-        assert_eq!(settings(&mut ui, &s), on(Page::Hdr));
+        ui.open(Page::Performance);
+        assert_eq!(settings(&mut ui, &s), on(Page::Performance));
     }
 
     #[test]
@@ -2478,13 +2398,13 @@ mod tests {
         let mut ui = GraphicsUi::default();
         let cols = Columns::of(size.0, size.1);
         assert!((cols.bottom - cols.top) / style::ROW >= 5.0);
-        let [x, y, w, h] = cols.page(4);
+        let [x, y, w, h] = cols.page(3);
         assert!(y >= 0.0 && x + w <= size.0);
         // Undo, over Done, stays clear of the page list.
         assert!(cols.button(1)[1] >= y + h);
         ui.click(&mut s, (x + w / 2.0, y + h / 2.0), size, FB, false, false);
         let (_, lines, _) = ui.layout(&s, size.0, size.1);
-        assert_eq!(ui.current(&lines), Some(Page::Hdr));
+        assert_eq!(ui.current(&lines), Some(Page::Advanced));
     }
 
     #[test]
@@ -2539,10 +2459,10 @@ mod tests {
             l.setting
                 .is_some_and(|r| r.item == Item::Vanilla(Opt::Vsync))
         }));
-        ui.search.set_value("hdr");
-        let [x, y, w, h] = cols.page(4);
+        ui.search.set_value("fog");
+        let [x, y, w, h] = cols.page(1);
         press(&mut ui, &mut s, (x + w / 2.0, y + h / 2.0));
-        assert_eq!(ui.current(&ui.lines(&s).0), Some(Page::Hdr));
+        assert_eq!(ui.current(&ui.lines(&s).0), Some(Page::Quality));
         let [x, y, ..] = cols.clear();
         assert_eq!(
             press(&mut ui, &mut s, (x + 2.0, y + 2.0)),
@@ -2550,9 +2470,9 @@ mod tests {
         );
         // The clear button leaves the page picked meanwhile open, alone, from the top.
         let (lines, _) = ui.lines(&s);
-        assert!(lines.len() < all.len() && lines.iter().all(|l| l.page == Page::Hdr));
+        assert!(lines.len() < all.len() && lines.iter().all(|l| l.page == Page::Quality));
         assert_eq!(ui.scroll.amount, 0.0);
-        assert_eq!(ui.current(&lines), Some(Page::Hdr));
+        assert_eq!(ui.current(&lines), Some(Page::Quality));
     }
 
     #[test]
@@ -2617,61 +2537,6 @@ mod tests {
         assert_eq!(H::ChunkUpdates.slider(&s), Some(0.0));
         assert!(ui.release());
         assert!(!ui.release());
-    }
-
-    #[test]
-    fn hdr_waits_for_a_display_that_offers_it_and_its_sliders_for_the_switch() {
-        let _offer = HDR_OFFER.lock().unwrap_or_else(|e| e.into_inner());
-        let mut s = Settings::default();
-        let mut ui = GraphicsUi::default();
-        let at = |[x, y, ..]: [f32; 4]| (x + 8.0, y + 4.0);
-        crate::graphics::offer_hdr(false);
-        // A 720p window opened at HDR shows only its greyed rows: Down still reaches the shortcut.
-        let short = (427.0, 240.0);
-        let mut at_hdr = GraphicsUi::default();
-        at_hdr.open(Page::Hdr);
-        at_hdr.key_modifiers(&mut s, K::ArrowDown, None, false, short, FB);
-        assert_eq!(at_hdr.focus, Some(Target::Item(Item::Horizon(H::HdrKey))));
-        let hdr = row(&mut ui, &s, Item::Horizon(H::Hdr));
-        assert!(press(&mut ui, &mut s, at(hdr)).is_empty());
-        // Not even with HDR saved on, from another computer: nor its sliders and calibration.
-        s.horizon.hdr = true;
-        for h in [H::Hdr, H::HdrCalibrate, H::HdrPeak, H::HdrPaperWhite] {
-            assert!(Item::Horizon(h).blocked(&s).is_some(), "{h:?}");
-        }
-        s.horizon.hdr = false;
-        crate::graphics::offer_hdr(true);
-        let (tx, _) = Columns::of(SIZE.0, SIZE.1).track();
-        let peak = row(&mut ui, &s, Item::Horizon(H::HdrPeak));
-        assert!(press(&mut ui, &mut s, (tx + 2.0, peak[1] + 4.0)).is_empty());
-        // The switch turns it on, and the sliders below it work.
-        let hdr = row(&mut ui, &s, Item::Horizon(H::Hdr));
-        assert_eq!(
-            press(&mut ui, &mut s, at(hdr)),
-            [Action::ButtonClick, Action::Changed]
-        );
-        assert!(s.horizon.hdr);
-        let peak = row(&mut ui, &s, Item::Horizon(H::HdrPeak));
-        assert_eq!(
-            press(&mut ui, &mut s, (tx + 2.0, peak[1] + 4.0)),
-            [Action::SliderDrag]
-        );
-        ui.release();
-        // Calibrate starts the calibration; the shortcut row waits for a key.
-        let calibrate = row(&mut ui, &s, Item::Horizon(H::HdrCalibrate));
-        assert_eq!(
-            press(&mut ui, &mut s, at(calibrate)),
-            [Action::ButtonClick, Action::Calibrate]
-        );
-        let key = row(&mut ui, &s, Item::Horizon(H::HdrKey));
-        assert_eq!(
-            press(&mut ui, &mut s, at(key)),
-            [
-                Action::ButtonClick,
-                Action::BindKey(crate::graphics::HDR_KEY)
-            ]
-        );
-        assert!(ui.changed);
     }
 
     #[test]
@@ -2762,7 +2627,7 @@ mod tests {
         // Up from Done: the page list's last page.
         ui.focus = Some(Target::Done);
         ui.key_modifiers(&mut s, K::ArrowUp, None, false, SIZE, FB);
-        assert_eq!(ui.focus, Some(Target::Page(Page::Hdr)));
+        assert_eq!(ui.focus, Some(Target::Page(Page::Advanced)));
         // Its row wheeled far out of view: Down takes the first row in view, as it is.
         ui.focus = Some(Target::Item(Item::Horizon(H::Preset)));
         ui.scroll(&s, SIZE, -1000.0);
