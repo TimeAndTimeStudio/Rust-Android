@@ -111,10 +111,10 @@ public final class LauncherActivity extends Activity {
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         text.setGravity(Gravity.CENTER);
-        text.setBackgroundColor(0xFF000000);
+        text.setBackgroundColor(0xFF16161C);
         if (Build.VERSION.SDK_INT >= 21) {
-            getWindow().setStatusBarColor(0xFF000000);
-            getWindow().setNavigationBarColor(0xFF000000);
+            getWindow().setStatusBarColor(0xFF16161C);
+            getWindow().setNavigationBarColor(0xFF16161C);
         }
         setContentView(text);
         View decor = getWindow().getDecorView();

@@ -181,12 +181,20 @@ pub const PACK_ICON_SIZE: u32 = 128;
 // Bake the settings glyph into its plate: drawing a translucent glyph over
 // a translucent plate changes its effective alpha and darkens it twice.
 fn android_utility_sprites(images: &[PackedImage]) -> Vec<PackedImage> {
-    const TML_GLYPH: [&str; 5] = [
-        "###..#...#..#..",
-        ".#...##.##..#..",
-        ".#...#.#.#..#..",
-        ".#...#...#..#..",
-        ".#...#...#..###",
+    const GEAR: [&str; 13] = [
+        ".....###.....",
+        "..##.###.##..",
+        ".###########.",
+        ".###########.",
+        "..###...###..",
+        "####.....####",
+        "####.....####",
+        "####.....####",
+        "..###...###..",
+        ".###########.",
+        ".###########.",
+        "..##.###.##..",
+        ".....###.....",
     ];
     let mut out = Vec::new();
     for name in ["pause", "inventory", "settings"] {
@@ -206,10 +214,10 @@ fn android_utility_sprites(images: &[PackedImage]) -> Vec<PackedImage> {
                 continue;
             };
             let mut pixels = pixels.clone();
-            if name == "settings" && *w >= 15 && *h >= 5 {
-                let ox = (*w - 15) / 2;
-                let oy = (*h - 5) / 2;
-                for (y, row) in TML_GLYPH.iter().enumerate() {
+            if name == "settings" && *w >= 13 && *h >= 13 {
+                let ox = (*w - 13) / 2;
+                let oy = (*h - 13) / 2;
+                for (y, row) in GEAR.iter().enumerate() {
                     for (x, pixel) in row.bytes().enumerate() {
                         if pixel == b'#' {
                             let index = (((oy + y as u32) * w + ox + x as u32) * 4) as usize;
@@ -4215,15 +4223,26 @@ texture=wide",
             pixel[3] = 255;
         }
         let baked = android_utility_sprites(&images);
-        let settings_sprite = &baked
+        let gear = &baked
             .iter()
             .find(|i| i.0 == "starling:android-controls/settings")
             .unwrap()
             .3;
-        assert!(settings_sprite.as_chunks::<4>().0.iter().all(|p| p[3] == 204));
-        // The TML glyph pixels have ink = 0 on unpressed plate (e.g. top of T at x=4, y=8).
+        assert!(gear.as_chunks::<4>().0.iter().all(|p| p[3] == 204));
+        // The central bore is five texels wide and five high, with dark teeth
+        // above it. Its alpha is the plate's, rather than two blended layers.
+        for y in 8..13 {
+            for x in 8..13 {
+                let corner = (x == 8 || x == 12) && (y == 8 || y == 12);
+                let ink = if corner { 0 } else { 128 };
+                assert_eq!(
+                    &gear[(y * 22 + x) * 4..(y * 22 + x) * 4 + 4],
+                    &[ink, ink, ink, 204]
+                );
+            }
+        }
         assert_eq!(
-            &settings_sprite[(8 * 22 + 4) * 4..(8 * 22 + 4) * 4 + 4],
+            &gear[(4 * 22 + 10) * 4..(4 * 22 + 10) * 4 + 4],
             &[0, 0, 0, 204]
         );
     }

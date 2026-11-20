@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12 and up: the starting window, which StarlingActivity keeps until the game's
-         first frame, shows the app's icon on the game's dark background. -->
+    <!-- Android 12 and up: windowSplashScreenBackground and empty/transparent icon -->
     <style name="Starling.Game" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
-        <item name="android:windowSplashScreenBackground">#FF000000</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="android:statusBarColor">#FF000000</item>
-        <item name="android:navigationBarColor">#FF000000</item>
-        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:windowSplashScreenBackground">#FF16161C</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:statusBarColor">#FF16161C</item>
+        <item name="android:navigationBarColor">#FF16161C</item>
+        <item name="android:windowBackground">#FF16161C</item>
     </style>
 </resources>

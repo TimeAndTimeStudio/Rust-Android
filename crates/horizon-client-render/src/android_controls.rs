@@ -810,7 +810,8 @@ impl TouchControls {
                             color,
                         );
                     }
-                    Control::Pause => {
+                    Control::Pause | Control::Settings => {
+                        // The same square frame as Chat, sampled without its speech glyph.
                         menu_frame(b, a, bounds, color);
                         fitted_sprite(
                             b,
@@ -819,9 +820,6 @@ impl TouchControls {
                             [x + size * 0.23, y + size * 0.23, size * 0.54, size * 0.54],
                             color,
                         );
-                    }
-                    Control::Settings => {
-                        text_button(b, a, bounds, "TML", held, color, false);
                     }
                     _ => sprite(
                         b,
@@ -1687,7 +1685,7 @@ pub fn draw_single_mcpe_control(
                 color,
             );
         }
-        Control::Pause => {
+        Control::Pause | Control::Settings => {
             menu_frame(b, a, bounds, color);
             fitted_sprite(
                 b,
@@ -1696,9 +1694,6 @@ pub fn draw_single_mcpe_control(
                 [cx + size * 0.23, cy + size * 0.23, size * 0.54, size * 0.54],
                 color,
             );
-        }
-        Control::Settings => {
-            text_button(b, a, bounds, "TML", pressed, color, false);
         }
         _ => fitted_sprite(
             b,

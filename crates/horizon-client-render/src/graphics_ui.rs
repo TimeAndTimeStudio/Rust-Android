@@ -1658,7 +1658,7 @@ impl GraphicsUi {
     ) {
         let (x, y) = (cols.side_x, cols.side_y);
         style::fill(batch, atlas, [x, y + 2.0, 6.0, 6.0], style::ACCENT);
-        let horizon = Text::literal("Horizon");
+        let horizon = Text::literal("TML");
         batch.text_styled(atlas, &horizon, x + 10.0, y, style::WHITE, true);
         let title = Text::literal(lang::get("Graphics"));
         batch.text_styled(atlas, &title, x, y + 10.0, style::MUTED, true);
