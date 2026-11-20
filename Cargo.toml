@@ -111,10 +111,10 @@ lto = "off"
 
 # The crates edits land in, lightly optimized; the dependencies stay fully optimized.
 [profile.quick.package.horizon-client]
-opt-level = 1
+opt-level = 3
 
 [profile.quick.package.horizon-android]
-opt-level = 1
+opt-level = 3
 
 [profile.quick.package.horizon-client-lib]
-opt-level = 1
+opt-level = 3
