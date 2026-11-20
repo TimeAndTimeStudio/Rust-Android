@@ -281,25 +281,41 @@ pub enum FarDetail {
     /// Coarser levels start at half that distance: about a quarter of the
     /// far quads, for GPUs that far terrain slows down. Changes the picture.
     Reduced,
+    /// At a quarter of it: about a sixteenth of Full's far quads, for phones,
+    /// whose GPUs are held back by geometry (on an Adreno 740, Full at LOD
+    /// distance 128 drew 2.5 million far quads for 11 ms a frame). Far cells
+    /// span 1/64 to 1/32 of their distance.
+    Mobile,
 }
 impl FarDetail {
     pub fn name(self) -> &'static str {
         match self {
             FarDetail::Full => "full",
             FarDetail::Reduced => "reduced",
+            FarDetail::Mobile => "mobile",
         }
     }
     pub fn label(self) -> &'static str {
         match self {
             FarDetail::Full => "Full",
             FarDetail::Reduced => "Reduced",
+            FarDetail::Mobile => "Mobile",
         }
     }
     fn parse(s: &str) -> Self {
-        if s == "reduced" {
-            FarDetail::Reduced
-        } else {
-            FarDetail::Full
+        match s {
+            "reduced" => FarDetail::Reduced,
+            "mobile" => FarDetail::Mobile,
+            _ => FarDetail::Full,
+        }
+    }
+    /// How many times far terrain's levels start at half Full's distance
+    /// (`lod::Plan`): each time, about a quarter of the far quads.
+    pub fn coarseness(self) -> u8 {
+        match self {
+            FarDetail::Full => 0,
+            FarDetail::Reduced => 1,
+            FarDetail::Mobile => 2,
         }
     }
 }
@@ -341,6 +357,13 @@ pub enum LeafCullingMode {
     /// Every leaf face, as vanilla's fancy leaves draw them.
     #[default]
     Off,
+    /// Drops a face between two leaves when the leaf it faces has a leaf or
+    /// a full opaque cube behind it too: that face only shows through two
+    /// cutout layers. The faces behind the outer layer stay, so a crown
+    /// looks the same from outside. The faced leaf must be in the section
+    /// (as `Hollow`), so the block behind it is at most a border cell of the
+    /// next section, whose edits remesh this one.
+    Hidden,
     /// Leaves surrounded on all six sides by leaves or full opaque cubes draw
     /// in the opaque layer, so their cutouts no longer show the layers behind.
     Solid,
@@ -352,8 +375,9 @@ pub enum LeafCullingMode {
     Hollow,
 }
 impl LeafCullingMode {
-    pub const ALL: [LeafCullingMode; 4] = [
+    pub const ALL: [LeafCullingMode; 5] = [
         LeafCullingMode::Off,
+        LeafCullingMode::Hidden,
         LeafCullingMode::Solid,
         LeafCullingMode::SolidAggressive,
         LeafCullingMode::Hollow,
@@ -361,6 +385,7 @@ impl LeafCullingMode {
     pub fn name(self) -> &'static str {
         match self {
             LeafCullingMode::Off => "off",
+            LeafCullingMode::Hidden => "hidden",
             LeafCullingMode::Solid => "solid",
             LeafCullingMode::SolidAggressive => "solid_aggressive",
             LeafCullingMode::Hollow => "hollow",
@@ -369,6 +394,7 @@ impl LeafCullingMode {
     pub fn label(self) -> &'static str {
         match self {
             LeafCullingMode::Off => "Off",
+            LeafCullingMode::Hidden => "Hidden Faces",
             LeafCullingMode::Solid => "Solid",
             LeafCullingMode::SolidAggressive => "Solid Aggressive",
             LeafCullingMode::Hollow => "Hollow",
@@ -490,19 +516,24 @@ pub const INTEGRATED_LOD_DISTANCE: u32 = 128;
 pub fn lod_capped(info: &wgpu::AdapterInfo) -> bool {
     info.device_type == wgpu::DeviceType::IntegratedGpu && !info.name.starts_with("Apple")
 }
-/// A LOD distance as far terrain uses it on this adapter.
-pub fn lod_distance_capped(distance: u32, info: &wgpu::AdapterInfo) -> u32 {
+/// `INTEGRATED_LOD_DISTANCE` at Mobile far detail, whose far terrain costs a fraction of Full's
+/// (on a Snapdragon 8 Gen 2 at LOD distance 128: 3 ms of GPU a frame against 14).
+pub const INTEGRATED_MOBILE_LOD_DISTANCE: u32 = 256;
+/// A LOD distance as far terrain uses it on this adapter, at `far_detail`.
+pub fn lod_distance_capped(distance: u32, info: &wgpu::AdapterInfo, far_detail: FarDetail) -> u32 {
     let distance = distance.min(crate::lod::MAX_CHUNKS);
-    if lod_capped(info) {
-        distance.min(INTEGRATED_LOD_DISTANCE)
-    } else {
+    if !lod_capped(info) {
         distance
+    } else if far_detail == FarDetail::Mobile {
+        distance.min(INTEGRATED_MOBILE_LOD_DISTANCE)
+    } else {
+        distance.min(INTEGRATED_LOD_DISTANCE)
     }
 }
 impl Graphics {
     /// `lod_distance` as far terrain uses it on this adapter.
     pub fn lod_distance_on(&self, info: &wgpu::AdapterInfo) -> u32 {
-        lod_distance_capped(self.lod_distance, info)
+        lod_distance_capped(self.lod_distance, info, self.far_detail)
     }
     /// Whether the selected packs leave vanilla's block models in place.
     /// Horizon's occlusion assumptions (entity and leaf culling) hold only
@@ -1109,12 +1140,9 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
         Tier::Low => 70,
     };
     g.animated_textures = tier != Tier::Low;
-    // A phone's GPU is an integrated one, which far terrain slows most.
-    g.far_detail = if high {
-        FarDetail::Full
-    } else {
-        FarDetail::Reduced
-    };
+    // A phone's GPU is held back by geometry: Mobile far detail and Hidden leaf culling.
+    g.far_detail = FarDetail::Mobile;
+    g.leaf_culling = LeafCullingMode::Hidden;
 }
 
 #[cfg(test)]
@@ -1145,6 +1173,13 @@ mod tests {
         assert!(!low.horizon.animated_textures && high.horizon.animated_textures);
         // Auto-Jump on, as on Bedrock's touch screens.
         assert!(low.auto_jump && high.auto_jump);
+        // Far terrain as coarse as Mobile on every tier.
+        assert_eq!(
+            (low.horizon.far_detail, high.horizon.far_detail),
+            (FarDetail::Mobile, FarDetail::Mobile)
+        );
+        // Leaf faces no one sees left out, crowns as they were.
+        assert_eq!(high.horizon.leaf_culling, LeafCullingMode::Hidden);
         // What the options screens read back.
         let file = high.to_file();
         let back = crate::settings::Settings::from_file(file);

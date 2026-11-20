@@ -62,7 +62,7 @@ public final class LauncherActivity extends Activity {
         } else if (file != null) {
             final AlertDialog copying =
                     new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                            .setMessage("Handing the file to Starling...")
+                            .setMessage("Handing the file to TML...")
                             .setCancelable(false)
                             .show();
             receive(this, file, new Runnable() {
@@ -107,7 +107,7 @@ public final class LauncherActivity extends Activity {
             }
         }
         TextView text = new TextView(this);
-        text.setText("Opening the world with its mods…");
+        text.setText("");
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         text.setGravity(Gravity.CENTER);

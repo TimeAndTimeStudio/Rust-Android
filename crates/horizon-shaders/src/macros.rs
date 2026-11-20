@@ -145,6 +145,10 @@ impl Macros {
         for (i, material) in DH_BLOCK_MATERIALS.iter().enumerate() {
             m.define(format!("DH_BLOCK_{material}"), i.to_string());
         }
+        m.define("DISTANT_HORIZONS", "1");
+        m.define("DH_TERRAIN", "1");
+        m.define("DH_WATER", "1");
+        m.define("DH_SHADOW", "1");
         m.define("FADE_VARIABLE", "");
         m.define("REVERSED_CULLING", "");
 

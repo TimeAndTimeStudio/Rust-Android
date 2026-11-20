@@ -108,8 +108,9 @@ pub const TRANSLUCENT_BLEND: Blend = [
 ];
 
 /// `gbuffers_water` and its fallbacks (2.3).
-const WATER: [&str; 5] = [
+const WATER: [&str; 6] = [
     "gbuffers_water",
+    "dh_water",
     "gbuffers_terrain",
     "gbuffers_textured_lit",
     "gbuffers_textured",
@@ -117,8 +118,9 @@ const WATER: [&str; 5] = [
 ];
 
 /// `gbuffers_terrain` and its fallbacks (2.3).
-const TERRAIN: [&str; 4] = [
+const TERRAIN: [&str; 5] = [
     "gbuffers_terrain",
+    "dh_terrain",
     "gbuffers_textured_lit",
     "gbuffers_textured",
     "gbuffers_basic",

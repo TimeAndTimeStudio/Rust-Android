@@ -2550,6 +2550,8 @@ struct Game<'a> {
     /// (game/input_mode.rs).
     input_mode: horizon_client::input_mode::InputMode,
     frames: u64,
+    /// The last frame's blurred menu could be kept (`Game::menu_blur_cache`).
+    menu_blur_kept: bool,
     /// The glint clock and options, read once at the start of each frame
     /// (game/item_draw.rs).
     glint_frame: horizon_client::item_render::GlintFrame,
@@ -15740,9 +15742,11 @@ impl Game<'_> {
                 .facts()
                 .get(self.world.block(block[0], block[1], block[2]))
                 .solid_render;
+        let (menu_blur_cache, kept_menu) = self.menu_blur_cache();
         // The cave culling search runs on its worker while the frame is prepared.
         if cave_culling
             && self.title.is_none()
+            && !kept_menu
             && let Some(renderer) = self.renderer.as_mut()
         {
             horizon_client::spans::time("occlusion", || {
@@ -15982,7 +15986,7 @@ impl Game<'_> {
         self.see_through_vertices.clear();
         self.glowing_vertices.get_mut().clear();
         self.shadow_only_vertices.get_mut().clear();
-        if !title {
+        if !title && !kept_menu {
             let (built, static_sections, visible_static_sections, static_stats) =
                 spans::time("entity_geometry", || {
                     self.entity_geometry(camera, alpha, entities)
@@ -16208,6 +16212,7 @@ impl Game<'_> {
                 .boss_overlay
                 .darken_amount(self.clock.fraction() as f32),
             menu_blur: self.menu_blur(),
+            menu_blur_cache,
             post_effects: horizon_client::post_chain::Request {
                 effects: &requested_post_effects,
                 root: &self.options.resources,
@@ -16315,6 +16320,29 @@ impl Game<'_> {
                     || (self.screen == Screen::Win && self.win_screen_pauses())));
         let radius = self.settings.menu_blur as f32;
         (blurred && radius >= 1.0).then_some(radius)
+    }
+    /// Whether this frame's blurred menu may be kept (`Frame::menu_blur_cache`): a paused
+    /// single-player game, whose world does not move under the menu. Then whether the frame
+    /// is drawn from the kept one, without the world: only from the second frame of such a
+    /// menu on, so the first one blurs the world as it is. Any other frame forgets the kept
+    /// one. Adapted from Vasysik/horizon-android (`was_menu_blurred`, `skip_world_for_blur`,
+    /// its commit 77b9e17f76), MIT, copyright (c) 2026 Ludovic Marie and the Horizon
+    /// contributors.
+    fn menu_blur_cache(&mut self) -> (bool, bool) {
+        let radius = self.menu_blur();
+        let keep = radius.is_some() && self.pauses_game() && !self.shows_panorama();
+        let was = std::mem::replace(&mut self.menu_blur_kept, keep);
+        let Some(renderer) = self.renderer.as_mut() else {
+            return (keep, false);
+        };
+        if !keep || !was {
+            renderer.forget_menu_blur();
+            return (keep, false);
+        }
+        (
+            keep,
+            radius.is_some_and(|r| renderer.has_menu_blur_cache(r)),
+        )
     }
     /// `LevelExtractor` / `LevelRenderer`: the world border wall this frame.
     fn border_draw(
@@ -16659,11 +16687,11 @@ impl Game<'_> {
         }
         Ok(())
     }
-    /// LOD Distance and Far Detail Reduced as the player chose them, the
+    /// LOD Distance and Far Detail coarseness as the player chose them, the
     /// distance no farther than a server sampling far terrain for us allows.
-    fn far_terrain_choice(&self) -> (u32, bool) {
+    fn far_terrain_choice(&self) -> (u32, u8) {
         let g = &self.settings.horizon;
-        let reduced = g.far_detail == horizon_client::graphics::FarDetail::Reduced;
+        let coarseness = g.far_detail.coarseness();
         let distance = if self.ram_limit.far_off() {
             0
         } else {
@@ -16672,7 +16700,7 @@ impl Game<'_> {
                 None => g.lod_distance,
             }
         };
-        (distance, reduced)
+        (distance, coarseness)
     }
     /// The far terrain another machine's server samples for us
     /// (`lod_net`): a client of a dedicated server or of a LAN world, not of
@@ -16687,9 +16715,11 @@ impl Game<'_> {
     fn lod_distance(&self) -> u32 {
         let (distance, _) = self.far_terrain_choice();
         match &self.renderer {
-            Some(renderer) => {
-                horizon_client::graphics::lod_distance_capped(distance, &renderer.info)
-            }
+            Some(renderer) => horizon_client::graphics::lod_distance_capped(
+                distance,
+                &renderer.info,
+                self.settings.horizon.far_detail,
+            ),
             None => distance.min(horizon_client::lod::MAX_CHUNKS),
         }
     }
@@ -16934,7 +16964,7 @@ impl Game<'_> {
         {
             log::warn!("Horizon: failed to save unloaded chunks: {e}");
         }
-        let (far_distance, far_reduced) = self.far_terrain_choice();
+        let (far_distance, far_coarseness) = self.far_terrain_choice();
         // Terrain still on its way from the server (single player's integrated one
         // too): the view's outermost columns not all in, or its events not all handled.
         let radius = match &self.remote {
@@ -17028,10 +17058,13 @@ impl Game<'_> {
                 arriving || (meshing && self.view_arrival.recent(now)) || sampling,
             );
             if let (Some(lod), Some(player)) = (&mut self.lod, &self.player) {
-                let lod_distance =
-                    horizon_client::graphics::lod_distance_capped(far_distance, &renderer.info);
+                let lod_distance = horizon_client::graphics::lod_distance_capped(
+                    far_distance,
+                    &renderer.info,
+                    self.settings.horizon.far_detail,
+                );
                 lod.set_near_loading(self.streaming.terrain_loading());
-                lod.set_reduced_detail(far_reduced);
+                lod.set_far_coarseness(far_coarseness);
                 // The covered columns change only with the complete ones and
                 // the render area: rebuilt then, not every frame.
                 let at = (
@@ -19063,6 +19096,7 @@ impl<'a> Game<'a> {
             mobile: Default::default(),
             input_mode: horizon_client::input_mode::InputMode::first(cfg!(target_os = "android")),
             frames: 0,
+            menu_blur_kept: false,
             glint_frame: Default::default(),
             kept_block_entities: Default::default(),
             item_level_cache: Default::default(),
@@ -21499,6 +21533,10 @@ impl Loading {
             ));
             return;
         }
+        if let Some(next) = loading_frame_due(self.menu.diagnostic_frame) {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next));
+            return;
+        }
         if let Some(w) = &self.window {
             if self.options.as_ref().is_some_and(|o| o.offscreen) {
                 self.draw();
@@ -21508,6 +21546,24 @@ impl Loading {
         }
         event_loop.set_control_flow(ControlFlow::Poll);
     }
+
+/// When the next frame of the title menu drawn while the resources load is due, if that is still
+/// ahead (`last`: when the last one started). On Android at most 60 a second: it ran uncapped
+/// until the game's own frame limit took over, heating the phone while it prepared. Adapted from
+/// Vasysik/horizon-android (its commit f5cf0231bc), MIT, copyright (c) 2026 Ludovic Marie and
+/// the Horizon contributors.
+#[cfg(target_os = "android")]
+fn loading_frame_due(last: Option<Instant>) -> Option<Instant> {
+    let next = last? + Duration::from_nanos(1_000_000_000 / 60);
+    (Instant::now() < next).then_some(next)
+}
+
+/// When the next frame of the title menu drawn while the resources load is due: at once here
+/// (see the Android one).
+#[cfg(not(target_os = "android"))]
+fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
+    None
+}
     fn draw(&mut self) {
         let diagnostic_started = Instant::now();
         let diagnostic_elapsed = self

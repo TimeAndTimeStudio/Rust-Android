@@ -229,6 +229,21 @@ pub(super) fn in_section(x: i32, y: i32, z: i32) -> bool {
     (0..16).contains(&x) && (0..16).contains(&y) && (0..16).contains(&z)
 }
 
+/// `Hidden`: whether the padded cell `[x, y, z]`, the one behind a faced leaf,
+/// is a leaf or a full opaque cube. A cell without real data never is.
+#[inline]
+pub(super) fn backed(
+    pad: &Padded,
+    info: &[Info],
+    region: &[[Option<&Chunk>; 3]; 3],
+    base_y: i32,
+    [x, y, z]: [i32; 3],
+) -> bool {
+    info.get(pad.blocks[pi(x, y, z)] as usize)
+        .is_some_and(|state| state.leaves || state.opaque_cube)
+        && known(region, base_y, x, y, z)
+}
+
 /// Whether the padded cell `(x, y, z)` has real block data. A missing chunk
 /// does not count: `Padded::fill` copies the centre's edge column into it, which
 /// would make a canopy look enclosed. A Y outside the column counts as unknown

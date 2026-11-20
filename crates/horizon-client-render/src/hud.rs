@@ -1357,38 +1357,52 @@ impl HudAtlas {
             match Self::layout(&dimensions, limit) {
                 Ok(_) => return Ok(()),
                 Err(error) => {
+                    // The interface's own textures wait until the rest is as small as it goes:
+                    // a phone whose GPU takes 4096 and whose default resources need 4108 rows
+                    // (the PowerVR GE8322) then fits them, instead of losing its packs.
                     let mut changed = false;
-                    for (name, w, h, rgba) in images.iter_mut() {
-                        if name.starts_with("font/")
-                            || name.starts_with("gui/")
-                            || name.starts_with("ui/")
-                            || name.starts_with("horizon/")
-                            || (*w <= 32 && *h <= 32)
-                        {
-                            continue;
-                        }
-                        // Keep original GUI units and normalized UVs. Runtime patches
-                        // retain their full-size slots, so no coordinate remapping occurs.
-                        gui_sizes.entry(name.clone()).or_insert((*w, *h));
-                        let (old_w, old_h) = (*w, *h);
-                        *w = (*w / 2).max(1);
-                        *h = (*h / 2).max(1);
-                        let mut smaller = Vec::with_capacity((*w * *h * 4) as usize);
-                        for y in 0..*h {
-                            for x in 0..*w {
-                                let at = ((y * old_h / *h * old_w + x * old_w / *w) * 4) as usize;
-                                smaller.extend_from_slice(&rgba[at..at + 4]);
+                    for interface in [false, true] {
+                        for (name, w, h, rgba) in images.iter_mut() {
+                            // Never the glyphs, and never the slots written at run time
+                            // (`slots`, all under `horizon/`), whose size is their own.
+                            if name.contains("font/")
+                                || name.starts_with("horizon/")
+                                || (*w).max(*h) <= SMALLEST_SHRUNK_SIDE
+                                || rgba.len() < (*w as usize * *h as usize * 4)
+                            {
+                                continue;
                             }
+                            if (name.starts_with("gui/") || name.starts_with("ui/")) != interface {
+                                continue;
+                            }
+                            // Keep original GUI units and normalized UVs. Runtime patches
+                            // retain their full-size slots, so no coordinate remapping occurs.
+                            gui_sizes.entry(name.clone()).or_insert((*w, *h));
+                            let (old_w, old_h) = (*w, *h);
+                            *w = (*w / 2).max(1);
+                            *h = (*h / 2).max(1);
+                            let mut smaller = Vec::with_capacity((*w * *h * 4) as usize);
+                            for y in 0..*h {
+                                for x in 0..*w {
+                                    let at =
+                                        ((y * old_h / *h * old_w + x * old_w / *w) * 4) as usize;
+                                    smaller.extend_from_slice(&rgba[at..at + 4]);
+                                }
+                            }
+                            *rgba = smaller;
+                            changed = true;
                         }
-                        *rgba = smaller;
-                        changed = true;
+                        if changed {
+                            log::info!(
+                                "Reduced {} atlas sprites to fit the adapter's {limit}px texture limit",
+                                if interface { "interface" } else { "non-UI" }
+                            );
+                            break;
+                        }
                     }
                     if !changed {
                         return Err(error);
                     }
-                    log::info!(
-                        "Reduced non-UI atlas sprites to fit the adapter's {limit}px texture limit"
-                    );
                 }
             }
         }

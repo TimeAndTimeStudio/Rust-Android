@@ -611,17 +611,17 @@ const FIRST_CHUNKS: i32 = 4;
 impl Plan {
     #[cfg(test)]
     fn new(camera: [i32; 2], detail: i32, distance: u32) -> Self {
-        Self::with_previous(camera, detail, distance, &Self::default(), 0, false)
+        Self::with_previous(camera, detail, distance, &Self::default(), 0, 0)
     }
-    /// `reduced`: Reduced far detail (`graphics::FarDetail`), each level from
-    /// half the distance.
+    /// `coarseness`: far detail coarser than Full (`graphics::FarDetail::coarseness`),
+    /// each level from half the distance per step (1 Reduced, 2 Mobile).
     fn with_previous(
         camera: [i32; 2],
         detail: i32,
         distance: u32,
         previous: &Self,
         elevation: i32,
-        reduced: bool,
+        coarseness: u8,
     ) -> Self {
         let range = distance.min(MAX_CHUNKS) as i32 * 16;
         let mut level = 0;
@@ -640,7 +640,7 @@ impl Plan {
             for x in (camera[0] - range).div_euclid(size)..=(camera[0] + range).div_euclid(size) {
                 let key = TileKey { x, z, level };
                 result.roots.push(key);
-                result.visit(key, camera, detail, range, previous, reduced);
+                result.visit(key, camera, detail, range, previous, coarseness);
             }
         }
         result
@@ -652,7 +652,7 @@ impl Plan {
         detail: i32,
         range: i32,
         previous: &Self,
-        reduced: bool,
+        coarseness: u8,
     ) {
         // The range is a circle, as the renderer's: a tile leaves it, and
         // fades out (gfx/lod.rs), as the player moves.
@@ -663,25 +663,24 @@ impl Plan {
             self.by_level[key.level as usize].push(key);
         }
         // Keep distant cells small on screen; finest tiles retain individual
-        // blocks. Reduced keeps them twice as large (a quarter of the cells).
-        let split = if previous.split.contains(&key) { 10 } else { 8 };
-        // Beyond the old 1024-chunk limit the cells are as large as `reduced`'s:
-        // the whole world is 22 levels, not all of them worth full cells.
-        let threshold = key.size()
-            * if key.distance(camera) >= WORLD_START {
-                WORLD_SPLIT
-            } else if reduced {
-                split / 2
-            } else {
-                split
-            };
+        // blocks. Each step of coarseness keeps them twice as large (a quarter
+        // of the cells): Reduced one, Mobile two.
+        let held = previous.split.contains(&key);
+        let doubled: i64 = if held { 20 } else { 16 };
+        let split = i64::from(key.size()) * doubled / (2 << coarseness.min(4));
+        let world = key.distance(camera) >= WORLD_START;
+        let threshold = if world {
+            split.min(i64::from(key.size()) * i64::from(WORLD_SPLIT))
+        } else {
+            split
+        } as i32;
         if key.level > 0
             && (key.distance(camera) < detail * 16 + 16
                 || key.distance(camera).max(self.elevation) < threshold)
         {
             self.split.insert(key);
             for child in key.children() {
-                self.visit(child, camera, detail, range, previous, reduced);
+                self.visit(child, camera, detail, range, previous, coarseness);
             }
         }
     }
@@ -1018,10 +1017,10 @@ pub struct Lod {
     context: Option<Arc<WorkerContext>>,
     /// A finished mesh job may have changed the selection of its ancestors.
     reselect: bool,
-    area: Option<([i32; 2], i32, u32, i32, bool)>,
+    area: Option<([i32; 2], i32, u32, i32, u8)>,
     plan: Plan,
-    /// Reduced far detail (`set_reduced_detail`).
-    reduced_detail: bool,
+    /// Far detail coarseness (`set_far_coarseness`).
+    far_coarseness: u8,
     pending: FxHashSet<TileKey>,
     detail_masks: FxHashMap<TileKey, [u64; 4]>,
     detail_request_pending: bool,
@@ -1400,7 +1399,7 @@ impl Lod {
             context: lod_context,
             reselect: true,
             area: None,
-            reduced_detail: false,
+            far_coarseness: 0,
             plan: Plan::default(),
             pending: FxHashSet::default(),
             detail_masks: FxHashMap::default(),
@@ -2090,12 +2089,15 @@ impl Lod {
             self.shared.mesh_wake.notify_all();
         }
     }
-    /// Reduced far detail (`graphics::FarDetail::Reduced`): the next update
-    /// replans when it changes, and tiles sampled from then on approximate
-    /// wide cells (`GeneratorWorker::lod_grid`).
+    /// Far detail coarser than Full (`graphics::FarDetail::coarseness`: 1
+    /// Reduced, 2 Mobile): the next update replans when it changes, and tiles
+    /// sampled from then on approximate wide cells (`GeneratorWorker::lod_grid`).
+    pub fn set_far_coarseness(&mut self, coarseness: u8) {
+        self.far_coarseness = coarseness;
+        self.shared.approximate.store(coarseness > 0, Ordering::Relaxed);
+    }
     pub fn set_reduced_detail(&mut self, reduced: bool) {
-        self.reduced_detail = reduced;
-        self.shared.approximate.store(reduced, Ordering::Relaxed);
+        self.set_far_coarseness(if reduced { 1 } else { 0 });
     }
     fn held(&self) -> bool {
         self.small && self.near_loading
@@ -2188,7 +2190,7 @@ impl Lod {
             detail,
             distance,
             elevation,
-            self.reduced_detail,
+            self.far_coarseness,
         );
         if self.area != Some(area) {
             crate::spans::time("lod_plan", || {
@@ -2223,7 +2225,7 @@ impl Lod {
             distance,
             &self.plan,
             elevation,
-            self.reduced_detail,
+            self.far_coarseness,
         );
         self.ready.retain(|key, _| self.plan.nodes.contains(key));
         // Queued tiles the view left are not sampled (a running one is
@@ -2945,7 +2947,7 @@ mod tests {
         for camera in [[0, 0], [100, -40]] {
             for distance in [64, 128, 512, 1024] {
                 let full = Plan::new(camera, 12, distance);
-                let reduced = Plan::with_previous(camera, 12, distance, &Plan::default(), 0, true);
+                let reduced = Plan::with_previous(camera, 12, distance, &Plan::default(), 0, 1);
                 // Never finer than Full anywhere, and as fine next to the
                 // full-detail area, whose edge the finest tiles match.
                 assert!(reduced.split.is_subset(&full.split));
@@ -3006,9 +3008,9 @@ mod tests {
             ([-30_000_000, 29_999_000], 90),
         ] {
             let plan =
-                Plan::with_previous(camera, 12, MAX_CHUNKS, &Plan::default(), elevation, false);
+                Plan::with_previous(camera, 12, MAX_CHUNKS, &Plan::default(), elevation, 0);
             let reduced =
-                Plan::with_previous(camera, 12, MAX_CHUNKS, &Plan::default(), elevation, true);
+                Plan::with_previous(camera, 12, MAX_CHUNKS, &Plan::default(), elevation, 1);
             let top = plan.nodes.iter().map(|k| k.level).max().unwrap();
             assert_eq!(top, MAX_LEVEL, "{camera:?} y={elevation}: roots stop short");
             assert!(
@@ -3035,7 +3037,7 @@ mod tests {
     #[test]
     fn aerial_distance_avoids_unseen_full_detail_outside_the_near_area() {
         let ground = Plan::new([0, 0], 12, 1024);
-        let high = Plan::with_previous([0, 0], 12, 1024, &Plan::default(), 1024, false);
+        let high = Plan::with_previous([0, 0], 12, 1024, &Plan::default(), 1024, 0);
         assert!(high.nodes.len() < ground.nodes.len());
         assert!(
             high.nodes.contains(&TileKey {
@@ -3090,7 +3092,7 @@ mod tests {
         // stand-in for a covered column, and only the roots are sampled.
         let camera = [8, 8];
         let before = Plan::new(camera, 64, 64);
-        let after = Plan::with_previous(camera, 8, 64, &before, 0, false);
+        let after = Plan::with_previous(camera, 8, 64, &before, 0, 0);
         let mut ready: FxHashMap<TileKey, ()> = before
             .nodes
             .iter()
@@ -3129,7 +3131,7 @@ mod tests {
     #[test]
     fn detail_survives_movement_across_a_split_threshold() {
         let before = Plan::new([0, 0], 2, 256);
-        let after = Plan::with_previous([16, 0], 2, 256, &before, 0, false);
+        let after = Plan::with_previous([16, 0], 2, 256, &before, 0, 0);
         let mut retained = 0;
         let range = i64::from(256 * 16);
         for key in &before.split {
@@ -3846,7 +3848,7 @@ mod tests {
     fn far_cells_past_render_distance_12_start_one_block_wide() {
         // Leaves' cells: 1 block to 256 blocks out, 2 to 512 (Full); Reduced
         // keeps 1 to the near terrain's edge and 2 to 256.
-        for (reduced, [one, two]) in [(false, [256, 512]), (true, [208, 256])] {
+        for (reduced, [one, two]) in [(0, [256, 512]), (1, [208, 256])] {
             let plan = Plan::with_previous([8, 8], 12, 128, &Plan::default(), 0, reduced);
             for key in plan.nodes.iter().filter(|key| !plan.split.contains(key)) {
                 let distance = key.distance([8, 8]);
@@ -3866,7 +3868,7 @@ mod tests {
     /// every far column is drawn, by its tile or a coarse stand-in: until
     /// then the far terrain ends short of the horizon. Checks that no coarse
     /// tile is ever drawn at the seam.
-    fn jobs_until_fine_seam(camera: [i32; 2], reduced: bool) -> ([(usize, i32); 2], usize) {
+    fn jobs_until_fine_seam(camera: [i32; 2], coarseness: u8) -> ([(usize, i32); 2], usize) {
         let (detail, distance) = (12, 128);
         let center = (camera[0].div_euclid(16), camera[1].div_euclid(16));
         let mut covered = FxHashSet::default();
@@ -3877,7 +3879,7 @@ mod tests {
                 }
             }
         }
-        let plan = Plan::with_previous(camera, detail, distance, &Plan::default(), 0, reduced);
+        let plan = Plan::with_previous(camera, detail, distance, &Plan::default(), 0, coarseness);
         let leaf = |x: i32, z: i32| {
             (0..=MAX_LEVEL)
                 .map(|level| TileKey {
@@ -3969,7 +3971,7 @@ mod tests {
         // order that filled a ring ahead first and refined broad tiles every
         // other job took 54000 to 119000 for the seam in view alone.
         for camera in [[8, 8], [40, -9], [-300, 517]] {
-            for reduced in [false, true] {
+            for reduced in [0, 1] {
                 let ([(jobs, cost), _], _) = jobs_until_fine_seam(camera, reduced);
                 assert!(jobs < 320, "{jobs} jobs");
                 assert!(cost < 9000, "{cost} lattice points");
@@ -3984,7 +3986,7 @@ mod tests {
         // ended in a hard edge. The backdrop adds ~230 coarse tiles (~80 in
         // Reduced), about a tenth more work in all.
         for camera in [[8, 8], [40, -9], [-300, 517]] {
-            for reduced in [false, true] {
+            for reduced in [0, 1] {
                 let ([_, (jobs, cost)], leaves) = jobs_until_fine_seam(camera, reduced);
                 assert!(jobs < 1000 && jobs < leaves, "{jobs} jobs of {leaves}");
                 assert!(cost < 100_000, "{cost} lattice points");

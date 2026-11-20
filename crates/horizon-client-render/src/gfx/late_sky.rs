@@ -9,6 +9,13 @@
 //! and occlusion culling keep the usual order.
 use super::adreno::TerrainModule;
 
+/// Whether frames on this GPU may draw the sky after solid terrain: any GPU behind Android's
+/// Vulkan. Adapted from Vasysik/horizon-android (`late_sky` in its `gfx.rs`, on any Android
+/// Vulkan GPU), MIT, copyright (c) 2026 Ludovic Marie and the Horizon contributors.
+pub(super) fn wanted(info: &wgpu::AdapterInfo) -> bool {
+    cfg!(target_os = "android") && info.backend == wgpu::Backend::Vulkan
+}
+
 pub(super) struct LateSky {
     pub sky: wgpu::RenderPipeline,
     pub sunrise: wgpu::RenderPipeline,
