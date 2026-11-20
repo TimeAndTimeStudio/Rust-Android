@@ -14,4 +14,9 @@ impl Game<'_> {
     pub fn catalog_touch(&mut self, _t: &winit::event::Touch) -> bool { false }
     pub fn catalog_back(&mut self) -> bool { false }
     pub fn catalog_typing(&self) -> bool { false }
+    pub fn open_catalog_on(&mut self, _shelf: ()) {}
+    pub fn catalog_query(&self) -> &str { "" }
+    pub fn catalog_type(&mut self, _text: &str) {}
+    pub fn catalog_submit(&mut self) {}
+    pub fn catalog_backspace(&mut self) {}
 }

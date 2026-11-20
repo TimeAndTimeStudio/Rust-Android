@@ -19,16 +19,8 @@ pub(super) const CONTROL_HELP: &[&str] = &[
     "graphics-set KEY VALUE         set a Horizon graphics setting (resolutionScale 25..200, presentMode, workers...), apply and save it",
 ];
 
-/// The catalog's shelf for a page's Catalog button.
 #[cfg(target_os = "android")]
-fn catalog_shelf(shelf: horizon_client::options_ui::CatalogShelf) -> starling_catalog::Shelf {
-    use horizon_client::options_ui::CatalogShelf;
-    match shelf {
-        CatalogShelf::Mods => starling_catalog::Shelf::Mods,
-        CatalogShelf::ResourcePacks => starling_catalog::Shelf::ResourcePacks,
-        CatalogShelf::ShaderPacks => starling_catalog::Shelf::ShaderPacks,
-    }
-}
+fn catalog_shelf(_shelf: horizon_client::options_ui::CatalogShelf) {}
 
 impl Game<'_> {
     /// One of the game's folders (packs, shader packs, mods) in the file manager. On a phone the
@@ -477,7 +469,7 @@ impl Game<'_> {
                     self.open_game_folder(&Self::game_dir().join(horizon_client::mod_list::DIR))
                 }
                 #[cfg(target_os = "android")]
-                Event::OpenCatalog(shelf) => self.open_catalog_on(catalog_shelf(shelf)),
+                Event::OpenCatalog(_) => {},
                 #[cfg(not(target_os = "android"))]
                 Event::OpenCatalog(_) => {}
                 Event::DataPacks(ids) => {
