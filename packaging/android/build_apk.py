@@ -182,8 +182,8 @@ def assets(out):
         for name in ["manifest.json", *sorted(manifest["classes"])]:
             kit.write(bundle / name, "exporters/" + name)
     zip_folder(HERE.parent / "lowbudget" / "pack", folder / "lowbudget.zip")
-    zip_folder(HERE.parent / "shaderpacks" / "tml-visuals", folder / "StarlingVisuals.zip")
-    shutil.copyfile(folder / "StarlingVisuals.zip", out / "StarlingVisuals.zip")
+    zip_folder(HERE.parent / "shaderpacks" / "tml-visuals", folder / "TMLVisuals.zip")
+    shutil.copyfile(folder / "TMLVisuals.zip", out / "TMLVisuals.zip")
     return folder
 
 

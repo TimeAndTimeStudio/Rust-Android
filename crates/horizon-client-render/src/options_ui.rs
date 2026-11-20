@@ -3439,6 +3439,10 @@ impl OptionsUi {
                     |key: &str, page: Page| button(0.0, 0.0, 150.0, tr(key), Act::Push(page));
                 vec![
                     Row::Buttons(
+                        button(0.0, 0.0, 310.0, Text::literal("Shader Packs..."), Act::Push(Page::ShaderPacks)),
+                        None,
+                    ),
+                    Row::Buttons(
                         open("horizon.pages.open.graphics", Page::Graphics),
                         Some(open(
                             "horizon.pages.open.graphics_advanced",
@@ -3446,12 +3450,8 @@ impl OptionsUi {
                         )),
                     ),
                     Row::Buttons(
-                        open("horizon.pages.open.shader_packs", Page::ShaderPacks),
-                        Some(open("horizon.pages.open.controller", Page::Controller)),
-                    ),
-                    Row::Buttons(
                         open("horizon.pages.open.extras", Page::Extras),
-                        None,
+                        Some(open("horizon.pages.open.controller", Page::Controller)),
                     ),
                 ]
             }

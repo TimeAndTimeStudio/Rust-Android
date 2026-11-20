@@ -412,7 +412,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             (tr("setup.offline_title"), Action::Offline),
         ],
         step if waiting(step) => vec![
-            literal("Go fishing", Action::Fish),
             literal("Settings", Action::Settings),
         ],
         _ => Vec::new(),
