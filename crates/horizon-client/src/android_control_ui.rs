@@ -1825,7 +1825,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.resolution_scale_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
@@ -1843,7 +1843,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.sensitivity_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
@@ -1860,7 +1860,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.mouse_speed_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
@@ -1877,7 +1877,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.pointer_size_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
@@ -1894,7 +1894,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.gyro_sensitivity_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
@@ -1911,7 +1911,7 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.button_scale_dragging = false;
-                    return Some(InGameMenuAction::Close);
+                    return None;
                 }
                 _ => {}
             }
