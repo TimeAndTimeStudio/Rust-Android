@@ -996,8 +996,8 @@ impl<'a> Ui<'a> {
             self.corner_quad(rect, x0, y1 - r, r, (false, true), color);
         }
     }
-    /// A filled rectangle with rounded corners.
-    pub fn rounded(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
+    /// A filled rectangle with sharp corners.
+    pub fn rounded(&mut self, x: f32, y: f32, w: f32, h: f32, _radius: f32, color: u32) {
         if color >> 24 == 0 {
             return;
         }
@@ -1007,13 +1007,7 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        // Pure sharp rectangle
         self.raw_fill(x0, y0, x1, y1, color);
-        return;
-        self.raw_fill(x0 + r, y0, x1 - r, y1, color);
-        self.raw_fill(x0, y0 + r, x0 + r, y1 - r, color);
-        self.raw_fill(x1 - r, y0 + r, x1, y1 - r, color);
-        self.corners(x0, y0, x1, y1, r, 0, color);
     }
     /// A 1px rounded border.
     pub fn border(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
@@ -1489,22 +1483,6 @@ impl<'a> Ui<'a> {
             (y1 - t).max(y0),
             color,
         );
-        return;
-        self.raw_fill(x0 + r, y0, x1 - r, (y0 + t).min(y1), color);
-        self.raw_fill(x0 + r, (y1 - t).max(y0), x1 - r, y1, color);
-        self.raw_fill(x0, y0 + r, (x0 + t).min(x1), y1 - r, color);
-        self.raw_fill((x1 - t).max(x0), y0 + r, x1, y1 - r, color);
-        if t < r {
-            let atlas = self.atlas;
-            if let Some(rect) = with_cache(atlas, |c| c.corner(atlas, r as u16, t as u16)) {
-                self.corner_quad(rect, x0, y0, r, (false, false), color);
-                self.corner_quad(rect, x1 - r, y0, r, (true, false), color);
-                self.corner_quad(rect, x1 - r, y1 - r, r, (true, true), color);
-                self.corner_quad(rect, x0, y1 - r, r, (false, true), color);
-            }
-        } else {
-            self.corners(x0, y0, x1, y1, r, 0, color);
-        }
     }
 
     /// Centered fitted text inside `[x, y, w, h]` dp.
