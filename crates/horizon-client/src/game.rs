@@ -21533,7 +21533,7 @@ impl Loading {
             ));
             return;
         }
-        if let Some(next) = loading_frame_due(self.menu.diagnostic_frame) {
+        if let Some(next) = Self::loading_frame_due(self.menu.diagnostic_frame) {
             event_loop.set_control_flow(ControlFlow::WaitUntil(next));
             return;
         }
