@@ -1,4 +1,4 @@
-package io.github.juanluci.starling;
+package com.timeandtimestudio.tml;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

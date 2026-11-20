@@ -1,4 +1,4 @@
-package io.github.juanluci.starling;
+package com.timeandtimestudio.tml;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;

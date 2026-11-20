@@ -1,4 +1,4 @@
-package io.github.juanluci.starling;
+package com.timeandtimestudio.tml;
 
 import android.Manifest;
 import android.app.AlertDialog;
@@ -147,8 +147,8 @@ public class StarlingActivity extends NativeActivity {
                 : context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                         == PackageManager.PERMISSION_GRANTED;
         String id = context.getPackageName();
-        String name = id.endsWith(".dev") ? "StarlingDev"
-                : id.endsWith(".preview") ? "StarlingPreview" : "Starling";
+        String name = id.endsWith(".dev") ? "TMLDev"
+                : id.endsWith(".preview") ? "TMLPreview" : "TML";
         return allowed
                 ? new File(Environment.getExternalStorageDirectory(), name).getPath()
                 : null;

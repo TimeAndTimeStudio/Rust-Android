@@ -1,4 +1,4 @@
-package io.github.juanluci.starling;
+package com.timeandtimestudio.tml;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -30,7 +30,7 @@ import java.io.OutputStream;
  */
 public final class LauncherActivity extends Activity {
     /** The game's process id: start the game again once it has ended. */
-    static final String AFTER = "io.github.juanluci.starling.AFTER";
+    static final String AFTER = "com.timeandtimestudio.tml.AFTER";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

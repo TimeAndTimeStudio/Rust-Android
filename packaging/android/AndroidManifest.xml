@@ -43,7 +43,7 @@
         android:extractNativeLibs="true">
         <!-- A task of its own, out of the recents: the game's task stays the game's. -->
         <activity
-            android:name="io.github.tml.client.LauncherActivity"
+            android:name="com.timeandtimestudio.tml.LauncherActivity"
             android:exported="true"
             android:process=":launcher"
             android:taskAffinity="@APPLICATION_ID@.launcher"
@@ -91,8 +91,8 @@
             </intent-filter>
         </activity>
         <!-- Keep the 0.2.3 home-screen component, but route before native loading. -->
-        <activity-alias android:name="io.github.tml.client.StarlingActivity"
-            android:targetActivity="io.github.tml.client.LauncherActivity"
+        <activity-alias android:name="com.timeandtimestudio.tml.StarlingActivity"
+            android:targetActivity="com.timeandtimestudio.tml.LauncherActivity"
             android:exported="true">
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
             <intent-filter>
@@ -101,7 +101,7 @@
             </intent-filter>
         </activity-alias>
         <activity
-            android:name="io.github.tml.client.GameActivity"
+            android:name="com.timeandtimestudio.tml.GameActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
@@ -114,16 +114,16 @@
             <meta-data android:name="android.app.func_name" android:value="starling_on_create" />
 
         </activity>
-        <activity android:name="io.github.tml.client.DiagnosticsActivity"
+        <activity android:name="com.timeandtimestudio.tml.DiagnosticsActivity"
             android:exported="true" android:process=":diagnostics"
             android:theme="@style/Starling.Game" android:hardwareAccelerated="false" />
         <service
-            android:name="io.github.tml.client.WorkService"
+            android:name="com.timeandtimestudio.tml.WorkService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <!-- The downloaded update, for the installer only (UpdateProvider). -->
         <provider
-            android:name="io.github.tml.client.UpdateProvider"
+            android:name="com.timeandtimestudio.tml.UpdateProvider"
             android:authorities="@APPLICATION_ID@.updates"
             android:exported="false"
             android:grantUriPermissions="true" />
@@ -131,7 +131,7 @@
              bind. In a process of its own: the game ends its process with its activity, which
              would cut a copy short. -->
         <provider
-            android:name="io.github.tml.client.GameFolderProvider"
+            android:name="com.timeandtimestudio.tml.GameFolderProvider"
             android:authorities="@APPLICATION_ID@.documents"
             android:exported="true"
             android:process=":documents"

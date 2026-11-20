@@ -34,16 +34,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 
-APPLICATION_ID = "io.github.juanluci.starling"
+APPLICATION_ID = "com.timeandtimestudio.tml"
 LABEL = "TML"
 # --dev and --preview: an app of its own, installed beside the release (which a build signed with
 # another key cannot install over), with its own folder (TMLActivity.sharedFolder: StarlingDev,
-# StarlingPreview) and its own sign-in and game files. Preview is what starling-client/starling's
+# StarlingPreview) and its own sign-in and game files. Preview is what tml-client/starling's
 # CI builds, signed with that repository's test key: the release key stays out of it.
 DEV_SUFFIX = ".dev"
 VARIANTS = {"dev": (DEV_SUFFIX, " Dev"), "preview": (".preview", " Preview")}
-VERSION_NAME = "1.0.0-tml"
-VERSION_CODE = 14
+VERSION_NAME = "1.0.0"
+VERSION_CODE = 15
 MIN_SDK = 26  # AAudio (cpal)
 TARGET_SDK = 35
 PLATFORM = 36
@@ -182,7 +182,7 @@ def assets(out):
         for name in ["manifest.json", *sorted(manifest["classes"])]:
             kit.write(bundle / name, "exporters/" + name)
     zip_folder(HERE.parent / "lowbudget" / "pack", folder / "lowbudget.zip")
-    zip_folder(HERE.parent / "shaderpacks" / "starling-visuals", folder / "StarlingVisuals.zip")
+    zip_folder(HERE.parent / "shaderpacks" / "tml-visuals", folder / "StarlingVisuals.zip")
     shutil.copyfile(folder / "StarlingVisuals.zip", out / "StarlingVisuals.zip")
     return folder
 
@@ -241,7 +241,7 @@ def link_resources(aapt2, android_jar, out, assets, variant, abi=ABI):
         f'<color name="starling_{name}">#{colors[name]}</color>'
         for name in ("page", "rule", "ink", "ink_soft", "accent", "on_accent")
     )
-    (res / "values/starling-colors.xml").write_text(f"<resources>\n{entries}\n</resources>\n", encoding="utf-8")
+    (res / "values/tml-colors.xml").write_text(f"<resources>\n{entries}\n</resources>\n", encoding="utf-8")
     compiled = out / "compiled"
     shutil.rmtree(compiled, ignore_errors=True)
     compiled.mkdir()
@@ -252,7 +252,7 @@ def link_resources(aapt2, android_jar, out, assets, variant, abi=ABI):
     run(
         aapt2, "link", "-o", out / "base.apk",
         "--manifest", out / "AndroidManifest.xml",
-        "--java", out / "generated", "--custom-package", "io.github.juanluci.starling",
+        "--java", out / "generated", "--custom-package", "com.timeandtimestudio.tml",
         "-I", android_jar,
         "--min-sdk-version", MIN_SDK, "--target-sdk-version", TARGET_SDK,
         "--version-code", VERSION_CODE, "--version-name", VERSION_NAME,

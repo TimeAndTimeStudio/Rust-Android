@@ -1,4 +1,4 @@
-package io.github.juanluci.starling;
+package com.timeandtimestudio.tml;
 
 import android.content.Context;
 import android.util.AtomicFile;
@@ -9,7 +9,7 @@ import org.json.JSONObject;
 
 /** Persist each attempt before native loading; offer recovery once per interrupted attempt. */
 final class StartupRecovery {
-    static final String RECOVERY = "io.github.juanluci.starling.INTERRUPTED_START";
+    static final String RECOVERY = "com.timeandtimestudio.tml.INTERRUPTED_START";
     private static File marker(Context context) { return new File(context.getFilesDir(), "starling-starting"); }
     static void begin(Context context) {
         try { new FileOutputStream(marker(context)).close(); }
