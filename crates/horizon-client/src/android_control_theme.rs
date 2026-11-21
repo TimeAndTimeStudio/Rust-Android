@@ -1060,13 +1060,34 @@ impl<'a> Ui<'a> {
         }
     }
 
+    /// Draw the vector TML app icon (.svg squircle tile, dual brackets, and accent bar) at `(x, y)` in `size x size` dp.
+    pub fn tml_app_icon(&mut self, x: f32, y: f32, size: f32) {
+        if size <= 0.0 {
+            return;
+        }
+        let accent = active_theme().accent;
+        // Dark squircle tile background (viewBox 16x16: rx=3.5 -> rad ~ 0.22)
+        self.rounded(x, y, size, size, size * 0.22, color::hex(0x16181f, 255));
+        // Top & bottom pillar brackets (x: 4/16 and 10/16, w: 2/16, h: 4/16)
+        let p_w = (size * (2.0 / 16.0)).max(1.5);
+        let p_h = (size * (4.0 / 16.0)).max(2.5);
+        let col1_x = x + size * (4.0 / 16.0);
+        let col2_x = x + size * (10.0 / 16.0);
+        let top_y = y + size * (3.0 / 16.0);
+        let bot_y = y + size * (8.0 / 16.0);
+        // Upper pillars (solid #ecedf3)
+        self.fill(col1_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+        self.fill(col2_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+        // Lower pillars (translucent #ecedf3 with opacity ~ 36%)
+        self.fill(col1_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+        self.fill(col2_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+        // Horizon accent bar across middle (y: 7/16, h: 1/16)
+        self.fill(x, y + size * (7.0 / 16.0), size, (size * (1.0 / 16.0)).max(1.0), accent);
+    }
+
     /// Draw the stylized two-tone Horizon `H` mark at `(x, y)` in `size x size` dp.
     pub fn horizon_logo(&mut self, x: f32, y: f32, size: f32) {
-        let theme = active_theme();
-        let primary = theme.accent;
-        let shadow = color::with_alpha(theme.surface_selected, 0.92);
-        self.icon(Icon::HorizonLogo, x, y + 0.5, size, shadow);
-        self.icon(Icon::HorizonLogo, x, y, size, primary);
+        self.tml_app_icon(x, y, size);
     }
 
     pub fn m3_switch(&mut self, x: f32, y: f32, on: bool) {

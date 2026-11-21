@@ -2684,12 +2684,11 @@ impl TouchUi {
                     bh,
                     color::with_alpha(rgba(16, 18, 24, 180), bubble_alpha),
                 );
-                ui.icon(
-                    Icon::HorizonLogo,
-                    bx + bw * 0.25,
-                    by + bh * 0.1,
-                    bh * 0.8,
-                    color::with_alpha(text_c, bubble_alpha),
+                let app_ic_s = (bh * 0.72).clamp(20.0, 32.0);
+                ui.tml_app_icon(
+                    bx + (bw - app_ic_s) * 0.5,
+                    by + (bh - app_ic_s) * 0.5,
+                    app_ic_s,
                 );
             } else {
                 ui.rounded(
@@ -2720,19 +2719,11 @@ impl TouchUi {
                     1.6,
                     color::with_alpha(accent, bubble_alpha),
                 );
-                ui.icon(
-                    Icon::MenuEquals,
-                    bx + (bw - 22.0) * 0.5,
-                    by + (bh - 22.0) * 0.5,
-                    22.0,
-                    color::with_alpha(
-                        if self.floating_menu {
-                            accent_fg
-                        } else {
-                            accent_hi
-                        },
-                        bubble_alpha,
-                    ),
+                let app_ic_s = 22.0;
+                ui.tml_app_icon(
+                    bx + (bw - app_ic_s) * 0.5,
+                    by + (bh - app_ic_s) * 0.5,
+                    app_ic_s,
                 );
             }
         }
@@ -2762,16 +2753,11 @@ impl TouchUi {
         // Top Header Bar with Active Control System Mode Badge
         ui.rounded(dx + 14.0, dy + 9.0, 30.0, 30.0, 9.0, card_sel);
         ui.border(dx + 14.0, dy + 9.0, 30.0, 30.0, 9.0, accent);
-        ui.icon(
-            if settings.control_style == ControlStyle::Mcpe {
-                Icon::HorizonLogo
-            } else {
-                Icon::Settings
-            },
-            dx + 20.0,
-            dy + 15.0,
-            18.0,
-            accent_hi,
+        let header_ic_s = 20.0;
+        ui.tml_app_icon(
+            dx + 14.0 + (30.0 - header_ic_s) * 0.5,
+            dy + 9.0 + (30.0 - header_ic_s) * 0.5,
+            header_ic_s,
         );
         ui.text(
             Face::SemiBold,
@@ -2833,7 +2819,11 @@ impl TouchUi {
                 ui.rounded(tr[0] - 4.0, tr[1] + 7.0, 3.0, 20.0, 1.5, accent_hi);
             }
             let fg = if active { text_c } else { muted_c };
-            ui.icon(ic, tr[0] + 9.0, tr[1] + 9.0, 15.0, fg);
+            if ic == Icon::HorizonLogo {
+                ui.tml_app_icon(tr[0] + 9.0, tr[1] + 9.0, 15.0);
+            } else {
+                ui.icon(ic, tr[0] + 9.0, tr[1] + 9.0, 15.0, fg);
+            }
             ui.text(
                 if active { Face::SemiBold } else { Face::Medium },
                 10.6,
@@ -2948,7 +2938,6 @@ impl TouchUi {
                 ui.rounded(r_sl_x, r_sl_y, (r_sl_w * r_frac).max(6.0), 6.0, 3.0, accent);
                 let r_thumb_x = r_sl_x + r_sl_w * r_frac;
                 ui.rounded(r_thumb_x - 7.0, r_sl_y - 4.0, 14.0, 14.0, 7.0, accent_hi);
-                ui.border(r_thumb_x - 7.0, r_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 let chip_y = res_y + 48.0;
                 let chip_gap = 6.0;
@@ -3028,7 +3017,6 @@ impl TouchUi {
                 ui.rounded(sl_x, sl_y, (sl_w * frac).max(6.0), 6.0, 3.0, accent);
                 let thumb_x = sl_x + sl_w * frac;
                 ui.rounded(thumb_x - 7.0, sl_y - 4.0, 14.0, 14.0, 7.0, accent_hi);
-                ui.border(thumb_x - 7.0, sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 draw_toggle_row(
                     &mut ui,
@@ -3095,7 +3083,6 @@ impl TouchUi {
                     7.0,
                     accent_hi,
                 );
-                ui.border(spd_thumb_x - 7.0, spd_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 let act_y = body_y + 342.0;
                 ui.rounded(cx, act_y, cw, 44.0, 11.0, card_bg);
@@ -3252,7 +3239,6 @@ impl TouchUi {
                 ui.rounded(sl_x, sl_y, (sl_w * frac).max(6.0), 6.0, 3.0, accent);
                 let thumb_x = sl_x + sl_w * frac;
                 ui.rounded(thumb_x - 7.0, sl_y - 4.0, 14.0, 14.0, 7.0, accent_hi);
-                ui.border(thumb_x - 7.0, sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 // 4. Authoritative Virtual Mouse Toggle, Invert Y-Axis & Split Touch
                 draw_toggle_row(
@@ -3401,7 +3387,6 @@ impl TouchUi {
                     7.0,
                     accent_hi,
                 );
-                ui.border(spd_thumb_x - 7.0, spd_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 // Pointer Size slider card
                 let size_y = body_y + 238.0;
@@ -3468,7 +3453,6 @@ impl TouchUi {
                     7.0,
                     accent_hi,
                 );
-                ui.border(size_thumb_x - 7.0, size_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 draw_toggle_row(
                     &mut ui,
@@ -3542,7 +3526,6 @@ impl TouchUi {
                     7.0,
                     accent_hi,
                 );
-                ui.border(gyro_thumb_x - 7.0, gyro_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
             }
             3 => {
                 draw_toggle_row(
@@ -3622,7 +3605,6 @@ impl TouchUi {
                 );
                 let sc_thumb_x = sc_sl_x + sc_sl_w * sc_frac;
                 ui.rounded(sc_thumb_x - 7.0, sc_sl_y - 4.0, 14.0, 14.0, 7.0, accent_hi);
-                ui.border(sc_thumb_x - 7.0, sc_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
                 draw_toggle_row(
                     &mut ui,
                     body_y + 18.0 + step,
@@ -4693,16 +4675,11 @@ pub fn draw_hud_editor(
         20.0,
         if ed.menu_open { accent } else { accent_soft },
     );
-    ui.icon(
-        if tc.settings.control_style == ControlStyle::Mcpe {
-            Icon::HorizonLogo
-        } else {
-            Icon::MenuEquals
-        },
-        pod_x + 13.0,
-        pod_y + 13.0,
-        22.0,
-        if ed.menu_open { accent_fg } else { accent },
+    let pod_ic_s = 24.0;
+    ui.tml_app_icon(
+        pod_x + 4.0 + (40.0 - pod_ic_s) * 0.5,
+        pod_y + 4.0 + (40.0 - pod_ic_s) * 0.5,
+        pod_ic_s,
     );
 
     if ed.pod_expanded {
@@ -6354,16 +6331,11 @@ pub fn draw_hud_editor(
         ui.rounded(dx, dy, dw, dh, 18.0, bg_card);
         ui.border(dx, dy, dw, dh, 18.0, border_c);
         ui.rounded(dx + 12.0, dy + 10.0, 26.0, 26.0, 8.0, accent_soft);
-        ui.icon(
-            if tc.settings.control_style == ControlStyle::Mcpe {
-                Icon::HorizonLogo
-            } else {
-                Icon::MenuEquals
-            },
-            dx + 16.0,
-            dy + 14.0,
-            18.0,
-            accent,
+        let dlg_ic_s = 20.0;
+        ui.tml_app_icon(
+            dx + 12.0 + (26.0 - dlg_ic_s) * 0.5,
+            dy + 10.0 + (26.0 - dlg_ic_s) * 0.5,
+            dlg_ic_s,
         );
         ui.text(
             Face::SemiBold,
