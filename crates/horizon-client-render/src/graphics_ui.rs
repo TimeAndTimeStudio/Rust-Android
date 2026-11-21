@@ -156,23 +156,7 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                         v(
                             Opt::RenderDistance,
                             High,
-                            "Full-detail terrain range. LOD Distance can extend local worlds farther.",
-                        ),
-                        h(
-                            H::LodDistance,
-                            Medium,
-                            "Coarse distant terrain in local worlds. Integrated GPUs stop at 128 chunks.",
-                        ),
-                        h(H::FarDetail, Medium, far),
-                        h(
-                            H::BlueMapAutoDetect,
-                            None,
-                            "On servers, finds their BlueMap web map for far terrain. Next join.",
-                        ),
-                        h(
-                            H::BlueMapRadius,
-                            None,
-                            "How far around you BlueMap tiles are downloaded. Next join.",
+                            "Full-detail terrain range.",
                         ),
                         v(
                             Opt::SimulationDistance,
@@ -959,10 +943,6 @@ impl Item {
     }
     pub fn label(self, s: &Settings) -> Text {
         match self {
-            Item::Vanilla(Opt::RenderDistance) if s.horizon.lod_distance > 0 => labelled(
-                "Full Detail Distance",
-                lang::tr("%s chunks", &[&s.render_distance]),
-            ),
             Item::Vanilla(o) => o.label(s),
             Item::Horizon(h) => h.label(s),
         }
@@ -2743,12 +2723,6 @@ mod tests {
         let near = s.render_distance;
         assert_eq!(item.label(&s).plain(), "LOD Distance: Off");
         assert_eq!(item.slider(&s), Some(0.0));
-        let items: Vec<_> = items().into_iter().map(|(_, i)| i).collect();
-        let render = items
-            .iter()
-            .position(|i| *i == Item::Vanilla(Opt::RenderDistance))
-            .unwrap();
-        assert_eq!(items[render + 1], item);
         // Every stop is reachable and reads back as the same position.
         for (i, &distance) in LOD_STEPS.iter().enumerate() {
             let at = i as f32 / (LOD_STEPS.len() - 1) as f32;
@@ -2772,10 +2746,6 @@ mod tests {
         // A distance between stops (from the file) sits on the next one.
         s.horizon.lod_distance = 3000;
         assert_eq!(item.slider(&s), Some(7.0 / 17.0));
-        assert_eq!(
-            Item::Vanilla(Opt::RenderDistance).label(&s).plain(),
-            format!("Full Detail Distance: {near} chunks")
-        );
     }
 
     #[test]
@@ -2783,17 +2753,6 @@ mod tests {
         let mut s = Settings::default();
         let find = Item::Horizon(H::BlueMapAutoDetect);
         let radius = Item::Horizon(H::BlueMapRadius);
-        let distance: Vec<Item> = rows()
-            .into_iter()
-            .flat_map(|(_, groups)| groups)
-            .find(|(name, _)| *name == "Distance")
-            .unwrap()
-            .1
-            .iter()
-            .map(|r| r.item)
-            .collect();
-        assert!(distance.contains(&find) && distance.contains(&radius));
-        assert!(distance.contains(&Item::Horizon(H::FarDetail)));
         assert_eq!(find.switch(&s), Some(false), "off by default");
         assert_eq!(radius.label(&s).plain(), "BlueMap Radius: 64 chunks");
         find.cycle(&mut s, false, FB);
