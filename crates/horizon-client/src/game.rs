@@ -17160,7 +17160,7 @@ impl ApplicationHandler for Game<'_> {
         #[cfg(target_os = "android")]
         {
             horizon_client::android_control_theme::set_android_dpi(window.scale_factor() as f32);
-            let _ = horizon_client_render::android_controls::layout::LayoutConfig::load();
+            let _ = horizon_client_render::android_controls::Settings::load();
         }
         match self.new_renderer(window.clone()) {
             Ok(r) => {
@@ -21333,7 +21333,7 @@ impl Loading {
         #[cfg(target_os = "android")]
         {
             horizon_client::android_control_theme::set_android_dpi(window.scale_factor() as f32);
-            let _ = horizon_client_render::android_controls::layout::LayoutConfig::load();
+            let _ = horizon_client_render::android_controls::Settings::load();
         }
         // The renderer takes seconds to build and winit's window sits white
         // until the first frame presents, so paint the boot screen on it and
