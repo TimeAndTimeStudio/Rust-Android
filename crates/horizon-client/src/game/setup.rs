@@ -517,9 +517,14 @@ impl Loading {
 
     pub(super) fn draw_setup(&self, batch: &mut HudBatch, failure: &str) {
         let Some(gui) = &self.gui else {
-            // The boot screen holds the window while the setup skin loads.
-            let logs = horizon_client::logging::recent_lines();
-            horizon_client::ui_theme::draw_boot(&self.boot, batch, &logs);
+            batch.fill(
+                &self.boot,
+                0.0,
+                0.0,
+                batch.width,
+                batch.height,
+                color::BG,
+            );
             return;
         };
         let step = step(&self.setup, failure);
@@ -731,6 +736,11 @@ impl Loading {
         drawn[4] = Some((rect, Action::Diagnostics));
         ui.finish();
         self.setup.buttons.set(drawn);
+        // Show live boot logs during wait/download/preparation steps so players can monitor progress
+        if waiting(&step) || matches!(step, Step::Done) {
+            let logs = horizon_client::logging::recent_lines();
+            horizon_client::ui_theme::draw_boot_log(&gui.atlas, batch, &logs);
+        }
         // Fishing under the card: the card itself takes no cast.
         let below = y + card_h + 8.0;
         self.setup
