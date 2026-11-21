@@ -1948,6 +1948,7 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let mx = cx - mark_s * 0.5;
     let my = mark_cy - mark_s * 0.5;
     let orange = color::hex(0xFF751F, 255);
+    let accent = active_theme().accent;
     let bar_h = (mark_s * (60.0 / 388.0)).max(2.0);
     let stem_w = (mark_s * (56.0 / 388.0)).max(2.0);
 
