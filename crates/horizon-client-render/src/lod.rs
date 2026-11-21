@@ -28,7 +28,7 @@ pub const OBSERVE_AHEAD: usize = 8;
 /// How long a tile whose sample waited for data (`Lod::finish_waited`) waits
 /// before it is sampled again without word of it.
 const WAIT_RETRY: std::time::Duration = std::time::Duration::from_secs(10);
-const SAMPLE_JOBS: usize = 4;
+const SAMPLE_JOBS: usize = 16;
 /// Sample jobs queued per sampling thread once the near terrain is in.
 /// Results are taken and jobs started once a frame: with four in flight, a
 /// tile taking milliseconds left the threads idle for most of a slow frame

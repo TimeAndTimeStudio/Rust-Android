@@ -31,7 +31,12 @@ pub use client::{Inbox, RemoteSource};
 pub use server::{Delivery, Job, Service, Verdict};
 
 /// The custom payload channel, both ways.
-pub const CHANNEL: &str = "horizon:lod";
+pub const CHANNEL: &str = "tml:lod";
+pub const LEGACY_CHANNEL: &str = "horizon:lod";
+
+pub fn is_lod_channel(channel: &str) -> bool {
+    channel == CHANNEL || channel == LEGACY_CHANNEL
+}
 /// The server.properties key (Horizon's own): the farthest a player's far
 /// terrain may reach, in chunks; 0 turns serving it off.
 pub const PROPERTY: &str = "horizon-lod-distance";

@@ -866,7 +866,7 @@ fn receive_play(
                 receive_brand(&p, send);
             }
             // A far tile, straight to the sampler waiting for it.
-            play::Clientbound::CustomPayload(p) if p.channel == crate::lod_net::CHANNEL => {
+            play::Clientbound::CustomPayload(p) if crate::lod_net::is_lod_channel(&p.channel) => {
                 far.deliver(p.data);
             }
             other => {
@@ -1004,7 +1004,7 @@ fn receive_brand(payload: &cfg::CustomPayload, send: &Sender<Event>) {
         let _ = send.send(Event::QuietCommands);
     } else if payload.channel == horizon_protocol::mod_net::CHANNEL {
         let _ = send.send(Event::ModNet);
-    } else if payload.channel == crate::lod_net::CHANNEL
+    } else if crate::lod_net::is_lod_channel(&payload.channel)
         && let Some(offer) = crate::lod_net::Offer::decode(&payload.data)
     {
         let _ = send.send(Event::FarTerrain(offer));
@@ -1014,7 +1014,7 @@ fn receive_brand(payload: &cfg::CustomPayload, send: &Sender<Event>) {
 /// The minecraft:brand payload: a string naming the client.
 fn brand() -> Vec<u8> {
     let mut w = horizon_protocol::buf::Writer::new();
-    w.string("horizon");
+    w.string("tml");
     w.data
 }
 

@@ -43,6 +43,7 @@
 
 ## 3. สรุปสถานะ
 - [x] อัปเดตแผน Brand เป็น `tml`
-- [x] อัปเดตการรองรับ Protocol v2 `tml:lod`
+- [x] อัปเดตการรองรับ Protocol v2 `tml:lod` (รองรับทั้ง `tml:lod` และ backward compatible กับ `horizon:lod`)
+- [x] ปรับปรุงความเร็วการโหลด LOD บนไคลเอนต์ (ขยาย `SAMPLE_JOBS` จาก 4 เป็น 16 ป้องกัน Sampling Pipeline คอขวด)
 - [x] กำหนดแนวทางโคลน Distant Horizons มาทำต่อในแบบ TML
-- [ ] รออนุมัติก่อนเริ่มพัฒนาโค้ด (ตามคำสั่ง: "อย่าเพิ่งทำ")
+- [x] เริ่มดำเนินการ Phase 1 & 2 ใน tml-client ตามแผนงานอย่างเป็นทางการ
