@@ -278,8 +278,7 @@ impl Screen {
             Page::Signing => vec![b(50.0, h - 28.0, 200.0, tr("done"), true, 69)],
             Page::Add => vec![
                 b(50.0, 80.0, 200.0, "Microsoft".into(), true, 60),
-                b(50.0, 104.0, 200.0, "Ely.by".into(), true, 76),
-                b(50.0, 128.0, 200.0, tr("offline"), true, 77),
+                b(50.0, 108.0, 200.0, tr("offline"), true, 77),
                 b(50.0, h - 28.0, 200.0, tr("back"), true, 70),
             ],
             Page::Offline | Page::Ely => {
