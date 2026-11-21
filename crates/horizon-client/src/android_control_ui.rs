@@ -4260,11 +4260,11 @@ fn draw_m3_stepper_cell(
         let fill_w = (track_w * t).clamp(track_h, track_w);
         // Active filled progress track
         ui.rounded(track_x, track_y, fill_w, track_h, track_r, accent);
-        // Custom prominent thumb knob: 16x16 circular handle with accent core ring
+        // Custom prominent thumb knob: rounded handle with accent core
         let thumb_cx = (track_x + track_w * t).clamp(track_x + 8.0, track_x + track_w - 8.0);
         let thumb_cy = track_y + track_h * 0.5;
-        ui.circle(thumb_cx, thumb_cy, 8.5, text_c);
-        ui.circle(thumb_cx, thumb_cy, 4.5, accent);
+        ui.rounded(thumb_cx - 8.0, thumb_cy - 8.0, 16.0, 16.0, 8.0, text_c);
+        ui.rounded(thumb_cx - 4.0, thumb_cy - 4.0, 8.0, 8.0, 4.0, accent);
     } else {
         let track_x = rx + 10.0;
         let track_w = (cw - 20.0).max(16.0);
@@ -4276,8 +4276,8 @@ fn draw_m3_stepper_cell(
         ui.rounded(track_x, track_y, fill_w, track_h, track_r, accent);
         let thumb_cx = (track_x + track_w * t).clamp(track_x + 6.0, track_x + track_w - 6.0);
         let thumb_cy = track_y + track_h * 0.5;
-        ui.circle(thumb_cx, thumb_cy, 6.0, text_c);
-        ui.circle(thumb_cx, thumb_cy, 3.0, accent);
+        ui.rounded(thumb_cx - 6.0, thumb_cy - 6.0, 12.0, 12.0, 6.0, text_c);
+        ui.rounded(thumb_cx - 3.0, thumb_cy - 3.0, 6.0, 6.0, 3.0, accent);
         ui.text_clipped(
             Face::Medium,
             9.0,
