@@ -1435,12 +1435,21 @@ impl Game<'_> {
     pub(super) fn can_light(&self, state: BlockStateId, name: &str) -> bool {
         let lit = self.prop(state, "lit");
         let waterlogged = self.prop(state, "waterlogged");
-        let dry_unlit = lit.as_deref() == Some("false") && waterlogged.as_deref() == Some("false");
-        ((self.in_block_tag("minecraft:campfires", name)
-            || self.in_block_tag("minecraft:candles", name))
-            && dry_unlit)
-            || (self.in_block_tag("minecraft:candle_cakes", name)
-                && lit.as_deref() == Some("false"))
+        let dry_unlit = lit.as_deref() == Some("false") && waterlogged.as_deref() != Some("true");
+        let is_candle = name == "candle"
+            || name.ends_with("_candle")
+            || name.ends_with(":candle")
+            || name.contains(":candle_")
+            || self.in_block_tag("minecraft:candles", name);
+        let is_campfire = name == "campfire"
+            || name.ends_with("_campfire")
+            || name.ends_with(":campfire")
+            || self.in_block_tag("minecraft:campfires", name);
+        let is_candle_cake = name.ends_with("candle_cake")
+            || self.in_block_tag("minecraft:candle_cakes", name);
+
+        ((is_campfire || is_candle) && dry_unlit)
+            || (is_candle_cake && lit.as_deref() == Some("false"))
     }
     fn dispense_bone_meal(
         &mut self,
