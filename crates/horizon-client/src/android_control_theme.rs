@@ -2561,29 +2561,30 @@ pub fn active_theme() -> ResolvedTheme {
     minecraft_style(ResolvedTheme::default())
 }
 
-/// The control settings in Minecraft's own menu look: stone-grey panels, bevelled
-/// buttons, white text and the green of a selected toggle.
+/// The control settings in OrangeBlack_UI_Pack_26.2_26.3 style: dark charcoal
+/// panels (#181819 / #242425), bevelled dark stone buttons (#48494A), crisp white
+/// text and vibrant orange (#EB5A00 / #FF7314) highlights.
 fn minecraft_style(mut t: ResolvedTheme) -> ResolvedTheme {
     t.is_light = false;
     t.is_gradient = false;
-    t.bg_solid = color::hex(0x1E1E1E, 255);
+    t.bg_solid = color::hex(0x181819, 255);
     t.gradient_start = t.bg_solid;
     t.gradient_mid = t.bg_solid;
     t.gradient_end = t.bg_solid;
-    t.sidebar_bg = color::hex(0x313131, 250);
-    t.header_bg = color::hex(0x3C3C3C, 250);
-    t.surface = color::hex(0x6F6F6F, 255);
-    t.surface_dim = color::hex(0x4A4A4A, 255);
-    t.surface_bright = color::hex(0x8B8B8B, 255);
-    t.surface_selected = color::hex(0x7A86B8, 255);
-    t.border = color::hex(0x000000, 255);
-    t.border_strong = color::hex(0x000000, 255);
-    t.accent = color::hex(0x3C8527, 255);
-    t.accent_soft = color::hex(0x3C8527, 90);
+    t.sidebar_bg = color::hex(0x242425, 252);
+    t.header_bg = color::hex(0x1E1E1F, 252);
+    t.surface = color::hex(0x48494A, 255);
+    t.surface_dim = color::hex(0x333334, 255);
+    t.surface_bright = color::hex(0x6D6D6E, 255);
+    t.surface_selected = color::hex(0x642A03, 255);
+    t.border = color::hex(0x1E1E1F, 255);
+    t.border_strong = color::hex(0x18181B, 255);
+    t.accent = color::hex(0xEB5A00, 255);
+    t.accent_soft = color::hex(0xEB5A00, 90);
     t.on_accent = color::hex(0xFFFFFF, 255);
     t.accent_text = color::hex(0xFFFFFF, 255);
     t.text_primary = color::hex(0xFFFFFF, 255);
-    t.text_muted = color::hex(0xA0A0A0, 255);
+    t.text_muted = color::hex(0xA0A0A4, 255);
     t.success = color::hex(0x55FF55, 255);
     t.danger = color::hex(0xFF5555, 255);
     t

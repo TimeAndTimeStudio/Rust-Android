@@ -882,6 +882,8 @@ impl Settings {
             self.split_controls = false;
             self.crosshair_gestures = true;
         }
+        self.control_style = ControlStyle::Mcpe;
+        self.gyroscope = false;
         if self.control_style == ControlStyle::Mcpe {
             if self.is_default_preset() {
                 for row in &mut self.layouts {

@@ -655,52 +655,8 @@ impl Game<'_> {
     /// controls play (the sensor is listened to only then). Its turn goes on the view as the
     /// mouse's would (`Entity.turn`).
     pub(in crate::game) fn touch_gyro(&mut self) {
-        #[cfg(target_os = "android")]
-        let wanted = self.touch.live
-            && self.mobile.controls.editor.is_none()
-            && self.has_touch()
-            && self.mobile.controls.settings.gyroscope;
-        #[cfg(not(target_os = "android"))]
-        let wanted = self.touch.live
-            && self.touch.editor.is_none()
-            && self.has_touch()
-            && self.player.is_some()
-            && self.touch.config.as_ref().is_some_and(|c| c.gyro);
-        #[cfg(target_os = "android")]
-        if self.mobile_controls_enabled() {
-            if wanted != self.touch.gyro_on {
-                // A phone without a gyroscope says so; it is not asked again until the next change.
-                let started = crate::android::gyroscope(wanted);
-                self.touch.gyro_on = wanted;
-                if wanted && !started {
-                    log::info!("Horizon: no gyroscope to aim with");
-                }
-            }
-            if !wanted {
-                return;
-            }
-            let Some([x, y, rotation]) = crate::android::take_gyro() else {
-                return;
-            };
-            let [yaw, pitch] = touch::gyro_turn([x, y], rotation as i32)
-                .map(|v| v * self.mobile.controls.settings.gyro_sensitivity);
-            if yaw == 0.0 && pitch == 0.0 {
-                return;
-            }
-            let mut turn = horizon_client::mouse::Rotation {
-                x_rot: self.pitch,
-                y_rot: self.yaw,
-                x_rot_o: self.pitch,
-                y_rot_o: self.yaw,
-            };
-            turn.turn(f64::from(yaw / 0.15), f64::from(pitch / 0.15));
-            self.yaw = turn.y_rot;
-            self.pitch = turn.x_rot;
-        }
-        #[cfg(not(target_os = "android"))]
-        {
-            self.touch.gyro_on = wanted;
-        }
+        // Gyroscope subsystem disabled
+        return;
     }
 
     fn touch_layout_path() -> Result<std::path::PathBuf> {
