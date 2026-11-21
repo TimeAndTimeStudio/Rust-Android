@@ -3560,30 +3560,18 @@ impl OptionsUi {
                 };
                 rows.push(Row::Buttons(skin, Some(model)));
                 rows.extend(self.skin_cloud_rows());
-                let elyby = |width: f32| {
-                    let on = if page.elyby { "ON" } else { "OFF" };
-                    button(
-                        0.0,
-                        0.0,
-                        width,
-                        Text::literal(format!("Ely.by Skins: {on}")),
-                        Act::ElyBySkins,
-                    )
-                };
                 // A phone's own file picker: the file chosen comes through the import inbox.
                 if cfg!(target_os = "android") {
                     rows.push(Row::Buttons(
                         button(
                             0.0,
                             0.0,
-                            150.0,
+                            310.0,
                             Text::literal("Choose a File..."),
                             Act::PickSkin,
                         ),
-                        Some(elyby(150.0)),
+                        None,
                     ));
-                } else {
-                    rows.push(Row::Buttons(elyby(310.0), None));
                 }
                 if page.files.is_empty() {
                     rows.push(Row::Note(
@@ -3597,15 +3585,7 @@ impl OptionsUi {
                 rows.push(Row::Note(
                     "the skin Mojang has for your account, or the default".into(),
                 ));
-                // Offline play's skins: by the player's name, where nothing else gives one.
-                if page.elyby {
-                    rows.push(Row::Note(
-                        "Ely.by Skins: a player without a skin shows the one".into(),
-                    ));
-                    rows.push(Row::Note(
-                        "their name has on ely.by (yours too, on Default)".into(),
-                    ));
-                }
+
                 rows.extend(layers);
                 rows
             }
