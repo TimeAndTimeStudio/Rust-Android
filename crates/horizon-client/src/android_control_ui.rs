@@ -2791,7 +2791,7 @@ impl TouchUi {
         let ram_mb = horizon_threads::memory_limit::resident_bytes()
             .map(|b| b.div_ceil(1024 * 1024))
             .unwrap_or(0);
-        let style_label = tc.settings.control_style.label();
+        let style_label = settings.control_style.label();
         let mode_badge_txt = if ram_mb > 0 {
             format!("RAM: {ram_mb} MB • {style_label}")
         } else {
