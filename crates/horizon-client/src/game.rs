@@ -17170,6 +17170,11 @@ impl ApplicationHandler for Game<'_> {
         self.ime_allowed = false;
         self.ime_area = None;
         self.apply_settings();
+        #[cfg(target_os = "android")]
+        {
+            self.mobile.loaded = false;
+            self.mobile_init();
+        }
         self.previous = Instant::now();
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -21263,18 +21268,26 @@ struct Loading {
 /// How long the handoff waits for the first title frame before building the
 /// world renderer anyway (a hidden window may never be asked to redraw).
 const TITLE_FRAME_WAIT: Duration = Duration::from_secs(1);
-/// Minimum duration to present the boot logo & boot log so players can see startup initialization.
-const MIN_BOOT_WAIT: Duration = Duration::from_millis(1200);
 impl Loading {
+    fn show_startup_console(&self) -> bool {
+        cfg!(target_os = "android")
+            && self.failure.is_none()
+            && !self.setup.starting
+            && self.menu.pending.is_none()
+            && self
+                .options
+                .as_ref()
+                .is_some_and(|options| !options.offscreen)
+    }
+
     /// The world renderer is built on the main thread, so building it before
     /// the title is on the screen holds the title back by that build. Wait for
-    /// one title frame first, unless a world is waiting to open. Also ensure a minimum
-    /// boot display delay so startup logs are legible.
+    /// one title frame first, unless a world is waiting to open.
     fn ready_for_handoff(&self) -> bool {
-        (self.started.elapsed() >= MIN_BOOT_WAIT || self.options.as_ref().is_some_and(|o| o.offscreen))
-            && (self.title_drawn
-                || self.menu.pending.is_some()
-                || self.ui_at.is_none_or(|at| at.elapsed() >= TITLE_FRAME_WAIT))
+        self.title_drawn
+            || (self.show_startup_console() && self.shown)
+            || self.menu.pending.is_some()
+            || self.ui_at.is_none_or(|at| at.elapsed() >= TITLE_FRAME_WAIT)
     }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.suspended = false;
@@ -21352,11 +21365,15 @@ impl Loading {
         });
         let offscreen = self.options.as_ref().is_some_and(|o| o.offscreen);
         let boot_step = startup::step("renderer.boot");
+        let (atlas, panorama) = match &self.gui {
+            Some(gui) => (&gui.atlas, Some(&gui.panorama)),
+            None => (&self.boot, None),
+        };
         match loading_renderer(
             window.clone(),
             offscreen,
-            Some(&self.boot),
-            None,
+            Some(atlas),
+            panorama,
             None,
             self.settings.horizon.api,
         ) {
@@ -21371,6 +21388,9 @@ impl Loading {
                 return;
             }
         }
+        if self.gui.is_some() {
+            self.ui_at = Some(Instant::now());
+        }
         drop(boot_step);
         // The wgpu frames take the window over: stop the boot paint thread
         // before the first one presents.
@@ -21379,10 +21399,7 @@ impl Loading {
             stop.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         horizon_client::hud::GUI_SCALE.store(self.settings.gui_scale, Ordering::Relaxed);
-        self.window = Some(window.clone());
-        // Immediately render the boot screen so the window does not sit on a blank/white surface
-        self.draw();
-        window.request_redraw();
+        self.window = Some(window);
     }
     /// The window is going away (Android): its surface goes with it, and the log is flushed
     /// before the system may end the process.
@@ -21403,6 +21420,16 @@ impl Loading {
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, mut event: WindowEvent) {
         if self.window.as_ref().is_none_or(|w| w.id() != id) {
+            return;
+        }
+        if self.show_startup_console()
+            && matches!(
+                event,
+                WindowEvent::Touch(_)
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::KeyboardInput { .. }
+            )
+        {
             return;
         }
         if self.failure.is_some()
@@ -21560,6 +21587,19 @@ impl Loading {
             ));
             return;
         }
+        if self.show_startup_console() && self.shown {
+            let console_due = self
+                .menu
+                .diagnostic_frame
+                .is_none_or(|last| last.elapsed() >= Duration::from_millis(200));
+            if console_due && let Some(w) = &self.window {
+                w.request_redraw();
+            }
+            event_loop.set_control_flow(ControlFlow::WaitUntil(
+                Instant::now() + Duration::from_millis(16),
+            ));
+            return;
+        }
         if let Some(next) = Self::loading_frame_due(self.menu.diagnostic_frame) {
             event_loop.set_control_flow(ControlFlow::WaitUntil(next));
             return;
@@ -21592,6 +21632,7 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
     None
 }
     fn draw(&mut self) {
+        let console = self.show_startup_console();
         let diagnostic_started = Instant::now();
         let diagnostic_elapsed = self
             .menu
@@ -21606,12 +21647,7 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
             return;
         };
         let mut batch = HudBatch::new(size);
-        let boot_delaying = self.started.elapsed() < MIN_BOOT_WAIT
-            && !self.options.as_ref().is_some_and(|o| o.offscreen);
-        if boot_delaying && self.failure.is_none() && !self.menu.options_open {
-            let logs = horizon_client::logging::recent_lines();
-            horizon_client::ui_theme::draw_boot(&self.boot, &mut batch, &logs);
-        } else if self.failure.is_some() && self.menu.options_open {
+        if self.failure.is_some() && self.menu.options_open {
             // The setup's settings: the menu's own screens, in the skin it put on.
             self.draw_menu(&mut batch);
         } else if let Some(failure) = &self.failure {
@@ -21623,6 +21659,10 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
         } else if self.setup.starting {
             // Prepared: the setup stays until the menu's own font has come.
             self.draw_setup(&mut batch, "");
+        } else if console {
+            let atlas = self.gui.as_ref().map_or(&self.boot, |gui| &gui.atlas);
+            let logs = horizon_client::logging::recent_lines();
+            horizon_client::ui_theme::draw_boot(atlas, &mut batch, &logs);
         } else {
             self.draw_menu(&mut batch);
         }
@@ -21634,15 +21674,20 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
             self.settings.file.double("panoramaScrollSpeed") as f32,
         );
         let diagnostic_prepared = diagnostic_started.elapsed();
-        if let Some(renderer) = &mut self.renderer {
+        let drawn = if let Some(renderer) = &mut self.renderer {
             match renderer.render(&frame) {
-                Ok(true) if self.gui.is_some() && self.menu.pending.is_none() => {
-                    self.title_drawn = true;
-                    self.menu.perf.title_shown()
+                Ok(drawn) => drawn,
+                Err(e) => {
+                    log::warn!("Horizon: loading screen frame failed: {e}");
+                    false
                 }
-                Ok(_) => {}
-                Err(e) => log::warn!("Horizon: loading screen frame failed: {e}"),
             }
+        } else {
+            false
+        };
+        if drawn && self.gui.is_some() && self.menu.pending.is_none() {
+            self.title_drawn = true;
+            self.menu.perf.title_shown();
         }
         let diagnostic_spans = if horizon_client::spans::recording_here() {
             horizon_client::spans::take_raw()
@@ -21686,7 +21731,7 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
                 renderer.gpu_times.clear();
             }
         }
-        if !self.shown {
+        if drawn && !self.shown {
             self.shown = true;
             startup::mark("loading_screen.shown");
             log::info!(
@@ -21866,6 +21911,11 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
         game.panorama_rotation = self.panorama_rotation;
         self.menu.handoff(&mut game);
         game.apply_settings();
+        #[cfg(target_os = "android")]
+        {
+            game.mobile.loaded = false;
+            game.mobile_init();
+        }
         game.previous = Instant::now();
         log::info!(
             "Horizon: startup handoff {} ms (renderer {} ms, start_game {} ms)",
@@ -21919,11 +21969,23 @@ impl ApplicationHandler for App {
                     event_loop.exit();
                     return;
                 }
+                // Keep the boot menu responsive while the world tables load. Client
+                // model publication needs them even for a start without mods.
+                let rest_loading = loading
+                    .options
+                    .as_ref()
+                    .is_some_and(|o| o.execution_role.is_client())
+                    && matches!(
+                        &loading.loaded,
+                        Some(Ok(loaded))
+                            if loaded.rest_loader.as_ref().is_some_and(|l| !l.handle.is_finished())
+                    );
                 // A window in the background has no surface for the game's renderer: the
                 // loaded resources wait for it to come back.
                 match if loading.menu.reload_packs
                     || loading.suspended
                     || !loading.ready_for_handoff()
+                    || rest_loading
                 {
                     None
                 } else {

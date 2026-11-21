@@ -516,7 +516,12 @@ impl Loading {
     }
 
     pub(super) fn draw_setup(&self, batch: &mut HudBatch, failure: &str) {
-        let Some(gui) = &self.gui else { return };
+        let Some(gui) = &self.gui else {
+            // The boot screen holds the window while the setup skin loads.
+            let logs = horizon_client::logging::recent_lines();
+            horizon_client::ui_theme::draw_boot(&self.boot, batch, &logs);
+            return;
+        };
         let step = step(&self.setup, failure);
         let (title, body, note) = texts(&step);
         let mut ui = Ui::new(&gui.atlas, batch, (-1.0, -1.0));

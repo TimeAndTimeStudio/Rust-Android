@@ -6,17 +6,19 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.OpenableColumns;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -36,12 +38,11 @@ public final class LauncherActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        applyWindowColors();
         Intent intent = getIntent();
         final int after = intent == null ? 0 : intent.getIntExtra(AFTER, 0);
         Uri file = handedFile(intent);
         if (after != 0) {
-            showRestarting();
+            showRestarting("Starting TML again…");
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -113,11 +114,11 @@ public final class LauncherActivity extends Activity {
 
     /**
      * While the game starts again (a world whose mods are not the running ones): a screen of its
-     * own, black, landscape and without bars as the game is, so the phone does not show what is
+     * own, dark, landscape and without bars as the game is, so the phone does not show what is
      * under this see-through activity between the two processes, as if the game had closed.
      */
     @SuppressWarnings("deprecation")
-    private void showRestarting() {
+    private void showRestarting(String message) {
         // Android 8.0 refuses an orientation to a see-through activity (it throws).
         if (Build.VERSION.SDK_INT != Build.VERSION_CODES.O) {
             try {
@@ -127,13 +128,7 @@ public final class LauncherActivity extends Activity {
             }
         }
         applyWindowColors();
-        TextView text = new TextView(this);
-        text.setText("");
-        text.setTextColor(0xFFFFFFFF);
-        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        text.setGravity(Gravity.CENTER);
-        text.setBackgroundColor(0xFF121214);
-        setContentView(text);
+        setContentView(new RestartView(this, message));
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
@@ -149,6 +144,92 @@ public final class LauncherActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
+    }
+
+    private static final class RestartView extends View {
+        private final String message;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private final long start = SystemClock.uptimeMillis();
+        private Canvas canvas;
+
+        RestartView(Context context, String message) {
+            super(context);
+            this.message = message;
+        }
+
+        private void rounded(float x, float y, float w, float h, float r, int color) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(color);
+            rect.set(x, y, x + w, y + h);
+            canvas.drawRoundRect(rect, r, r, paint);
+        }
+
+        private void fill(float x, float y, float w, float h, int color) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(color);
+            canvas.drawRect(x, y, x + w, y + h, paint);
+        }
+
+        private void text(String s, float cx, float top, float size, Typeface face, int color) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTypeface(face);
+            paint.setTextSize(size);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setColor(color);
+            canvas.drawText(s, cx, top - paint.ascent(), paint);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            this.canvas = canvas;
+            int bg = 0xFF121214;
+            int orange = 0xFFFF751F;
+            int textColor = 0xFFFFFFFF;
+            int muted = 0xFF9BA1A6;
+            int track = 0x479BA1A6;
+            float width = getWidth(), height = getHeight();
+            float u = Math.max(Math.min(width / 1040f, height / 700f), 1f);
+            float w = width / u, h = height / u;
+            canvas.drawColor(bg);
+
+            float size = Math.max(40f, Math.min(w / 16f, 96f));
+            float small = Math.max(11f, Math.min(size * 0.25f, 18f));
+            float block = size * 1.45f + small * 0.6f + small * 1.5f;
+            float top = (h - block) / 2f;
+            float cx = w / 2f;
+
+            // TML dual-T vector icon centered above the wordmark
+            float markS = Math.max(36f, Math.min(size * 0.70f, 64f));
+            float markCy = Math.max(top - markS * 0.75f, markS * 0.6f);
+            float mx = cx - markS * 0.5f;
+            float my = markCy - markS * 0.5f;
+            float barH = Math.max(markS * (60f / 388f), 2f);
+            float stemW = Math.max(markS * (56f / 388f), 2f);
+
+            fill(mx * u, my * u, markS * u, barH * u, orange);
+            fill((mx + (markS - stemW) * 0.5f) * u, my * u, stemW * u, markS * u, orange);
+            float midBarY = my + markS * (118f / 388f);
+            fill(mx * u, midBarY * u, markS * u, barH * u, orange);
+            fill(mx * u, midBarY * u, stemW * u, (markS - (midBarY - my)) * u, orange);
+
+            text("TML", cx * u, top * u, size * u,
+                    Typeface.create("sans-serif-medium", Typeface.BOLD), textColor);
+            float subY = top + size * 1.45f + small * 0.6f;
+            text("Rust based minecraft client", cx * u, subY * u, small * u,
+                    Typeface.MONOSPACE, muted);
+
+            float t = (SystemClock.uptimeMillis() - start) / 1000f;
+            float bw = Math.max(80f, Math.min(size * 1.8f, 140f)), bh = 4f;
+            float bx = cx - bw / 2f, by = subY + small * 1.7f;
+            rounded(bx * u, by * u, bw * u, bh * u, 2f * u, track);
+            float segment = bw * 0.56f;
+            float phase = 0.5f - 0.5f * (float) Math.cos(t * Math.PI);
+            rounded((bx + (bw - segment) * phase) * u, by * u, segment * u, bh * u,
+                    2f * u, orange);
+            text(message, cx * u, (by + 12f) * u, 11f * u, Typeface.DEFAULT, muted);
+            postInvalidateOnAnimation();
         }
     }
 

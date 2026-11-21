@@ -333,8 +333,6 @@ pub fn restart_app() {
     crate::diagnostics::finish();
     logging::flush();
     with_activity(|env, activity| env.call_method(activity, "restart", "()V", &[]).map(drop));
-    std::thread::sleep(std::time::Duration::from_millis(250));
-    unsafe { libc::_exit(0) };
 }
 
 /// This APK's version (versionName), and whether it is a release, which only can install the

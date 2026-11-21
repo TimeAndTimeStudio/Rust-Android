@@ -28,6 +28,12 @@ pub(super) struct MobileControls {
     was_in_menu: Option<bool>,
 }
 
+/// Whether the touch controls draw: their menu state `drawn` is this frame's `now` (not one
+/// from before the screen changed), and they are either the menu's or a world's (`in_world`).
+fn controls_drawn(now: bool, drawn: bool, in_world: bool) -> bool {
+    now == drawn && (now || in_world)
+}
+
 impl Game<'_> {
     pub(in crate::game) fn mobile_keypad_key(
         &mut self,
@@ -171,14 +177,30 @@ impl Game<'_> {
         }
         self.mobile.loaded = true;
         self.input_used(self.input_mode);
-        if let Some(w) = &self.window {
+        let (width, height) = if let Some(w) = &self.window {
             horizon_client::android_control_theme::set_android_dpi(w.scale_factor() as f32);
-        }
+            let s = w.inner_size();
+            (s.width.max(1), s.height.max(1))
+        } else {
+            (1, 1)
+        };
+        let in_menu = self.pad_in_menu();
+        let shown = self.touch_shown() || self.settings.keypad.enabled;
         self.mobile.controls.settings = self.settings.touch.clone();
         self.settings.touch.virtual_mouse_hidden = true;
         self.mobile.controls.settings.virtual_mouse_hidden = true;
+        self.mobile.controls.goy_rendered_by_ui = true;
+        self.mobile.controls.in_menu = in_menu;
+        self.mobile.controls.in_inventory =
+            matches!(self.screen, Screen::Inventory | Screen::Creative);
+        self.mobile.controls.viewport(width, height);
+        self.mobile.controls.update_visibility(shown, 1.0);
         self.mobile.ui.menu_direct_pointer = true;
         self.mobile.ui.goy_in_game_mouse = false;
+        self.mobile.ui.goy_mode =
+            self.mobile.controls.settings.control_style
+                == horizon_client::android_controls::ControlStyle::GoyControl;
+        self.mobile.ui.hub_visible = self.mobile.controls.settings.show_control_hub;
         self.mobile
             .ui
             .refresh_presets_cache(self.mobile.controls.settings.control_style);
@@ -341,15 +363,21 @@ impl Game<'_> {
             return;
         }
         let tc = &self.mobile.controls;
-        tc.draw(b, &self.gui.atlas);
-        ui::draw_goy_hud(
-            tc,
-            b,
-            &self.gui.atlas,
-            self.pad_in_menu(),
-            self.mobile.ui.virtual_mouse,
-        );
         if tc.editor.is_none() {
+            if controls_drawn(
+                self.pad_in_menu(),
+                tc.in_menu,
+                self.screen == Screen::Playing && self.player.is_some(),
+            ) {
+                tc.draw(b, &self.gui.atlas);
+            }
+            ui::draw_goy_hud(
+                tc,
+                b,
+                &self.gui.atlas,
+                self.pad_in_menu(),
+                self.mobile.ui.virtual_mouse,
+            );
             self.mobile.ui.draw(b, &self.gui.atlas, self.pad_in_menu());
             self.mobile
                 .ui

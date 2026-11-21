@@ -716,7 +716,6 @@ public class StarlingActivity extends NativeActivity {
                 finish();
                 // Straight to the launcher's restart screen, no window animation between.
                 overridePendingTransition(0, 0);
-                android.os.Process.killProcess(android.os.Process.myPid());
             }
         });
     }
