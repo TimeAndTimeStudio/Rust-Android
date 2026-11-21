@@ -1893,15 +1893,15 @@ const BOOT_LOG: u32 = color::hex(0x9BA1A6, 255);
 /// pure black and the console's last lines at the bottom right, as the
 /// terminal prints them.
 pub fn draw_boot(atlas: &HudAtlas, batch: &mut HudBatch, logs: &[String]) {
-    // Pure black under everything: the frame's panorama (the title artwork
-    // once the bundle is in) must not leak through.
+    // Backdrop matching setup's dark background color::BG (P.page #121214)
+    // so the boot screen seamlessly transitions into the setup/menu screens.
     batch.fill(
         atlas,
         0.0,
         0.0,
         batch.width,
         batch.height,
-        color::hex(0x000000, 255),
+        color::BG,
     );
     wordmark(atlas, batch);
     draw_boot_log(atlas, batch, logs);
@@ -2682,10 +2682,10 @@ mod tests {
         let atlas = HudAtlas::boot();
         let mut batch = HudBatch::new([1280, 720]);
         draw_boot(&atlas, &mut batch, &[]);
-        // The first quad is the pure black backdrop over the frame's panorama.
+        // The first quad is the backdrop matching color::BG over the frame's panorama.
         let (w, h) = (batch.width, batch.height);
         let bg = &batch.vertices[..6];
-        assert!(bg.iter().all(|v| v.color == 0xFF00_0000));
+        assert!(bg.iter().all(|v| v.color == color::BG));
         assert!(bg.iter().all(|v| v.pos[0] == 0.0 || v.pos[0] == w));
         assert!(bg.iter().all(|v| v.pos[1] == 0.0 || v.pos[1] == h));
         assert!(

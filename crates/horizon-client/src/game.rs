@@ -17157,6 +17157,11 @@ impl ApplicationHandler for Game<'_> {
         };
         drop(window_step);
         horizon_client::telemetry::note_display(&window);
+        #[cfg(target_os = "android")]
+        {
+            horizon_client::android_control_theme::set_android_dpi(window.scale_factor() as f32);
+            let _ = horizon_client_render::android_controls::layout::LayoutConfig::load();
+        }
         match self.new_renderer(window.clone()) {
             Ok(r) => {
                 self.renderer = Some(r);
@@ -21325,6 +21330,11 @@ impl Loading {
         };
         drop(window_step);
         horizon_client::telemetry::note_display(&window);
+        #[cfg(target_os = "android")]
+        {
+            horizon_client::android_control_theme::set_android_dpi(window.scale_factor() as f32);
+            let _ = horizon_client_render::android_controls::layout::LayoutConfig::load();
+        }
         // The renderer takes seconds to build and winit's window sits white
         // until the first frame presents, so paint the boot screen on it and
         // keep repainting it as the console's lines arrive; the wgpu frames
@@ -21600,7 +21610,12 @@ fn loading_frame_due(_last: Option<Instant>) -> Option<Instant> {
             return;
         };
         let mut batch = HudBatch::new(size);
-        if self.failure.is_some() && self.menu.options_open {
+        let boot_delaying = self.started.elapsed() < MIN_BOOT_WAIT
+            && !self.options.as_ref().is_some_and(|o| o.offscreen);
+        if boot_delaying && self.failure.is_none() && !self.menu.options_open {
+            let logs = horizon_client::logging::recent_lines();
+            horizon_client::ui_theme::draw_boot(&self.boot, &mut batch, &logs);
+        } else if self.failure.is_some() && self.menu.options_open {
             // The setup's settings: the menu's own screens, in the skin it put on.
             self.draw_menu(&mut batch);
         } else if let Some(failure) = &self.failure {

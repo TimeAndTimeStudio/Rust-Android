@@ -33,7 +33,7 @@ const SAMPLE_JOBS: usize = 4;
 /// Results are taken and jobs started once a frame: with four in flight, a
 /// tile taking milliseconds left the threads idle for most of a slow frame
 /// (2-3 fps on a CPU renderer, with far terrain a few tiles a frame).
-const QUEUED_PER_SAMPLER: usize = 32;
+const QUEUED_PER_SAMPLER: usize = 64;
 /// The last `refresh`es `Lod::refreshed_since` tells apart by area.
 const MAX_REFRESHED: usize = 64;
 /// Threads that sample far tiles beside the mesher. Sampling is the cold-load
@@ -43,20 +43,20 @@ fn sampling_threads(cores: usize) -> usize {
     if cores >= 8 {
         (cores / 2).min(8)
     } else {
-        (cores / 4).clamp(1, 3)
+        (cores / 2).clamp(1, 4)
     }
 }
 /// Tile meshing used to be one worker with a whole selection batch at a time.
 /// It now has its own pool, sized so ticks and the frame keep a core.
 fn meshing_threads(cores: usize) -> usize {
     cores
-        .saturating_sub(sampling_threads(cores) + 1)
+        .saturating_sub(sampling_threads(cores))
         .clamp(1, 16)
 }
 /// While the near terrain loads on a machine with four threads or fewer, far
 /// terrain starts one sample job at most this often and no detail: it would
 /// otherwise take the cores the near chunks and the frame need.
-const HELD_SAMPLE_STEP: std::time::Duration = std::time::Duration::from_millis(500);
+const HELD_SAMPLE_STEP: std::time::Duration = std::time::Duration::from_millis(250);
 /// How long a tile whose sampling failed (`LodSampler::grid` gave no
 /// columns: a server refused or lost it) waits before it is asked again.
 const RETRY: std::time::Duration = std::time::Duration::from_secs(2);

@@ -388,7 +388,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
         ],
         Step::Start => vec![
             (tr("setup.microsoft"), Action::SignIn),
-            (tr("setup.ely_title"), Action::Ely),
             (tr("setup.offline_title"), Action::Offline),
         ],
         Step::Offline => vec![
@@ -976,9 +975,8 @@ mod account_tests {
     fn first_start_offers_both_providers_offline_and_import_without_losing_diagnostics_slot() {
         let actions: Vec<_> = buttons(&Step::Start).into_iter().map(|(_, a)| a).collect();
         assert!(actions.contains(&Action::SignIn));
-        assert!(actions.contains(&Action::Ely));
         assert!(actions.contains(&Action::Offline));
-        assert_eq!(actions.len(), 3);
+        assert_eq!(actions.len(), 2);
     }
     #[test]
     fn cancelled_setup_does_not_trap_a_saved_profile_in_talking() {

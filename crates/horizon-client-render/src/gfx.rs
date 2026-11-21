@@ -159,25 +159,16 @@ fn translucent_batchable(info: &wgpu::AdapterInfo, multi_draw: bool) -> bool {
 }
 
 /// The present mode a new window's swapchain starts with, until the game applies VSync and the
-/// present-mode setting (`Renderer::set_present_mode`): Mailbox where the surface offers it.
-#[cfg(not(target_os = "android"))]
+/// present-mode setting (`Renderer::set_present_mode`): Mailbox where the surface offers it, then
+/// Immediate (lowest latency unlocked), then Fifo.
 fn first_present_mode(modes: &[wgpu::PresentMode]) -> wgpu::PresentMode {
     if modes.contains(&wgpu::PresentMode::Mailbox) {
         wgpu::PresentMode::Mailbox
+    } else if modes.contains(&wgpu::PresentMode::Immediate) {
+        wgpu::PresentMode::Immediate
     } else {
         wgpu::PresentMode::Fifo
     }
-}
-
-/// The present mode a new window's swapchain starts with, until the game applies VSync and the
-/// present-mode setting (`Renderer::set_present_mode`): Fifo on Android, where a Mali driver was
-/// seen stalling for seconds inside a Mailbox present before the first world frame, long enough
-/// for Android to report the app as not responding. Adapted from Vasysik/horizon-android
-/// (`Renderer::new_with_context`), MIT, copyright (c) 2026 Ludovic Marie and the Horizon
-/// contributors.
-#[cfg(target_os = "android")]
-fn first_present_mode(_modes: &[wgpu::PresentMode]) -> wgpu::PresentMode {
-    wgpu::PresentMode::Fifo
 }
 
 /// Whether sections are drawn with indirect multi-draws where the device takes them: not on

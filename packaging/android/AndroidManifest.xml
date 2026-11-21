@@ -36,6 +36,7 @@
         android:hasCode="true"
         android:isGame="true"
         android:appCategory="game"
+        android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:extractNativeLibs="true">
         <!-- A task of its own, out of the recents: the game's task stays the game's. -->
