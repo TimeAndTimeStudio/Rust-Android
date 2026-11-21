@@ -2436,12 +2436,12 @@ impl TouchUi {
                 // Tab 1: Controls
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                if inside([cx, mode_y, cw, 46.0]) {
+                if inside([cx, mode_y, cw, 48.0]) {
                     return Some(InGameMenuAction::SetControlStyle(ControlStyle::Mcpe));
                 }
 
                 // Customize Controls | Control Presets
-                let act_y = body_y + 84.0;
+                let act_y = body_y + 90.0;
                 if inside([cx, act_y, half_w, 44.0]) {
                     self.floating_menu = false;
                     return Some(InGameMenuAction::OpenControlEditor);
@@ -2452,8 +2452,8 @@ impl TouchUi {
                     return Some(InGameMenuAction::Close);
                 }
 
-                // Sensitivity Slider card (y = body_y + 148.0, h = 50.0)
-                let sens_y = body_y + 148.0;
+                // Sensitivity Slider card (y = body_y + 158.0, h = 50.0)
+                let sens_y = body_y + 158.0;
                 if inside([cx, sens_y, cw, 50.0]) {
                     let sl_x = cx + 10.0;
                     let sl_w = (cw - 20.0).max(40.0);
@@ -2462,25 +2462,26 @@ impl TouchUi {
                     return Some(InGameMenuAction::SetTouchSensitivity(sens));
                 }
 
-                // Authoritative Virtual Mouse Toggle (y = body_y + 206.0, h = 46.0)
-                let vmouse_y = body_y + 206.0;
+                // Authoritative Virtual Mouse Toggle (y = body_y + 216.0, h = 46.0)
+                let vmouse_y = body_y + 216.0;
                 if inside([cx, vmouse_y, cw, 46.0]) {
                     return Some(InGameMenuAction::ToggleVirtualMouse);
                 }
 
-                // Invert Y-Axis (y = body_y + 260.0, h = 46.0)
-                let inv_y = body_y + 260.0;
+                // Invert Y-Axis (y = body_y + 270.0, h = 46.0)
+                let inv_y = body_y + 270.0;
                 if inside([cx, inv_y, cw, 46.0]) {
                     return Some(InGameMenuAction::ToggleInvertY);
                 }
 
-                if inside([cx, body_y + 368., cw, 46.]) {
-                    return Some(InGameMenuAction::ToggleAnalogMovement);
-                }
-                // Split Touch (Aim & Look) (y = body_y + 314.0, h = 46.0)
-                let spl_y = body_y + 314.0;
+                // Split Touch (Aim & Look) (y = body_y + 324.0, h = 46.0)
+                let spl_y = body_y + 324.0;
                 if inside([cx, spl_y, cw, 46.0]) {
                     return Some(InGameMenuAction::ToggleSplitTouch);
+                }
+
+                if inside([cx, body_y + 378., cw, 46.]) {
+                    return Some(InGameMenuAction::ToggleAnalogMovement);
                 }
             }
             2 => {
@@ -2847,7 +2848,7 @@ impl TouchUi {
         let tab_slide = (1.0 - tab_ease) * 14.0;
         let content_height = match self.hub_tab {
             0 => 448.0,
-            1 => 430.0,
+            1 => 444.0,
             2 => 470.0,
             3 => 350.0,
             _ => 340.0,
@@ -3128,44 +3129,44 @@ impl TouchUi {
                 );
             }
             1 => {
-                // 1. Control Mode Section
-                ui.text(Face::SemiBold, 10.2, cx, body_y, muted_c, "CONTROL MODE");
+                // 1. Control Mode Section (MCPE Pure Touch)
+                ui.text(Face::SemiBold, 10.2, cx, body_y, muted_c, "CONTROL SYSTEM (MCPE)");
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                ui.rounded(cx, mode_y, cw, 46.0, 11.0, card_sel);
-                ui.stroke_rounded(cx, mode_y, cw, 46.0, 11.0, 1.6, accent);
-                let rad_x = cx + 11.0;
-                let rad_y = mode_y + 16.0;
+                ui.rounded(cx, mode_y, cw, 48.0, 11.0, card_sel);
+                ui.stroke_rounded(cx, mode_y, cw, 48.0, 11.0, 1.6, accent);
+                let rad_x = cx + 12.0;
+                let rad_y = mode_y + 17.0;
                 ui.stroke_rounded(rad_x, rad_y, 14.0, 14.0, 7.0, 1.5, accent_hi);
                 ui.rounded(rad_x + 3.5, rad_y + 3.5, 7.0, 7.0, 3.5, accent_hi);
                 ui.text(
                     Face::SemiBold,
-                    11.0,
-                    cx + 31.0,
+                    11.5,
+                    cx + 34.0,
                     mode_y + 7.0,
                     text_c,
-                    "MCPE Controls",
+                    "MCPE Touch Controls (Bedrock Layout)",
                 );
                 ui.text(
                     Face::Regular,
-                    9.0,
-                    cx + 31.0,
-                    mode_y + 25.0,
+                    9.2,
+                    cx + 34.0,
+                    mode_y + 26.0,
                     muted_c,
-                    "Vanilla touch controls",
+                    "Classic crosshair/touch, analog joystick, D-Pad, customizable buttons & HUD",
                 );
 
-                // 2. Dynamic System Controls Section
+                // 2. Control Layout Editor & Presets
                 ui.text(
                     Face::SemiBold,
                     10.2,
                     cx,
-                    body_y + 68.0,
+                    body_y + 74.0,
                     muted_c,
-                    "MCPE Controls",
+                    "LAYOUT & PRESETS",
                 );
-                let act_y = body_y + 84.0;
-                let active_preset_lbl = format!("Preset: {}", settings.preset_name);
+                let act_y = body_y + 90.0;
+                let active_preset_lbl = format!("Active: {}", settings.preset_name);
                 for (i, (ic, title, sub)) in [
                     (
                         Icon::MicrosoftGrid,
@@ -3203,11 +3204,11 @@ impl TouchUi {
                     Face::SemiBold,
                     10.2,
                     cx,
-                    body_y + 132.0,
+                    body_y + 142.0,
                     muted_c,
                     "POINTER, CAMERA & AIM",
                 );
-                let sens_y = body_y + 148.0;
+                let sens_y = body_y + 158.0;
                 ui.rounded(cx, sens_y, cw, 50.0, 11.0, card_bg);
                 ui.border(cx, sens_y, cw, 50.0, 11.0, border_c);
                 ui.text(
@@ -3256,7 +3257,7 @@ impl TouchUi {
                 // 4. Authoritative Virtual Mouse Toggle, Invert Y-Axis & Split Touch
                 draw_toggle_row(
                     &mut ui,
-                    body_y + 206.0,
+                    body_y + 216.0,
                     "Virtual Mouse Button",
                     "Windows 11 pointer; auto-shows when MCPE controls are hidden",
                     Some(settings.virtual_mouse_enabled),
@@ -3264,7 +3265,7 @@ impl TouchUi {
                 );
                 draw_toggle_row(
                     &mut ui,
-                    body_y + 260.0,
+                    body_y + 270.0,
                     "Invert Y-Axis",
                     "Reverse vertical camera look direction",
                     Some(settings.invert_y),
@@ -3272,7 +3273,7 @@ impl TouchUi {
                 );
                 draw_toggle_row(
                     &mut ui,
-                    body_y + 314.0,
+                    body_y + 324.0,
                     "Split Touch (Aim & Look)",
                     "Use center crosshair instead of tap-anywhere interaction",
                     Some(settings.crosshair()),
@@ -3280,7 +3281,7 @@ impl TouchUi {
                 );
                 draw_toggle_row(
                     &mut ui,
-                    body_y + 368.,
+                    body_y + 378.0,
                     &crate::lang::get("starling.controls.analog"),
                     &crate::lang::get("starling.controls.analog_hint"),
                     Some(settings.analog_movement),

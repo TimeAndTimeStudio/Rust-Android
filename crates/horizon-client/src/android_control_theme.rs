@@ -1843,7 +1843,7 @@ impl<'a> Ui<'a> {
                 cx,
                 title_y,
                 color::with_alpha(theme.text_primary, title_t),
-                "HORIZON",
+                "TML",
             );
             let sub_y = title_y + 32.0;
             self.text_centered(
@@ -1852,7 +1852,7 @@ impl<'a> Ui<'a> {
                 cx,
                 sub_y,
                 color::with_alpha(theme.text_muted, title_t * 0.9),
-                "RUST EDITION  •  ANDROID LAUNCHER",
+                "RUST EDITION  •  ANDROID",
             );
 
             // Real initialization progress indicator
@@ -2095,7 +2095,7 @@ impl ThemePreset {
 
     pub fn subtitle(self) -> &'static str {
         match self {
-            Self::ObsidianViolet => "Signature Horizon dark violet",
+            Self::ObsidianViolet => "Signature TML dark violet",
             Self::CyberCyan => "Deep slate with electric cyan",
             Self::EmeraldForest => "Woodland moss with emerald mint",
             Self::CrimsonEmber => "Obsidian ruby with warm coral",

@@ -272,12 +272,11 @@ pub fn skin() -> Option<PathBuf> {
     }
 }
 
-/// Bundled resource packs the app carries (e.g. Faithful 32x, OrangeBlack UI Pack),
+/// Bundled resource packs the app carries (e.g. Faithful 32x),
 /// put in `resourcepacks/` of the game folder so the player can choose to activate them.
 pub fn put_resource_packs(game_folder: &Path) {
     let packs = [
         "Faithful 32x - 26.3.zip",
-        "OrangeBlack_UI_Pack_26.2_26.3.zip",
     ];
     let dir = game_folder.join("resourcepacks");
     for pack_name in packs {
