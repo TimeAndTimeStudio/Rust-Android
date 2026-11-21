@@ -165,7 +165,7 @@ impl Game<'_> {
         self.mobile_init();
         self.settings.touch = self.mobile.controls.settings.clone();
     }
-    fn mobile_init(&mut self) {
+    pub(in crate::game) fn mobile_init(&mut self) {
         if self.mobile.loaded {
             return;
         }

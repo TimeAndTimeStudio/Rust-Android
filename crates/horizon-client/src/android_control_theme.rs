@@ -2081,7 +2081,7 @@ impl ThemePreset {
             Self::CyberCyan => "Deep slate with electric cyan",
             Self::EmeraldForest => "Woodland moss with emerald mint",
             Self::CrimsonEmber => "Obsidian ruby with warm coral",
-            Self::SolarGold => "Dark bronze with radiant amber",
+            Self::SolarGold => "Obsidian bronze with radiant amber-orange",
             Self::SakuraRose => "Twilight plum with blossom pink",
             Self::DaylightFrost => "High-contrast Material 3 light",
             Self::Custom => "Personalized colors & gradients",
@@ -2091,7 +2091,7 @@ impl ThemePreset {
     /// Returns `(bg_rgb, surface_rgb, accent_rgb, grad_start_rgb, grad_mid_rgb, grad_end_rgb, is_light)`
     pub fn palette_rgb(self) -> (u32, u32, u32, u32, u32, u32, bool) {
         match self {
-            Self::ObsidianViolet | Self::Custom => (
+            Self::ObsidianViolet => (
                 0x13111C, 0x1D192B, 0x9A7BFF, 0x161129, 0x1E1638, 0x0E0C16, false,
             ),
             Self::CyberCyan => (
@@ -2103,8 +2103,8 @@ impl ThemePreset {
             Self::CrimsonEmber => (
                 0x191013, 0x26181D, 0xF87171, 0x261219, 0x361922, 0x120B0E, false,
             ),
-            Self::SolarGold => (
-                0x18140D, 0x251F15, 0xFBBF24, 0x241C0F, 0x332714, 0x120F0A, false,
+            Self::SolarGold | Self::Custom => (
+                0x111015, 0x1C1920, 0xFF7A00, 0x20150E, 0x2B1A0D, 0x0E0D12, false,
             ),
             Self::SakuraRose => (
                 0x18111A, 0x261A29, 0xF472B6, 0x251429, 0x341C3A, 0x110C13, false,
@@ -2237,16 +2237,16 @@ pub struct LauncherThemeConfig {
 impl Default for LauncherThemeConfig {
     fn default() -> Self {
         Self {
-            preset: ThemePreset::ObsidianViolet,
+            preset: ThemePreset::SolarGold,
             appearance: ThemeAppearance::Dark,
             background_mode: BackgroundMode::Solid,
-            custom_bg_hex: "#13111C".into(),
-            custom_surface_hex: "#1D192B".into(),
-            custom_accent_hex: "#9A7BFF".into(),
+            custom_bg_hex: "#111015".into(),
+            custom_surface_hex: "#1C1920".into(),
+            custom_accent_hex: "#FF7A00".into(),
             gradient_direction: GradientDirection::DiagonalDown,
-            gradient_start_hex: "#1A1333".into(),
-            gradient_mid_hex: "#131A2E".into(),
-            gradient_end_hex: "#0D0B14".into(),
+            gradient_start_hex: "#20150E".into(),
+            gradient_mid_hex: "#2B1A0D".into(),
+            gradient_end_hex: "#0E0D12".into(),
             gradient_mid_pos: 0.50,
             use_three_stops: true,
         }
@@ -2356,22 +2356,22 @@ impl LauncherThemeConfig {
         }
         self.gradient_mid_pos = self.gradient_mid_pos.clamp(0.15, 0.85);
         if parse_hex_color(&self.custom_bg_hex).is_none() {
-            self.custom_bg_hex = "#13111C".into();
+            self.custom_bg_hex = "#111015".into();
         }
         if parse_hex_color(&self.custom_surface_hex).is_none() {
-            self.custom_surface_hex = "#1D192B".into();
+            self.custom_surface_hex = "#1C1920".into();
         }
         if parse_hex_color(&self.custom_accent_hex).is_none() {
-            self.custom_accent_hex = "#9A7BFF".into();
+            self.custom_accent_hex = "#FF7A00".into();
         }
         if parse_hex_color(&self.gradient_start_hex).is_none() {
-            self.gradient_start_hex = "#1A1333".into();
+            self.gradient_start_hex = "#20150E".into();
         }
         if parse_hex_color(&self.gradient_mid_hex).is_none() {
-            self.gradient_mid_hex = "#131A2E".into();
+            self.gradient_mid_hex = "#2B1A0D".into();
         }
         if parse_hex_color(&self.gradient_end_hex).is_none() {
-            self.gradient_end_hex = "#0D0B14".into();
+            self.gradient_end_hex = "#0E0D12".into();
         }
     }
 
@@ -2764,7 +2764,7 @@ mod tests {
             ..Default::default()
         };
         cfg.sanitize();
-        assert_eq!(cfg.custom_bg_hex, "#13111C");
+        assert_eq!(cfg.custom_bg_hex, "#111015");
         assert_eq!(cfg.gradient_mid_pos, 0.85);
 
         cfg.apply_preset(ThemePreset::DaylightFrost);

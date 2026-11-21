@@ -191,13 +191,13 @@ impl Default for JoystickStyle {
     fn default() -> Self {
         Self {
             stick_stroke: 2.0,
-            stick_stroke_color: 0xFF9A7BFF,
-            stick_color: 0xFFD8CEFF,
+            stick_stroke_color: 0xFFFF7A00,
+            stick_color: 0xFFFFB366,
             stick_opacity: 0.90,
             stick_size: 0.42,
             base_stroke: 2.0,
-            base_stroke_color: 0xFF6B5B95,
-            base_color: 0xFF1A1726,
+            base_stroke_color: 0xFFB45309,
+            base_color: 0xFF18151D,
             base_opacity: 0.72,
             base_roundness: 50.0,
             move_area: JoystickMoveArea::FollowFinger,
@@ -252,10 +252,10 @@ fn default_roundness() -> f32 {
     10.0
 }
 fn default_stroke_color() -> u32 {
-    0xFF8A7AE6
+    0xFFFF7A00
 }
 fn default_button_color() -> u32 {
-    0xFF1E1B2E
+    0xFF18151D
 }
 fn default_shadow_size() -> f32 {
     0.0
@@ -264,16 +264,16 @@ fn default_shadow_color() -> u32 {
     0x96000000
 }
 fn default_click_color() -> u32 {
-    0xFF423675
+    0xFFB45309
 }
 fn default_click_stroke() -> u32 {
-    0xFFD0BCFF
+    0xFFFFB366
 }
 fn default_toggle_color() -> u32 {
-    0xFF543B94
+    0xFFEA580C
 }
 fn default_toggle_stroke() -> u32 {
-    0xFFEADDFF
+    0xFFFFEDD5
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -353,15 +353,15 @@ impl Placement {
             stroke_size: 1.6,
             stroke_margin: 0.0,
             stroke_roundness: 10.0,
-            stroke_color: 0xFF8A7AE6,
-            button_color: 0xFF1E1B2E,
+            stroke_color: 0xFFFF7A00,
+            button_color: 0xFF18151D,
             shadow_size: 0.0,
             shadow_color: 0x96000000,
             roundness: 10.0,
-            on_click_color: 0xFF423675,
-            on_click_stroke_color: 0xFFD0BCFF,
-            on_toggle_color: 0xFF543B94,
-            on_toggle_stroke_color: 0xFFEADDFF,
+            on_click_color: 0xFFB45309,
+            on_click_stroke_color: 0xFFFFB366,
+            on_toggle_color: 0xFFEA580C,
+            on_toggle_stroke_color: 0xFFFFEDD5,
             visible_in_game: true,
             visible_in_menu: false,
         }

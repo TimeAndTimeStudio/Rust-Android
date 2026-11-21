@@ -4417,8 +4417,8 @@ pub fn draw_hud_editor(
         ui.fill(0.0, h * g, w, 1.0, rgba(255, 255, 255, 11));
         g += step;
     }
-    ui.fill(w * 0.5, 0.0, 1.0, h, rgba(154, 123, 255, 38));
-    ui.fill(0.0, h * 0.5, w, 1.0, rgba(154, 123, 255, 38));
+    ui.fill(w * 0.5, 0.0, 1.0, h, color::with_alpha(accent, 0.22));
+    ui.fill(0.0, h * 0.5, w, 1.0, color::with_alpha(accent, 0.22));
 
     // JoystickMoveArea visual zone indicator when Move is selected
     if ed.selected == Some(Control::Move) && ed.selected_custom.is_none() {
@@ -4440,7 +4440,7 @@ pub fn draw_hud_editor(
                 zw - 4.0,
                 zh - 4.0,
                 12.0,
-                rgba(154, 123, 255, 18),
+                color::with_alpha(accent, 0.12),
             );
             ui.border(
                 zx + 2.0,
@@ -4448,7 +4448,7 @@ pub fn draw_hud_editor(
                 zw - 4.0,
                 zh - 4.0,
                 12.0,
-                rgba(154, 123, 255, 75),
+                color::with_alpha(accent, 0.45),
             );
             ui.text(
                 Face::Medium,

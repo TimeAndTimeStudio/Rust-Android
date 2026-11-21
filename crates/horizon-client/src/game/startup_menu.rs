@@ -1644,6 +1644,8 @@ mod tests {
     fn the_world_renderer_waits_for_the_first_title_frame() {
         let (_send, receiver) = std::sync::mpsc::channel();
         let mut loading = loading(receiver);
+        // Minimum boot screen duration elapsed for test setup
+        loading.started = Instant::now().checked_sub(Duration::from_millis(1500)).unwrap_or_else(Instant::now);
         // No menu bundle yet: nothing to wait for.
         assert!(loading.ready_for_handoff());
         // The title artwork is up but no frame of it was presented.

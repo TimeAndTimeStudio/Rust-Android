@@ -21039,6 +21039,8 @@ fn start_game<'a>(
     }
     // After the mods: their templates are among the ids it lists.
     game.preload_registries();
+    #[cfg(target_os = "android")]
+    game.mobile_init();
     game.start_agent_control()?;
     if let Some(scenario) = game.options.benchmark.clone() {
         let control = game
@@ -21263,14 +21265,18 @@ struct Loading {
 /// How long the handoff waits for the first title frame before building the
 /// world renderer anyway (a hidden window may never be asked to redraw).
 const TITLE_FRAME_WAIT: Duration = Duration::from_secs(1);
+/// Minimum duration to present the boot logo & boot log so players can see startup initialization.
+const MIN_BOOT_WAIT: Duration = Duration::from_millis(1200);
 impl Loading {
     /// The world renderer is built on the main thread, so building it before
     /// the title is on the screen holds the title back by that build. Wait for
-    /// one title frame first, unless a world is waiting to open.
+    /// one title frame first, unless a world is waiting to open. Also ensure a minimum
+    /// boot display delay so startup logs are legible.
     fn ready_for_handoff(&self) -> bool {
-        self.title_drawn
-            || self.menu.pending.is_some()
-            || self.ui_at.is_none_or(|at| at.elapsed() >= TITLE_FRAME_WAIT)
+        (self.started.elapsed() >= MIN_BOOT_WAIT || self.options.as_ref().is_some_and(|o| o.offscreen))
+            && (self.title_drawn
+                || self.menu.pending.is_some()
+                || self.ui_at.is_none_or(|at| at.elapsed() >= TITLE_FRAME_WAIT))
     }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.suspended = false;
