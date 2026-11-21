@@ -2750,19 +2750,17 @@ impl TouchUi {
         ui.fill(dx, dy + 47.0, dw, 1.0, border_c);
         ui.stroke_rounded(dx, dy, dw, dh, 20.0, 1.4, border_c);
 
-        // Top Header Bar with Active Control System Mode Badge
-        ui.rounded(dx + 14.0, dy + 9.0, 30.0, 30.0, 9.0, card_sel);
-        ui.border(dx + 14.0, dy + 9.0, 30.0, 30.0, 9.0, accent);
-        let header_ic_s = 20.0;
+        // Top Header Bar with TML Icon
+        let header_ic_s = 24.0;
         ui.tml_app_icon(
-            dx + 14.0 + (30.0 - header_ic_s) * 0.5,
-            dy + 9.0 + (30.0 - header_ic_s) * 0.5,
+            dx + 16.0,
+            dy + 12.0,
             header_ic_s,
         );
         ui.text(
             Face::SemiBold,
             13.5,
-            dx + 52.0,
+            dx + 48.0,
             dy + 8.0,
             text_c,
             "TML Control Hub",
@@ -2770,7 +2768,7 @@ impl TouchUi {
         ui.text(
             Face::Regular,
             9.6,
-            dx + 52.0,
+            dx + 48.0,
             dy + 25.0,
             muted_c,
             "Configure touch controls, virtual mouse & feedback",
@@ -2780,13 +2778,14 @@ impl TouchUi {
         let ram_mb = horizon_threads::memory_limit::resident_bytes()
             .map(|b| b.div_ceil(1024 * 1024))
             .unwrap_or(0);
+        let style_label = tc.settings.control_style.label();
         let mode_badge_txt = if ram_mb > 0 {
-            format!("RAM {ram_mb} MB • MCPE")
+            format!("RAM: {ram_mb} MB • {style_label}")
         } else {
-            "MCPE Controls".to_owned()
+            format!("{style_label} Controls")
         };
-        let badge_w = 136.0;
-        let badge_r = [dx + dw - 220.0, dy + 11.0, badge_w, 26.0];
+        let badge_w = 150.0;
+        let badge_r = [dx + dw - 235.0, dy + 11.0, badge_w, 26.0];
         if badge_r[0] > dx + 220.0 {
             ui.rounded(
                 badge_r[0], badge_r[1], badge_r[2], badge_r[3], 8.0, card_sel,
