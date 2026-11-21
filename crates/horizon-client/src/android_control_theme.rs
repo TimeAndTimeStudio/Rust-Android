@@ -1468,7 +1468,7 @@ impl<'a> Ui<'a> {
         y: f32,
         w: f32,
         h: f32,
-        radius: f32,
+        _radius: f32,
         stroke_w: f32,
         color: u32,
     ) {

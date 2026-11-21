@@ -4733,7 +4733,7 @@ pub fn draw_hud_editor(
                 true,
                 tc.settings.snap_to_grid,
             ),
-            (Some(Icon::Refresh), "Reset", 66.0, true, false),
+            (Some(Icon::Undo), "Reset", 66.0, true, false),
             (Some(Icon::Close), "Cancel", 66.0, true, false),
             (Some(Icon::Check), "Done", 60.0, true, true),
         ];
