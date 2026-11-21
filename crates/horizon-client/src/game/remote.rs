@@ -5639,9 +5639,10 @@ impl Game<'_> {
         // PlayerSkin.cape of each resolved skin.
         let mut capes: HashMap<u128, String> = HashMap::new();
         for (uuid, textures) in entries {
-            // PlayerInfo.createSkinLookup: only the local player's own skin
-            // may be unsigned; Ely.by's never are.
-            let secure = uuid != local && !from_elyby.contains(&uuid);
+            // In offline-mode servers (online=false), SkinsRestorer and offline servers
+            // send skins that may not be signed by Mojang or have local player skins.
+            // When offline (online_mode is false), allow unsigned skins so SkinsRestorer works.
+            let secure = online_mode && uuid != local && !from_elyby.contains(&uuid);
             let skin = {
                 let mut downloads = self.skin_downloads.borrow_mut();
                 horizon_client::skins::lookup(&textures, secure, |kind, url| {
