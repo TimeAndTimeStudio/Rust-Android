@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12 and up: windowSplashScreenBackground and empty/transparent icon -->
+    <!-- Android 12 and up: windowSplashScreenBackground, empty/transparent icon, and no animation duration -->
     <style name="Starling.Game" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowSplashScreenBackground">#FF121214</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+        <item name="android:windowDisablePreview">true</item>
         <item name="android:statusBarColor">#FF121214</item>
         <item name="android:navigationBarColor">#FF121214</item>
         <item name="android:windowBackground">#FF121214</item>
@@ -15,6 +17,8 @@
     <style name="Starling.Launcher" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowSplashScreenBackground">#FF121214</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+        <item name="android:windowDisablePreview">true</item>
         <item name="android:statusBarColor">#FF121214</item>
         <item name="android:navigationBarColor">#FF121214</item>
         <item name="android:windowBackground">#FF121214</item>
