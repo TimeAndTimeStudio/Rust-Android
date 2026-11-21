@@ -494,7 +494,7 @@ impl Loading {
             // The game opens its sound output with the sounds just prepared.
             self.audio = None;
             match self.retry() {
-                Ok(()) => self.setup.starting = true,
+                Ok(()) => self.setup.starting = false,
                 Err(e) => self.failure = Some(e.to_string()),
             }
             return;

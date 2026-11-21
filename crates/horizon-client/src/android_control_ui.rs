@@ -2423,7 +2423,16 @@ impl TouchUi {
                     return Some(InGameMenuAction::SetVirtualMouseSpeed(0.25 + t * 2.75));
                 }
                 let act_y = body_y + 342.0;
-                if inside([cx, act_y, cw, 44.0]) {
+                let half_w = (cw - 10.0) * 0.5;
+                if inside([cx, act_y, half_w, 44.0]) {
+                    let next_style = if settings.control_style == ControlStyle::Mcpe {
+                        ControlStyle::GoyControl
+                    } else {
+                        ControlStyle::Mcpe
+                    };
+                    return Some(InGameMenuAction::SetControlStyle(next_style));
+                }
+                if inside([cx + half_w + 10.0, act_y, half_w, 44.0]) {
                     self.floating_menu = false;
                     return Some(InGameMenuAction::OpenControlEditor);
                 }
@@ -2436,8 +2445,11 @@ impl TouchUi {
                 // Tab 1: Controls
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                if inside([cx, mode_y, cw, 48.0]) {
+                if inside([cx, mode_y, half_w, 48.0]) {
                     return Some(InGameMenuAction::SetControlStyle(ControlStyle::Mcpe));
+                }
+                if inside([cx + half_w + 10.0, mode_y, half_w, 48.0]) {
+                    return Some(InGameMenuAction::SetControlStyle(ControlStyle::GoyControl));
                 }
 
                 // Customize Controls | Control Presets
@@ -2447,7 +2459,7 @@ impl TouchUi {
                     return Some(InGameMenuAction::OpenControlEditor);
                 }
                 if inside([cx + half_w + 10.0, act_y, half_w, 44.0]) {
-                    self.refresh_presets_cache(ControlStyle::Mcpe);
+                    self.refresh_presets_cache(settings.control_style);
                     self.presets_modal_open = true;
                     return Some(InGameMenuAction::Close);
                 }
@@ -2574,11 +2586,12 @@ impl TouchUi {
                     return Some(InGameMenuAction::PresetVisibilityAll);
                 }
                 let ky = body_y + 198.0;
-                let kw = (cw - 25.0) / 6.0;
+                let kw = (cw - 30.0) / 7.0;
                 let quick = [
                     KeyCode::F1,
                     KeyCode::F3,
                     KeyCode::F5,
+                    KeyCode::KeyC,
                     KeyCode::KeyE,
                     KeyCode::KeyT,
                 ];
@@ -2589,7 +2602,7 @@ impl TouchUi {
                         return Some(InGameMenuAction::TriggerKey(*key));
                     }
                 }
-                if inside([cx + 5.0 * (kw + 5.0), ky, kw, 36.0]) {
+                if inside([cx + 6.0 * (kw + 5.0), ky, kw, 36.0]) {
                     self.floating_menu = false;
                     return Some(InGameMenuAction::OpenKeyboard);
                 }
@@ -3084,26 +3097,27 @@ impl TouchUi {
                 );
 
                 let act_y = body_y + 342.0;
-                ui.rounded(cx, act_y, cw, 44.0, 11.0, card_bg);
-                ui.border(cx, act_y, cw, 44.0, 11.0, border_c);
-                ui.rounded(cx + 10.0, act_y + 9.0, 26.0, 26.0, 8.0, card_sel);
-                ui.icon(Icon::MicrosoftGrid, cx + 15.0, act_y + 14.0, 16.0, accent_hi);
-                ui.text(
-                    Face::SemiBold,
-                    10.4,
-                    cx + 42.0,
-                    act_y + 6.0,
-                    text_c,
-                    "Customize Controls",
-                );
-                ui.text(
-                    Face::Regular,
-                    8.6,
-                    cx + 42.0,
-                    act_y + 23.0,
-                    muted_c,
-                    "Open MCPE layout & property studio",
-                );
+                let half_w = (cw - 10.0) * 0.5;
+                let sys_sub = format!("Active: {}", settings.control_style.label());
+                for (i, (ic, title, sub)) in [
+                    (Icon::Gamepad, "Switch Control System", sys_sub.as_str()),
+                    (
+                        Icon::MicrosoftGrid,
+                        "Customize Controls",
+                        "Open layout & property studio",
+                    ),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let rx = cx + i as f32 * (half_w + 10.0);
+                    ui.rounded(rx, act_y, half_w, 44.0, 11.0, card_bg);
+                    ui.border(rx, act_y, half_w, 44.0, 11.0, border_c);
+                    ui.rounded(rx + 10.0, act_y + 9.0, 26.0, 26.0, 8.0, card_sel);
+                    ui.icon(ic, rx + 15.0, act_y + 14.0, 16.0, accent_hi);
+                    ui.text(Face::SemiBold, 10.4, rx + 42.0, act_y + 6.0, text_c, title);
+                    ui.text(Face::Regular, 8.6, rx + 42.0, act_y + 23.0, muted_c, sub);
+                }
 
                 draw_toggle_row(
                     &mut ui,
@@ -3115,41 +3129,62 @@ impl TouchUi {
                 );
             }
             1 => {
-                // 1. Control Mode Section (MCPE Pure Touch)
-                ui.text(Face::SemiBold, 10.2, cx, body_y, muted_c, "CONTROL SYSTEM (MCPE)");
+                // 1. Control Mode Section
+                ui.text(Face::SemiBold, 10.2, cx, body_y, muted_c, "CONTROL MODE");
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                ui.rounded(cx, mode_y, cw, 48.0, 11.0, card_sel);
-                ui.stroke_rounded(cx, mode_y, cw, 48.0, 11.0, 1.6, accent);
-                let rad_x = cx + 12.0;
-                let rad_y = mode_y + 17.0;
-                ui.stroke_rounded(rad_x, rad_y, 14.0, 14.0, 7.0, 1.5, accent_hi);
-                ui.rounded(rad_x + 3.5, rad_y + 3.5, 7.0, 7.0, 3.5, accent_hi);
-                ui.text(
-                    Face::SemiBold,
-                    11.5,
-                    cx + 34.0,
-                    mode_y + 7.0,
-                    text_c,
-                    "MCPE Touch Controls (Bedrock Layout)",
-                );
-                ui.text(
-                    Face::Regular,
-                    9.2,
-                    cx + 34.0,
-                    mode_y + 26.0,
-                    muted_c,
-                    "Classic crosshair/touch, analog joystick, D-Pad, customizable buttons & HUD",
-                );
+                let is_mcpe = settings.control_style == ControlStyle::Mcpe;
+                for (i, (title, sub, sel)) in [
+                    ("MCPE (Default)", "Vanilla touch controls", is_mcpe),
+                    ("GoyControl", "Custom layout & keybinds", !is_mcpe),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let rx = cx + i as f32 * (half_w + 10.0);
+                    ui.rounded(
+                        rx,
+                        mode_y,
+                        half_w,
+                        48.0,
+                        11.0,
+                        if sel { card_sel } else { card_bg },
+                    );
+                    ui.stroke_rounded(
+                        rx,
+                        mode_y,
+                        half_w,
+                        48.0,
+                        11.0,
+                        if sel { 1.6 } else { 1.0 },
+                        if sel { accent } else { border_c },
+                    );
+                    let rad_x = rx + 11.0;
+                    let rad_y = mode_y + 17.0;
+                    ui.stroke_rounded(
+                        rad_x,
+                        rad_y,
+                        14.0,
+                        14.0,
+                        7.0,
+                        1.5,
+                        if sel { accent_hi } else { muted_c },
+                    );
+                    if sel {
+                        ui.rounded(rad_x + 3.5, rad_y + 3.5, 7.0, 7.0, 3.5, accent_hi);
+                    }
+                    ui.text(Face::SemiBold, 11.0, rx + 31.0, mode_y + 7.0, text_c, title);
+                    ui.text(Face::Regular, 9.0, rx + 31.0, mode_y + 26.0, muted_c, sub);
+                }
 
-                // 2. Control Layout Editor & Presets
+                // 2. Dynamic System Controls Section
                 ui.text(
                     Face::SemiBold,
                     10.2,
                     cx,
                     body_y + 74.0,
                     muted_c,
-                    "LAYOUT & PRESETS",
+                    settings.control_style.section_title(),
                 );
                 let act_y = body_y + 90.0;
                 let active_preset_lbl = format!("Active: {}", settings.preset_name);
@@ -3702,8 +3737,8 @@ impl TouchUi {
                     "QUICK DESKTOP KEYS & CUSTOM INPUT",
                 );
                 let ky = body_y + 198.0;
-                let kw = (cw - 25.0) / 6.0;
-                for (i, lbl) in ["F1", "F3", "F5", "Inv", "Chat", "Keys"]
+                let kw = (cw - 30.0) / 7.0;
+                for (i, lbl) in ["F1", "F3", "F5", "Zoom", "Inv", "Chat", "Keys"]
                     .into_iter()
                     .enumerate()
                 {
@@ -4648,8 +4683,8 @@ pub fn draw_hud_editor(
         );
     }
 
-    // 6. Larger Material You 3 Moveable Floating Menu Pod (`356x48dp`)
-    let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
+    // 6. Larger Material You 3 Moveable Floating Menu Pod (`548x48dp`)
+    let pod_w = if ed.pod_expanded { 548.0 } else { 52.0 };
     let pod_h = 48.0;
     let pod_x = (tc.settings.floating_menu_pos[0] * w).clamp(8.0, (w - pod_w - 8.0).max(8.0));
     let pod_y = (tc.settings.floating_menu_pos[1] * h).clamp(6.0, (h - pod_h - 6.0).max(6.0));
@@ -4682,17 +4717,30 @@ pub fn draw_hud_editor(
     );
 
     if ed.pod_expanded {
-        let items: [(Option<Icon>, &str, f32, bool, bool); 5] = [
-            (Some(Icon::Undo), "", 42.0, !ed.undo_stack.is_empty(), false),
-            (Some(Icon::Redo), "", 42.0, !ed.redo_stack.is_empty(), false),
-            (Some(Icon::Gear), "Props", 72.0, true, ed.props_open),
-            (Some(Icon::Plus), "Add", 64.0, true, false),
-            (Some(Icon::Check), "Save", 68.0, true, true),
+        let items: [(Option<Icon>, &str, f32, bool, bool); 8] = [
+            (Some(Icon::Undo), "", 38.0, !ed.undo_stack.is_empty(), false),
+            (Some(Icon::Redo), "", 38.0, !ed.redo_stack.is_empty(), false),
+            (Some(Icon::Gear), "Props", 68.0, true, ed.props_open),
+            (Some(Icon::Plus), "Add", 58.0, true, false),
+            (
+                Some(Icon::MicrosoftGrid),
+                if tc.settings.snap_to_grid {
+                    "Grid: ON"
+                } else {
+                    "Grid: OFF"
+                },
+                76.0,
+                true,
+                tc.settings.snap_to_grid,
+            ),
+            (Some(Icon::Refresh), "Reset", 66.0, true, false),
+            (Some(Icon::Close), "Cancel", 66.0, true, false),
+            (Some(Icon::Check), "Done", 60.0, true, true),
         ];
         let mut ix = pod_x + 50.0;
         for (ic, lbl, iw, enabled, hi) in items {
             let r = [ix, pod_y + 5.0, iw, 38.0];
-            let bg = if lbl == "Save" {
+            let bg = if lbl == "Done" {
                 accent
             } else if hi {
                 accent_soft
@@ -4706,14 +4754,18 @@ pub fn draw_hud_editor(
                 r[2],
                 r[3],
                 19.0,
-                if hi || lbl == "Save" {
+                if hi || lbl == "Done" {
                     accent
+                } else if lbl == "Cancel" {
+                    danger_c
                 } else {
                     border_c
                 },
             );
-            let fg = if lbl == "Save" {
+            let fg = if lbl == "Done" {
                 accent_fg
+            } else if lbl == "Cancel" {
+                danger_c
             } else if !enabled {
                 color::hex(0x5E5875, 200)
             } else if hi {
@@ -4725,8 +4777,8 @@ pub fn draw_hud_editor(
                 if lbl.is_empty() {
                     ui.icon(icon, r[0] + (iw - 18.0) * 0.5, r[1] + 10.0, 18.0, fg);
                 } else {
-                    ui.icon(icon, r[0] + 10.0, r[1] + 11.0, 16.0, fg);
-                    ui.text(Face::SemiBold, 11.5, r[0] + 29.0, r[1] + 10.0, fg, lbl);
+                    ui.icon(icon, r[0] + 8.0, r[1] + 12.0, 14.0, fg);
+                    ui.text(Face::SemiBold, 10.5, r[0] + 25.0, r[1] + 10.5, fg, lbl);
                 }
             }
             ix += iw + 4.0;
@@ -6607,7 +6659,7 @@ pub fn touch_hud_editor(
             {
                 match kind {
                     EditorDragKind::FloatingPod { offset, mut moved } => {
-                        let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
+                        let pod_w = if ed.pod_expanded { 548.0 } else { 52.0 };
                         let cur_x = (tc.settings.floating_menu_pos[0] * w)
                             .clamp(8.0, (w - pod_w - 8.0).max(8.0));
                         let cur_y =
@@ -7802,8 +7854,8 @@ pub fn touch_hud_editor(
             return false;
         }
 
-        // 5. Check Larger Material You 3 Moveable Floating Menu Pod (356x48dp)
-        let pod_w = if ed.pod_expanded { 356.0 } else { 52.0 };
+        // 5. Check Larger Material You 3 Moveable Floating Menu Pod (548x48dp)
+        let pod_w = if ed.pod_expanded { 548.0 } else { 52.0 };
         let pod_h = 48.0;
         let pod_x = (tc.settings.floating_menu_pos[0] * w).clamp(8.0, (w - pod_w - 8.0).max(8.0));
         let pod_y = (tc.settings.floating_menu_pos[1] * h).clamp(6.0, (h - pod_h - 6.0).max(6.0));
@@ -7819,7 +7871,7 @@ pub fn touch_hud_editor(
             return false;
         }
         if ed.pod_expanded && inside([pod_x, pod_y, pod_w, pod_h]) {
-            let widths = [42.0, 42.0, 72.0, 64.0, 68.0];
+            let widths = [38.0, 38.0, 68.0, 58.0, 76.0, 66.0, 66.0, 60.0];
             let mut ix = pod_x + 50.0;
             for (btn_i, iw) in widths.into_iter().enumerate() {
                 if inside([ix, pod_y + 5.0, iw, 38.0]) {
@@ -7871,18 +7923,59 @@ pub fn touch_hud_editor(
                                 let _ = tc.settings.save();
                             }
                         }
-                        _ => {
-                            // Open Save Dialog (Option A: Replace / Option B: Create New Preset)
-                            ed.save_dialog_open = true;
-                            ed.menu_open = false;
-                            ed.props_open = false;
-                            ed.editing_save_desc = false;
-                            ed.save_name_input = if tc.settings.is_default_preset() {
-                                format!("{} Custom", tc.settings.preset_name)
+                        4 => {
+                            // Grid Snap toggle
+                            push_undo_snapshot(&mut ed, &tc.settings);
+                            tc.settings.snap_to_grid = !tc.settings.snap_to_grid;
+                            let _ = tc.settings.save();
+                            ed.status_msg = Some(if tc.settings.snap_to_grid {
+                                "Grid Snap enabled.".into()
                             } else {
-                                tc.settings.preset_name.clone()
-                            };
-                            ed.save_desc_input = tc.settings.preset_description.clone();
+                                "Grid Snap disabled.".into()
+                            });
+                        }
+                        5 => {
+                            // Reset layout to Default
+                            push_undo_snapshot(&mut ed, &tc.settings);
+                            let cur_style = tc.settings.control_style;
+                            let cur_id = tc.settings.preset_id.clone();
+                            let cur_name = tc.settings.preset_name.clone();
+                            let cur_desc = tc.settings.preset_description.clone();
+                            let active_mcpe = tc.settings.active_mcpe_preset.clone();
+                            let active_goy = tc.settings.active_goy_preset.clone();
+                            let fresh =
+                                crate::android_controls::Settings::default_for_style(cur_style);
+                            tc.settings.layouts = fresh.layouts;
+                            tc.settings.custom_buttons = fresh.custom_buttons;
+                            tc.settings.button_visibility = fresh.button_visibility;
+                            tc.settings.joystick_style = fresh.joystick_style;
+                            tc.settings.preset_id = cur_id;
+                            tc.settings.preset_name = cur_name;
+                            tc.settings.preset_description = cur_desc;
+                            tc.settings.active_mcpe_preset = active_mcpe;
+                            tc.settings.active_goy_preset = active_goy;
+                            clamp_editor_custom_selection(&mut ed, &tc.settings);
+                            let _ = tc.settings.save();
+                            ed.status_msg = Some(format!(
+                                "Reset editor canvas to {} Default layout.",
+                                cur_style.label()
+                            ));
+                        }
+                        6 => {
+                            // Cancel: revert to original snapshot and exit editor
+                            tc.settings = ed.original.clone();
+                            let _ = tc.settings.save();
+                            tc.clicked = true;
+                            return true;
+                        }
+                        _ => {
+                            // Done: save changes and exit editor (or open Save Dialog if user wants to save preset)
+                            if !tc.settings.is_default_preset() {
+                                let _ = tc.settings.save_replace_preset(std::path::Path::new("."));
+                            }
+                            let _ = tc.settings.save();
+                            tc.clicked = true;
+                            return true;
                         }
                     }
                     tc.clicked = true;

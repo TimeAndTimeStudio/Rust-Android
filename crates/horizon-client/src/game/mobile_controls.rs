@@ -898,16 +898,16 @@ impl Game<'_> {
         }
         // Raw Shift and Control are the touch Sneak and Sprint buttons:
         // set their toggle state directly so both Hold and Toggle modes work reliably,
-        // and also update `self.keys` so inventory Shift-click works.
+        // and also update `self.keys` so inventory Shift-click and built-in KeyC zoom work.
+        if down {
+            self.keys.insert(key);
+        } else {
+            self.keys.remove(&key);
+        }
         if matches!(
             key,
             KeyCode::ShiftLeft | KeyCode::ShiftRight | KeyCode::ControlLeft | KeyCode::ControlRight
         ) {
-            if down {
-                self.keys.insert(key);
-            } else {
-                self.keys.remove(&key);
-            }
             let slot = usize::from(matches!(key, KeyCode::ControlLeft | KeyCode::ControlRight));
             self.toggles.0[slot].set_down(down, false);
             self.sync_toggle(slot);
@@ -1500,10 +1500,16 @@ impl Game<'_> {
                     let _ = self.mobile.controls.settings.save();
                 }
                 InGameMenuAction::TriggerKey(key) => {
-                    if !self.debug_key(key, KeyAction::Press) {
-                        self.key_pressed(key)?;
+                    if key == KeyCode::KeyC {
+                        if !self.keys.remove(&KeyCode::KeyC) {
+                            self.keys.insert(KeyCode::KeyC);
+                        }
+                    } else {
+                        if !self.debug_key(key, KeyAction::Press) {
+                            self.key_pressed(key)?;
+                        }
+                        self.debug_key(key, KeyAction::Release);
                     }
-                    self.debug_key(key, KeyAction::Release);
                     if matches!(key, KeyCode::KeyT | KeyCode::Slash) && self.screen == Screen::Chat
                     {
                         self.android_show_keyboard();

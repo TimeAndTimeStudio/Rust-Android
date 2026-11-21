@@ -664,7 +664,7 @@ impl Default for Settings {
             shield_button: true,
             circle_size: 32.0,
             button_scale: 1.0,
-            custom_buttons: Vec::new(),
+            custom_buttons: Self::default_mcpe_buttons(),
             analog_movement: false,
             sprint_button: true,
             sprint_toggle: false,
@@ -708,9 +708,27 @@ impl Default for Settings {
     }
 }
 impl Settings {
+    /// Default built-in MCPE custom buttons (includes the built-in Zoom button at the top bar).
+    pub fn default_mcpe_buttons() -> Vec<super::CustomButton> {
+        let mut p = Placement::new(0.64, 0.055, 0.075);
+        p.use_goy_style = false;
+        p.visible_in_game = true;
+        p.visible_in_menu = false;
+        vec![super::CustomButton {
+            key: "key.keyboard.c".into(),
+            second_key: String::new(),
+            third_key: String::new(),
+            custom_label: "Zoom".into(),
+            always_visible: false,
+            layouts: [p; 3],
+        }]
+    }
+
     /// Protected factory Default layout for MCPE Controls.
     pub fn default_mcpe() -> Self {
-        Self::default()
+        let mut s = Self::default();
+        s.custom_buttons = Self::default_mcpe_buttons();
+        s
     }
 
     /// Protected factory Default layout for GoyControl.
@@ -779,11 +797,26 @@ impl Settings {
         }
         // Ensure ZOOM button exists in GoyControl layout if missing from an older layout version
         if s.control_style == ControlStyle::GoyControl
-            && !s.custom_buttons.iter().any(|b| b.custom_label == "ZOOM" || b.key == "key.keyboard.c")
+            && !s
+                .custom_buttons
+                .iter()
+                .any(|b| b.custom_label.eq_ignore_ascii_case("ZOOM") || b.key == "key.keyboard.c")
         {
-            if let Some(zoom_btn) = Self::default_goy_buttons().into_iter().find(|b| b.custom_label == "ZOOM") {
+            if let Some(zoom_btn) = Self::default_goy_buttons()
+                .into_iter()
+                .find(|b| b.custom_label == "ZOOM")
+            {
                 s.custom_buttons.push(zoom_btn);
             }
+        }
+        // Ensure built-in Zoom button exists in MCPE layout if missing from an older layout version
+        if s.control_style == ControlStyle::Mcpe
+            && !s
+                .custom_buttons
+                .iter()
+                .any(|b| b.custom_label.eq_ignore_ascii_case("ZOOM") || b.key == "key.keyboard.c")
+        {
+            s.custom_buttons.extend(Self::default_mcpe_buttons());
         }
         // Migrate legacy action:key.sneak / action:key.sprint tokens without overwriting user custom keybinds.
         for button in &mut s.custom_buttons {
@@ -1046,7 +1079,14 @@ impl Settings {
             || std::fs::read(&default_path)
                 .ok()
                 .and_then(|b| serde_json::from_slice::<Self>(&b).ok())
-                .is_none_or(|s| s.control_style != style || s.preset_id != "default");
+                .is_none_or(|s| {
+                    s.control_style != style
+                        || s.preset_id != "default"
+                        || !s.custom_buttons.iter().any(|b| {
+                            b.custom_label.eq_ignore_ascii_case("ZOOM")
+                                || b.key == "key.keyboard.c"
+                        })
+                });
         if needs_default {
             let def = Self::default_for_style(style);
             let _ = def.save_to(&default_path);
@@ -1809,7 +1849,16 @@ impl Settings {
             let label = btn.custom_label.trim().to_ascii_uppercase();
             let is_movement_only = matches!(
                 label.as_str(),
-                "JUMP" | "SNEAK" | "SPRINT" | "SWAP" | "DROP" | "DEBUG" | "3RD" | "CHAT" | "TAB"
+                "JUMP"
+                    | "SNEAK"
+                    | "SPRINT"
+                    | "SWAP"
+                    | "DROP"
+                    | "DEBUG"
+                    | "3RD"
+                    | "CHAT"
+                    | "TAB"
+                    | "ZOOM"
             ) || matches!(
                 btn.key.as_str(),
                 "key.keyboard.space"
@@ -1822,6 +1871,7 @@ impl Settings {
                     | "action:key.drop"
                     | "key.keyboard.f"
                     | "action:key.swapOffhand"
+                    | "key.keyboard.c"
             );
             for p in &mut btn.layouts {
                 p.visible_in_game = true;
@@ -1837,6 +1887,13 @@ impl Settings {
             ControlStyle::Mcpe => {
                 self.button_visibility = [0; 14];
                 self.custom_buttons.retain(|b| !b.layouts[0].use_goy_style);
+                if !self
+                    .custom_buttons
+                    .iter()
+                    .any(|b| b.custom_label.eq_ignore_ascii_case("ZOOM") || b.key == "key.keyboard.c")
+                {
+                    self.custom_buttons.extend(Self::default_mcpe_buttons());
+                }
             }
             ControlStyle::GoyControl => {
                 self.mode = Mode::Crosshair;
@@ -2054,8 +2111,20 @@ mod tests {
             .custom_buttons
             .push(super::super::CustomButton::new("action:key.jump".into(), 1));
         settings.sanitize();
-        assert_eq!(settings.custom_buttons.len(), 2);
-        let encoded = serde_json::to_string(&settings.custom_buttons[1]).unwrap();
+        assert!(
+            settings
+                .custom_buttons
+                .iter()
+                .any(|b| b.custom_label.eq_ignore_ascii_case("ZOOM") && b.key == "key.keyboard.c")
+        );
+        let encoded = serde_json::to_string(
+            settings
+                .custom_buttons
+                .iter()
+                .find(|b| b.key == "action:key.jump")
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
             serde_json::from_str::<super::super::CustomButton>(&encoded)
                 .unwrap()

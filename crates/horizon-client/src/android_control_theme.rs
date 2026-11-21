@@ -1013,8 +1013,8 @@ impl<'a> Ui<'a> {
         );
         self.raw_fill(x0, y0, x1, y1, color);
     }
-    /// A 1px rounded border.
-    pub fn border(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
+    /// A 1px sharp border.
+    pub fn border(&mut self, x: f32, y: f32, w: f32, h: f32, _radius: f32, color: u32) {
         if color >> 24 == 0 {
             return;
         }
@@ -1024,16 +1024,10 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        let r = (radius * self.density)
-            .round()
-            .min(((x1 - x0) / 2.0).floor())
-            .min(((y1 - y0) / 2.0).floor())
-            .max(0.0);
-        self.raw_fill(x0 + r, y0, x1 - r, y0 + 1.0, color);
-        self.raw_fill(x0 + r, y1 - 1.0, x1 - r, y1, color);
-        self.raw_fill(x0, y0 + r, x0 + 1.0, y1 - r, color);
-        self.raw_fill(x1 - 1.0, y0 + r, x1, y1 - r, color);
-        self.corners(x0, y0, x1, y1, r, 1, color);
+        self.raw_fill(x0, y0, x1, y0 + 1.0, color);
+        self.raw_fill(x0, y1 - 1.0, x1, y1, color);
+        self.raw_fill(x0, y0 + 1.0, x0 + 1.0, y1 - 1.0, color);
+        self.raw_fill(x1 - 1.0, y0 + 1.0, x1, y1 - 1.0, color);
     }
 
     /// Draw a supersampled vector icon in `size x size` dp.

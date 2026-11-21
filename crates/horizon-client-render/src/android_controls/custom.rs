@@ -584,6 +584,7 @@ mod tests {
     fn unassigned_button_emits_no_input() {
         let mut touch = TouchControls::default();
         touch.viewport(1920, 1080);
+        touch.settings.custom_buttons.clear();
         touch
             .settings
             .custom_buttons
@@ -596,6 +597,7 @@ mod tests {
     fn custom_keys_hold_through_motion_and_shared_keys_release_only_after_last_finger() {
         let mut t = TouchControls::default();
         t.viewport(1920, 1080);
+        t.settings.custom_buttons.clear();
         t.settings
             .custom_buttons
             .push(CustomButton::new("key.keyboard.z".into(), 0));
@@ -614,6 +616,7 @@ mod tests {
     fn cancellation_releases_all_custom_keys_and_scaling_preserves_saved_sizes() {
         let mut t = TouchControls::default();
         t.viewport(1920, 1080);
+        t.settings.custom_buttons.clear();
         let mut btn = CustomButton::new("key.keyboard.z".into(), 0);
         btn.set_event_slot(1, "key.keyboard.x".into());
         btn.set_event_slot(2, "key.mouse.left".into());

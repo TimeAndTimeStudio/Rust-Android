@@ -587,9 +587,6 @@ impl TouchControls {
             return;
         }
         let (w, h) = (b.width, b.height);
-        if self.editor.is_some() {
-            self.draw_editor_toolbar(b, a);
-        }
         let state = self.state();
         for control in Control::ALL {
             if !self.visible_for_state(control, self.in_menu) {
@@ -845,9 +842,9 @@ impl TouchControls {
             }
         }
         self.draw_custom(b, a);
-        if self.editor.is_some() {
-            self.draw_editor(b, a);
-        } else if let Some(point) = self.pointer() {
+        if self.editor.is_none()
+            && let Some(point) = self.pointer()
+        {
             let center = [point[0] * w, point[1] * h];
             let radius = self.settings.circle_size / 2.0;
             ring(b, a, center, radius + 0.7, rgba(0, 0, 0, 110));
