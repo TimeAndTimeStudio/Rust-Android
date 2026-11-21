@@ -485,6 +485,14 @@ pub fn effect_modifier(effect: &str) -> Option<(&'static str, &'static str, f64,
             -1.0,
             "add_value",
         )),
+        // MobEffects.INVISIBILITY: MobEffects.java:58-67. -1.0 multiplied
+        // total drops waypoint_transmit_range to zero (+1 per level).
+        "invisibility" => Some((
+            "minecraft:waypoint_transmit_range",
+            "minecraft:effect.waypoint_transmit_range_hide",
+            -1.0,
+            "add_multiplied_total",
+        )),
         _ => None,
     }
 }

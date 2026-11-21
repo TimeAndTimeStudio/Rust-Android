@@ -18,12 +18,22 @@ use horizon_client::{
     motion::{BubbleColumn, RiddenBoat, bubble_column_at},
 };
 use horizon_core::{
-    geometry::{Aabb, ShapeOp, Vec3, VoxelShape},
+    geometry::{Aabb, ShapeOp, Vec3, VoxelShape, trig},
     position::BlockPos,
     random::RandomSource,
 };
 use horizon_world::collision_context::CollisionContext;
 use std::{collections::HashMap, f32::consts::PI, sync::Arc};
+
+/// The push the paddles give along the boat's yaw (`tick_boat`'s
+/// controlBoat): the sine and cosine of the yaw in float radians from `Mth`'s
+/// sine table, times the acceleration as floats, widened to double.
+fn paddle_push(yaw: f32, acceleration: f32) -> (f64, f64) {
+    (
+        f64::from(trig::sin(f64::from(-yaw * trig::DEG_TO_RAD)) * acceleration),
+        f64::from(trig::cos(f64::from(yaw * trig::DEG_TO_RAD)) * acceleration),
+    )
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Status {
@@ -672,9 +682,9 @@ impl Game<'_> {
             if down {
                 acceleration -= 0.005;
             }
-            let r = b.yaw.to_radians();
-            b.velocity.x += f64::from((-r).sin() * acceleration);
-            b.velocity.z += f64::from(r.cos() * acceleration);
+            let (x, z) = paddle_push(b.yaw, acceleration);
+            b.velocity.x += x;
+            b.velocity.z += z;
             b.paddling = [right && !left || up, left && !right || up];
         }
         // Entity.move: collisions zero the blocked components, the world border's

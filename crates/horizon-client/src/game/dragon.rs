@@ -2497,9 +2497,9 @@ impl Game<'_> {
             });
             if hit_block || hit_player || b.age > 600 {
                 let id = self.take_entity_id();
-                // The cloud starts at the fireball's feet; DragonFireball.onHit
-                // then moves it to the first living entity within 4 blocks.
-                let feet = [next.x, next.y - 0.5, next.z];
+                // `next` is the projectile box's bottom (its position), already the
+                // hit location vanilla uses; the old -0.5 was for a box-center position.
+                let feet = [next.x, next.y, next.z];
                 let at = fireball_cloud_origin(feet, &snap_targets);
                 self.breath_clouds.push(Breath {
                     id,

@@ -313,7 +313,9 @@ fn load_bitmap(
     });
     for (r, row) in rows.iter().enumerate() {
         for (c, ch) in row.iter().enumerate() {
-            if *ch == '\0' || out.contains_key(ch) {
+            // Character 0 pads the grid. A character listed twice keeps its
+            // last cell, as vanilla's `Map.put` does.
+            if *ch == '\0' {
                 continue;
             }
             let (x, y) = (c as u32 * cell_w, r as u32 * cell_h);
