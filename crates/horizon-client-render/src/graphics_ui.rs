@@ -2027,6 +2027,26 @@ impl GraphicsUi {
             })
         })
     }
+    /// Whether `(x, y)` is on a slider's row of the graphics page: moving it clearly sideways drags
+    /// the slider; a vertical thumb movement scrolls the list without jumping the slider.
+    pub fn row_slider_at(&mut self, s: &Settings, (w, h): (f32, f32), (x, y): (f32, f32)) -> bool {
+        let (cols, lines, _) = self.layout(s, w, h);
+        if y < cols.top || y >= cols.bottom {
+            return false;
+        }
+        lines.iter().any(|line| {
+            line.setting.is_some_and(|setting| {
+                setting.item.slider(s).is_some()
+                    && ui::hovered(
+                        (x, y),
+                        cols.list_x,
+                        self.row_y(&cols, line),
+                        cols.list_w,
+                        style::ROW,
+                    )
+            })
+        })
+    }
     /// What Tab steps through, in order, with where each is on screen. The
     /// arrows (`near`) only reach the rows in view and the one next past either
     /// edge, which scrolls in: a row farther out sits under the tabs or the

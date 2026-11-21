@@ -2790,7 +2790,9 @@ impl TouchUi {
         );
 
         // Active Control System & Live RAM Pill Badge in Header
-        let ram_mb = horizon_threads::memory_limit::resident_bytes().div_ceil(1024 * 1024);
+        let ram_mb = horizon_threads::memory_limit::resident_bytes()
+            .map(|b| b.div_ceil(1024 * 1024))
+            .unwrap_or(0);
         let mode_badge_txt = if ram_mb > 0 {
             format!("RAM {ram_mb} MB • MCPE")
         } else {

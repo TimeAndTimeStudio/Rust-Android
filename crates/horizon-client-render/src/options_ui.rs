@@ -6454,6 +6454,22 @@ impl OptionsUi {
                 && !(wd.list && (cursor.1 < top || cursor.1 >= bottom))
         })
     }
+    /// Whether `cursor` is on a slider of the options or graphics pages, which a finger takes only
+    /// moving clearly sideways (touch.rs, `prefer_slider`).
+    pub fn list_slider_at(&mut self, s: &Settings, size: (f32, f32), cursor: (f32, f32)) -> bool {
+        if self.resource_error.is_some() || self.painting() {
+            return false;
+        }
+        if Self::graphics_page(self.page()).is_some() {
+            return self.graphics.row_slider_at(s, size, cursor);
+        }
+        let (widgets, top, bottom, _) = self.layout(s, size.0, size.1);
+        widgets.iter().any(|wd| {
+            matches!(wd.kind, WKind::Slider { .. } | WKind::ShaderSlider { .. })
+                && ui::hovered(cursor, wd.x, wd.y, wd.w, wd.h)
+                && !(wd.list && (cursor.1 < top || cursor.1 >= bottom))
+        })
+    }
     /// `VideoSettingsScreen.mouseScrolled`: with Ctrl held the wheel steps the GUI scale
     /// (auto counts as one past the maximum) and the list goes back to the top.
     pub fn video_wheel_gui_scale(

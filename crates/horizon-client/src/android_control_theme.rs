@@ -1934,39 +1934,33 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let top = (ui.h - block) / 2.0;
     let cx = ui.w / 2.0;
 
-    // Crisp vector H mark centered symmetrically above the wordmark
+    // Crisp vector T mark centered symmetrically above the wordmark
     let mark_s = (size * 0.62).clamp(28.0, 52.0);
     let mark_cy = (top - mark_s * 0.72).max(mark_s * 0.6);
     let bar_w = (mark_s * 0.14).max(3.0);
     let bar_h = (mark_s * 0.56).max(10.0);
-    let off_x = mark_s * 0.18;
+    let off_x = mark_s * 0.22;
     let accent = active_theme().accent;
+    // Horizontal top bar of 'T'
     ui.rounded(
         cx - off_x - bar_w * 0.5,
+        mark_cy - bar_h * 0.5,
+        off_x * 2.0 + bar_w,
+        bar_w,
+        bar_w * 0.5,
+        accent,
+    );
+    // Vertical stem of 'T'
+    ui.rounded(
+        cx - bar_w * 0.5,
         mark_cy - bar_h * 0.5,
         bar_w,
         bar_h,
         bar_w * 0.5,
         BOOT_TEXT,
     );
-    ui.rounded(
-        cx + off_x - bar_w * 0.5,
-        mark_cy - bar_h * 0.5,
-        bar_w,
-        bar_h,
-        bar_w * 0.5,
-        accent,
-    );
-    ui.rounded(
-        cx - off_x,
-        mark_cy - bar_w * 0.45,
-        off_x * 2.0,
-        bar_w * 0.9,
-        bar_w * 0.45,
-        accent,
-    );
 
-    ui.text_centered(Face::SemiBold, size, cx, top, BOOT_TEXT, "Horizon");
+    ui.text_centered(Face::SemiBold, size, cx, top, BOOT_TEXT, "TML");
     let sub_y = top + size * 1.45 + small * 0.6;
     ui.text_centered(
         Face::Mono,
