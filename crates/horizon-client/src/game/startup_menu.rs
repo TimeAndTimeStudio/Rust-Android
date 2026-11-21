@@ -1447,8 +1447,20 @@ impl Loading {
         let logs = horizon_client::logging::recent_lines();
         let Some(gui) = &self.gui else {
             // The pack's screens do not exist yet: the boot screen holds the
-            // window, the wordmark and the console's lines while they load.
-            horizon_client::ui_theme::draw_boot(&self.boot, batch, &logs);
+            // window, the wordmark and the console's lines while they load
+            // once the prepared game files exist.
+            if self.vanilla_root.join("horizon-resources.json").is_file() {
+                horizon_client::ui_theme::draw_boot(&self.boot, batch, &logs);
+            } else {
+                batch.fill(
+                    &self.boot,
+                    0.0,
+                    0.0,
+                    batch.width,
+                    batch.height,
+                    horizon_client::ui_theme::color::BG,
+                );
+            }
             return;
         };
         // A content build holds the menu too: its line says what the wait is for.

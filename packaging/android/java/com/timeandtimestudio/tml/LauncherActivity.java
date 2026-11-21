@@ -148,74 +148,13 @@ public final class LauncherActivity extends Activity {
     }
 
     private static final class RestartView extends View {
-        private final String message;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final RectF rect = new RectF();
-        private final long start = SystemClock.uptimeMillis();
-        private Canvas canvas;
-
         RestartView(Context context, String message) {
             super(context);
-            this.message = message;
-        }
-
-        private void rounded(float x, float y, float w, float h, float r, int color) {
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(color);
-            rect.set(x, y, x + w, y + h);
-            canvas.drawRoundRect(rect, r, r, paint);
-        }
-
-        private void fill(float x, float y, float w, float h, int color) {
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(color);
-            canvas.drawRect(x, y, x + w, y + h, paint);
-        }
-
-        private void text(String s, float cx, float top, float size, Typeface face, int color) {
-            paint.setStyle(Paint.Style.FILL);
-            paint.setTypeface(face);
-            paint.setTextSize(size);
-            paint.setTextAlign(Paint.Align.CENTER);
-            paint.setColor(color);
-            canvas.drawText(s, cx, top - paint.ascent(), paint);
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
-            this.canvas = canvas;
-            int bg = 0xFF121214;
-            int orange = 0xFFFF751F;
-            int textColor = 0xFFFFFFFF;
-            int muted = 0xFF9BA1A6;
-            int track = 0x479BA1A6;
-            float width = getWidth(), height = getHeight();
-            float u = Math.max(Math.min(width / 1040f, height / 700f), 1f);
-            float w = width / u, h = height / u;
-            canvas.drawColor(bg);
-
-            float size = Math.max(40f, Math.min(w / 16f, 96f));
-            float small = Math.max(11f, Math.min(size * 0.25f, 18f));
-            float block = size * 1.45f + small * 0.6f + small * 1.5f;
-            float top = (h - block) / 2f;
-            float cx = w / 2f;
-
-            text("TML", cx * u, top * u, size * u,
-                    Typeface.create("sans-serif-medium", Typeface.BOLD), textColor);
-            float subY = top + size * 1.45f + small * 0.6f;
-            text("Rust based minecraft client", cx * u, subY * u, small * u,
-                    Typeface.MONOSPACE, muted);
-
-            float t = (SystemClock.uptimeMillis() - start) / 1000f;
-            float bw = Math.max(80f, Math.min(size * 1.8f, 140f)), bh = 4f;
-            float bx = cx - bw / 2f, by = subY + small * 1.7f;
-            rounded(bx * u, by * u, bw * u, bh * u, 2f * u, track);
-            float segment = bw * 0.56f;
-            float phase = 0.5f - 0.5f * (float) Math.cos(t * Math.PI);
-            rounded((bx + (bw - segment) * phase) * u, by * u, segment * u, bh * u,
-                    2f * u, orange);
-            text(message, cx * u, (by + 12f) * u, 11f * u, Typeface.DEFAULT, muted);
-            postInvalidateOnAnimation();
+            canvas.drawColor(0xFF121214);
         }
     }
 

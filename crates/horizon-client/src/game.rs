@@ -21273,6 +21273,7 @@ impl Loading {
         cfg!(target_os = "android")
             && self.failure.is_none()
             && !self.setup.starting
+            && self.vanilla_root.join("horizon-resources.json").is_file()
             && self.menu.pending.is_none()
             && self
                 .options
