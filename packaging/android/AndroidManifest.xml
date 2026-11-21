@@ -15,9 +15,6 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <!-- The update prompt hands the release it downloaded to Android's installer, which asks the
-         player first. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- WorkService: the game stays in the foreground while the player signs in in the browser
          or the game files download, which many phones would otherwise cut off the internet. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -121,12 +118,6 @@
             android:name="com.timeandtimestudio.tml.WorkService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        <!-- The downloaded update, for the installer only (UpdateProvider). -->
-        <provider
-            android:name="com.timeandtimestudio.tml.UpdateProvider"
-            android:authorities="@APPLICATION_ID@.updates"
-            android:exported="false"
-            android:grantUriPermissions="true" />
         <!-- The game folder in Android's Files app (GameFolderProvider), which only the system may
              bind. In a process of its own: the game ends its process with its activity, which
              would cut a copy short. -->

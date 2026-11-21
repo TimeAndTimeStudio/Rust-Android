@@ -3872,7 +3872,7 @@ impl OptionsUi {
                         0.0,
                         0.0,
                         310.0,
-                        Text::literal("Customize Touch & GoyControl Layout..."),
+                        Text::literal("Customize Touch Layout..."),
                         Act::TouchLayout,
                     ),
                     None,
