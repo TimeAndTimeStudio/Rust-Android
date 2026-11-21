@@ -36,6 +36,7 @@ public final class LauncherActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyWindowColors();
         Intent intent = getIntent();
         final int after = intent == null ? 0 : intent.getIntExtra(AFTER, 0);
         Uri file = handedFile(intent);
@@ -92,6 +93,24 @@ public final class LauncherActivity extends Activity {
         overridePendingTransition(0, 0);
     }
 
+    @SuppressWarnings("deprecation")
+    private void applyWindowColors() {
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFF121214));
+        if (Build.VERSION.SDK_INT >= 21) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+            getWindow().setStatusBarColor(0xFF121214);
+            getWindow().setNavigationBarColor(0xFF121214);
+        }
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(attributes);
+        }
+    }
+
     /**
      * While the game starts again (a world whose mods are not the running ones): a screen of its
      * own, black, landscape and without bars as the game is, so the phone does not show what is
@@ -107,18 +126,13 @@ public final class LauncherActivity extends Activity {
                 // As it is, then.
             }
         }
-        if (Build.VERSION.SDK_INT >= 21) {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            getWindow().setStatusBarColor(0xFF16161C);
-            getWindow().setNavigationBarColor(0xFF16161C);
-        }
+        applyWindowColors();
         TextView text = new TextView(this);
         text.setText("");
         text.setTextColor(0xFFFFFFFF);
         text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         text.setGravity(Gravity.CENTER);
-        text.setBackgroundColor(0xFF16161C);
+        text.setBackgroundColor(0xFF121214);
         setContentView(text);
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= 30) {

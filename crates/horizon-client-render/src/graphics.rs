@@ -18,6 +18,29 @@ pub const HDR_MARKER: &str = "horizon-hdr-pending";
 /// like the PowerVR GE8320's in `vkQueueSubmit`), so Auto and Vulkan become OpenGL ES.
 pub const RENDERER_MARKER: &str = "horizon-renderer-pending";
 
+/// The `RENDERER_MARKER`s this process wrote ([`note_start_marker`]).
+static START_MARKERS: std::sync::Mutex<Vec<std::path::PathBuf>> = std::sync::Mutex::new(Vec::new());
+/// A `RENDERER_MARKER` written for a renderer that is starting, for the panic hook to find.
+pub fn note_start_marker(marker: &Path) {
+    START_MARKERS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(marker.to_owned());
+}
+/// For the panic hook (`crash::install`): the markers go, as a panic is the game's, which the
+/// hook just caught, not the driver's. A start that panicked before its first frame (a mod's hook
+/// asking for what had not loaded yet, 2026-11-16) sent every start after it to OpenGL ES.
+pub fn forget_start_markers_after_panic() {
+    let markers = std::mem::take(
+        &mut *START_MARKERS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    );
+    for marker in markers {
+        let _ = fs::remove_file(marker);
+    }
+}
+
 /// What the system reports for the display HDR output goes to, in nits in HDR output's
 /// scale: where its SDR white sits (the desktop's white) and the peak.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -807,10 +830,16 @@ impl Graphics {
                 "the last start ended before HDR output showed a frame; HDR is off now (graphics option hdr, in {FILE})"
             );
         }
-        if fs::remove_file(dir.join(RENDERER_MARKER)).is_ok()
-            && cfg!(target_os = "android")
-            && after_driver_crash(g.api) != g.api
-        {
+        let driver_died = fs::remove_file(dir.join(RENDERER_MARKER)).is_ok();
+        // The pipelines the driver compiled before (`gfx::vulkan_pipeline_cache`) go too: data a
+        // driver dies reading would otherwise end every start that goes back to Vulkan.
+        #[cfg(target_os = "android")]
+        if driver_died {
+            let _ = fs::remove_file(crate::gfx::vulkan_pipeline_cache(
+                &crate::logging::private_home(),
+            ));
+        }
+        if driver_died && cfg!(target_os = "android") && after_driver_crash(g.api) != g.api {
             g.api = after_driver_crash(g.api);
             g.save(dir);
             log::warn!(
@@ -1134,11 +1163,10 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
     s.graphics_preset = "custom".into();
     let g = &mut s.horizon;
     g.preset = Preset::Custom;
-    g.resolution_scale = match tier {
-        Tier::High => 100,
-        Tier::Mid => 85,
-        Tier::Low => 70,
-    };
+    // Below 100%, rendering to an offscreen target and running a full-screen upscale pass
+    // costs mobile GPUs more than the pixels saved.
+    g.resolution_scale = 100;
+    g.overlay = Overlay::Fps;
     g.animated_textures = tier != Tier::Low;
     // A phone's GPU is held back by geometry: Mobile far detail and Hidden leaf culling.
     g.far_detail = FarDetail::Mobile;
@@ -1175,7 +1203,10 @@ mod tests {
             (low.clouds.as_str(), high.clouds.as_str()),
             ("false", "fast")
         );
-        assert!(low.horizon.resolution_scale < high.horizon.resolution_scale);
+        assert_eq!(
+            (low.horizon.resolution_scale, high.horizon.resolution_scale),
+            (100, 100)
+        );
         assert!(!low.horizon.animated_textures && high.horizon.animated_textures);
         // Auto-Jump on, as on Bedrock's touch screens.
         assert!(low.auto_jump && high.auto_jump);

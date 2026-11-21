@@ -17210,6 +17210,9 @@ impl ApplicationHandler for Game<'_> {
             crate::diagnostics::request_flush();
         }
         if let Some(r) = &mut self.renderer {
+            // Pipelines made since the start (a world's, a shader pack's) are kept too: Android
+            // may end the process in the background without another word.
+            r.save_pipeline_cache();
             r.suspend();
         }
         self.audio.suspend_output();
@@ -20774,6 +20777,7 @@ fn build_renderer(
     let start_marker = previous.is_none().then(|| {
         let marker = Game::options_path().with_file_name(horizon_client::graphics::RENDERER_MARKER);
         let _ = std::fs::write(&marker, "the renderer was starting\n");
+        horizon_client::graphics::note_start_marker(&marker);
         marker
     });
     let mut renderer = pollster::block_on(Renderer::new(
@@ -20816,6 +20820,8 @@ fn build_renderer(
     renderer
         .hud
         .set_cit_glints(&renderer.device, &renderer.queue, cit_glints);
+    // The pipelines it compiled, for the next start (Android's Vulkan).
+    renderer.save_pipeline_cache();
     Ok(renderer)
 }
 
@@ -21376,6 +21382,9 @@ impl Loading {
         }
         self.suspended = true;
         if let Some(r) = &mut self.renderer {
+            // Pipelines made since the start (a world's, a shader pack's) are kept too: Android
+            // may end the process in the background without another word.
+            r.save_pipeline_cache();
             r.suspend();
         }
         horizon_client::logging::flush();

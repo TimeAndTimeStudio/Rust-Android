@@ -592,6 +592,9 @@ pub fn install(home: PathBuf, side: &'static str) {
         if contained_panic(info) {
             return;
         }
+        // A panic is the game's, not the graphics driver's: the next start keeps its graphics API
+        // (`graphics::RENDERER_MARKER`).
+        crate::graphics::forget_start_markers_after_panic();
         default(info);
         let main = std::thread::current().name() == Some("main");
         if main {

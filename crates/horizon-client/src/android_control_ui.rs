@@ -2423,16 +2423,7 @@ impl TouchUi {
                     return Some(InGameMenuAction::SetVirtualMouseSpeed(0.25 + t * 2.75));
                 }
                 let act_y = body_y + 342.0;
-                let half_w = (cw - 10.0) * 0.5;
-                if inside([cx, act_y, half_w, 44.0]) {
-                    let next_style = if settings.control_style == ControlStyle::Mcpe {
-                        ControlStyle::GoyControl
-                    } else {
-                        ControlStyle::Mcpe
-                    };
-                    return Some(InGameMenuAction::SetControlStyle(next_style));
-                }
-                if inside([cx + half_w + 10.0, act_y, half_w, 44.0]) {
+                if inside([cx, act_y, cw, 44.0]) {
                     self.floating_menu = false;
                     return Some(InGameMenuAction::OpenControlEditor);
                 }
@@ -2445,11 +2436,8 @@ impl TouchUi {
                 // Tab 1: Controls
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                if inside([cx, mode_y, half_w, 46.0]) {
+                if inside([cx, mode_y, cw, 46.0]) {
                     return Some(InGameMenuAction::SetControlStyle(ControlStyle::Mcpe));
-                }
-                if inside([cx + half_w + 10.0, mode_y, half_w, 46.0]) {
-                    return Some(InGameMenuAction::SetControlStyle(ControlStyle::GoyControl));
                 }
 
                 // Customize Controls | Control Presets
@@ -2459,7 +2447,7 @@ impl TouchUi {
                     return Some(InGameMenuAction::OpenControlEditor);
                 }
                 if inside([cx + half_w + 10.0, act_y, half_w, 44.0]) {
-                    self.refresh_presets_cache(settings.control_style);
+                    self.refresh_presets_cache(ControlStyle::Mcpe);
                     self.presets_modal_open = true;
                     return Some(InGameMenuAction::Close);
                 }
@@ -2790,7 +2778,7 @@ impl TouchUi {
             dx + 52.0,
             dy + 8.0,
             text_c,
-            "Horizon Control Hub",
+            "TML Control Hub",
         );
         ui.text(
             Face::Regular,
@@ -2801,20 +2789,21 @@ impl TouchUi {
             "Configure touch controls, virtual mouse & feedback",
         );
 
-        // Active Control System Pill Badge in Header
-        let mode_badge_txt = if settings.control_style == ControlStyle::Mcpe {
-            "MCPE Controls"
+        // Active Control System & Live RAM Pill Badge in Header
+        let ram_mb = horizon_threads::memory_limit::resident_bytes().div_ceil(1024 * 1024);
+        let mode_badge_txt = if ram_mb > 0 {
+            format!("RAM {ram_mb} MB • MCPE")
         } else {
-            "GoyControl HUD"
+            "MCPE Controls".to_owned()
         };
-        let badge_w = 104.0;
-        let badge_r = [dx + dw - 188.0, dy + 11.0, badge_w, 26.0];
+        let badge_w = 136.0;
+        let badge_r = [dx + dw - 220.0, dy + 11.0, badge_w, 26.0];
         if badge_r[0] > dx + 220.0 {
             ui.rounded(
                 badge_r[0], badge_r[1], badge_r[2], badge_r[3], 8.0, card_sel,
             );
             ui.border(badge_r[0], badge_r[1], badge_r[2], badge_r[3], 8.0, accent);
-            ui.centered_fit(Face::SemiBold, 9.5, badge_r, accent_hi, mode_badge_txt);
+            ui.centered_fit(Face::SemiBold, 9.5, badge_r, accent_hi, &mode_badge_txt);
         }
 
         // "Done" Button in top-right
@@ -3106,27 +3095,26 @@ impl TouchUi {
                 ui.border(spd_thumb_x - 7.0, spd_sl_y - 4.0, 14.0, 14.0, 7.0, text_c);
 
                 let act_y = body_y + 342.0;
-                let half_w = (cw - 10.0) * 0.5;
-                let sys_sub = format!("Active: {}", settings.control_style.label());
-                for (i, (ic, title, sub)) in [
-                    (Icon::Gamepad, "Switch Control System", sys_sub.as_str()),
-                    (
-                        Icon::MicrosoftGrid,
-                        "Customize Controls",
-                        "Open layout & property studio",
-                    ),
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    let rx = cx + i as f32 * (half_w + 10.0);
-                    ui.rounded(rx, act_y, half_w, 44.0, 11.0, card_bg);
-                    ui.border(rx, act_y, half_w, 44.0, 11.0, border_c);
-                    ui.rounded(rx + 10.0, act_y + 9.0, 26.0, 26.0, 8.0, card_sel);
-                    ui.icon(ic, rx + 15.0, act_y + 14.0, 16.0, accent_hi);
-                    ui.text(Face::SemiBold, 10.4, rx + 42.0, act_y + 6.0, text_c, title);
-                    ui.text(Face::Regular, 8.6, rx + 42.0, act_y + 23.0, muted_c, sub);
-                }
+                ui.rounded(cx, act_y, cw, 44.0, 11.0, card_bg);
+                ui.border(cx, act_y, cw, 44.0, 11.0, border_c);
+                ui.rounded(cx + 10.0, act_y + 9.0, 26.0, 26.0, 8.0, card_sel);
+                ui.icon(Icon::MicrosoftGrid, cx + 15.0, act_y + 14.0, 16.0, accent_hi);
+                ui.text(
+                    Face::SemiBold,
+                    10.4,
+                    cx + 42.0,
+                    act_y + 6.0,
+                    text_c,
+                    "Customize Controls",
+                );
+                ui.text(
+                    Face::Regular,
+                    8.6,
+                    cx + 42.0,
+                    act_y + 23.0,
+                    muted_c,
+                    "Open MCPE layout & property studio",
+                );
 
                 draw_toggle_row(
                     &mut ui,
@@ -3142,49 +3130,28 @@ impl TouchUi {
                 ui.text(Face::SemiBold, 10.2, cx, body_y, muted_c, "CONTROL MODE");
                 let mode_y = body_y + 18.0;
                 let half_w = (cw - 10.0) * 0.5;
-                let is_mcpe = settings.control_style == ControlStyle::Mcpe;
-                for (i, (title, sub, sel)) in [
-                    ("MCPE (Default)", "Vanilla touch controls", is_mcpe),
-                    ("GoyControl", "Custom layout & keybinds", !is_mcpe),
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    let rx = cx + i as f32 * (half_w + 10.0);
-                    ui.rounded(
-                        rx,
-                        mode_y,
-                        half_w,
-                        46.0,
-                        11.0,
-                        if sel { card_sel } else { card_bg },
-                    );
-                    ui.stroke_rounded(
-                        rx,
-                        mode_y,
-                        half_w,
-                        46.0,
-                        11.0,
-                        if sel { 1.6 } else { 1.0 },
-                        if sel { accent } else { border_c },
-                    );
-                    let rad_x = rx + 11.0;
-                    let rad_y = mode_y + 16.0;
-                    ui.stroke_rounded(
-                        rad_x,
-                        rad_y,
-                        14.0,
-                        14.0,
-                        7.0,
-                        1.5,
-                        if sel { accent_hi } else { muted_c },
-                    );
-                    if sel {
-                        ui.rounded(rad_x + 3.5, rad_y + 3.5, 7.0, 7.0, 3.5, accent_hi);
-                    }
-                    ui.text(Face::SemiBold, 11.0, rx + 31.0, mode_y + 7.0, text_c, title);
-                    ui.text(Face::Regular, 9.0, rx + 31.0, mode_y + 25.0, muted_c, sub);
-                }
+                ui.rounded(cx, mode_y, cw, 46.0, 11.0, card_sel);
+                ui.stroke_rounded(cx, mode_y, cw, 46.0, 11.0, 1.6, accent);
+                let rad_x = cx + 11.0;
+                let rad_y = mode_y + 16.0;
+                ui.stroke_rounded(rad_x, rad_y, 14.0, 14.0, 7.0, 1.5, accent_hi);
+                ui.rounded(rad_x + 3.5, rad_y + 3.5, 7.0, 7.0, 3.5, accent_hi);
+                ui.text(
+                    Face::SemiBold,
+                    11.0,
+                    cx + 31.0,
+                    mode_y + 7.0,
+                    text_c,
+                    "MCPE Controls",
+                );
+                ui.text(
+                    Face::Regular,
+                    9.0,
+                    cx + 31.0,
+                    mode_y + 25.0,
+                    muted_c,
+                    "Vanilla touch controls",
+                );
 
                 // 2. Dynamic System Controls Section
                 ui.text(
@@ -3193,7 +3160,7 @@ impl TouchUi {
                     cx,
                     body_y + 68.0,
                     muted_c,
-                    settings.control_style.section_title(),
+                    "MCPE Controls",
                 );
                 let act_y = body_y + 84.0;
                 let active_preset_lbl = format!("Preset: {}", settings.preset_name);
@@ -5084,13 +5051,8 @@ pub fn draw_hud_editor(
                         12.0,
                         st_cyan,
                     );
-                    let st_lbl = if tc.settings.control_style == ControlStyle::GoyControl
-                        || p_move.use_goy_style
-                    {
-                        "● Style: Custom GoyControl Stick ⌄"
-                    } else {
-                        "● Style: Default MCPE Stick ⌄"
-                    };
+                    let _ = p_move;
+                    let st_lbl = "● Style: Default MCPE Stick";
                     ui.centered_fit(Face::SemiBold, 8.8, st_pill_r, st_cyan, st_lbl);
 
                     // 3 Studio Slider Cards + Right Live Component Preview Box with Corner Brackets
@@ -5542,11 +5504,8 @@ pub fn draw_hud_editor(
                         12.0,
                         st_cyan,
                     );
-                    let st_lbl = if is_goy {
-                        "● Style: Static (GoyControl) ⌄"
-                    } else {
-                        "● Style: Default (MCPE) ⌄"
-                    };
+                    let _ = is_goy;
+                    let st_lbl = "● Style: Default (MCPE)";
                     ui.centered_fit(Face::SemiBold, 8.8, st_pill_r, st_cyan, st_lbl);
 
                     let cards_y = body_y + 28.0;
@@ -7191,9 +7150,7 @@ pub fn touch_hud_editor(
                     0 => {
                         let st_pill_w = 216.0f32.min(ww * 0.46);
                         if inside([wx + ww - st_pill_w - 12.0, body_y - 2.0, st_pill_w, 24.0]) {
-                            push_undo_snapshot(&mut ed, &tc.settings);
-                            tc.settings.layouts[mode_idx][slot].use_goy_style =
-                                !tc.settings.layouts[mode_idx][slot].use_goy_style;
+                            tc.settings.layouts[mode_idx][slot].use_goy_style = false;
                             let _ = tc.settings.save();
                             tc.clicked = true;
                             return false;
@@ -7422,8 +7379,7 @@ pub fn touch_hud_editor(
                 0 => {
                     let st_pill_w = 216.0f32.min(ww * 0.46);
                     if inside([wx + ww - st_pill_w - 12.0, body_y - 2.0, st_pill_w, 24.0]) {
-                        push_undo_snapshot(&mut ed, &tc.settings);
-                        mutate_placement(tc, &ed, &|pl| pl.use_goy_style = !pl.use_goy_style);
+                        mutate_placement(tc, &ed, &|pl| pl.use_goy_style = false);
                         let _ = tc.settings.save();
                         tc.clicked = true;
                         return false;

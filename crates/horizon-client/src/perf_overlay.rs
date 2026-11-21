@@ -72,8 +72,11 @@ impl FrameGraph {
         let avg = |f: fn(&(f32, f32, f32)) -> f32| self.frames.iter().map(f).sum::<f32>() / n;
         let (frame, cpu, gpu) = (avg(|f| f.0), avg(|f| f.1), avg(|f| f.2));
         let worst = self.frames.iter().map(|f| f.0).fold(0.0f32, f32::max);
+        let ram_mb = horizon_threads::memory_limit::resident_bytes()
+            .map(|b| b / (1024 * 1024))
+            .unwrap_or(0);
         let lines = [
-            format!("{:.0} fps", 1000.0 / frame.max(0.001)),
+            format!("{:.0} fps   RAM {ram_mb} MB", 1000.0 / frame.max(0.001)),
             format!("frame {frame:.1} ms  max {worst:.1}"),
             format!("cpu {cpu:.1}  gpu {gpu:.1} ms"),
         ];

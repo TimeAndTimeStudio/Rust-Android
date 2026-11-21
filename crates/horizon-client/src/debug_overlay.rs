@@ -423,7 +423,7 @@ pub struct ProcessMemory {
 impl ProcessMemory {
     /// From `/proc/self/status` and `/proc/meminfo`; `None` elsewhere.
     pub fn read() -> Option<Self> {
-        if !cfg!(target_os = "linux") {
+        if !cfg!(any(target_os = "linux", target_os = "android")) {
             return None;
         }
         let status = std::fs::read_to_string("/proc/self/status").ok()?;
@@ -435,9 +435,10 @@ impl ProcessMemory {
             let line = text.lines().find(|l| l.starts_with(key))?;
             Some(line.split_whitespace().nth(1)?.parse::<u64>().ok()? * 1024)
         };
+        let allocated = kib(status, "VmRSS:")?;
         Some(Self {
-            used: kib(status, "RssAnon:")?,
-            allocated: kib(status, "VmRSS:")?,
+            used: kib(status, "RssAnon:").unwrap_or(allocated),
+            allocated,
             max: kib(meminfo, "MemTotal:")?.max(1),
         })
     }

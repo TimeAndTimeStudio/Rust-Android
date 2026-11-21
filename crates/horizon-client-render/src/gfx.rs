@@ -929,12 +929,18 @@ pub struct Renderer {
     solid_cutout: wgpu::RenderPipeline,
     /// Cheaper pipelines for those two passes, on Adreno's Vulkan (`solid_paths`).
     solid_paths: Option<solid_paths::SolidPaths>,
+    solid_paths_sdr: Option<solid_paths::SolidPaths>,
+    pub cutout_sdr_on: bool,
+    solid_settled_single: Option<wgpu::RenderPipeline>,
+    settled_single_on: bool,
+    pub settled_single_active: bool,
     translucent: wgpu::RenderPipeline,
     translucent_mark: wgpu::RenderPipeline,
     /// Flat section draws (`flat`), where multi-draw is emulated.
     flat: Option<flat::Flat>,
     /// `flat` draws this frame's sections (off: the per-section draws).
     flat_on: bool,
+    pub flat_quad_cache_on: bool,
     /// Occlusion culling of solid section draws, where the GPU's instance
     /// counts reach a multi-draw's entries (Vulkan, Metal).
     cull: Option<cull::Cull>,
@@ -1623,6 +1629,15 @@ fn instance_descriptor(
     if dx12 {
         wgpu::hal::dx12::disk_cache::set_file(dx12_shader_cache(&crate::logging::game_home()));
     }
+    // Vulkan on Android keeps no compiled pipelines between runs either: building them is
+    // about 3.5 s of a start on an Adreno 740. The driver's own cache data is kept in the app's
+    // files and handed back when the device opens (third_party/wgpu-hal/src/vulkan/disk_cache.rs).
+    #[cfg(target_os = "android")]
+    if descriptor.backends.contains(wgpu::Backends::VULKAN) {
+        wgpu::hal::vulkan::disk_cache::set_file(vulkan_pipeline_cache(
+            &crate::logging::private_home(),
+        ));
+    }
     if !cfg!(debug_assertions) && !dx12 {
         descriptor
             .flags
@@ -1639,6 +1654,11 @@ fn instance_descriptor(
 /// Where DX12 keeps the shaders it compiled, inside a game folder.
 pub fn dx12_shader_cache(home: &std::path::Path) -> std::path::PathBuf {
     home.join("cache").join("dx12-shaders.bin")
+}
+/// Where Vulkan keeps the pipelines the driver compiled, inside the game's private folder
+/// (`logging::private_home`).
+pub fn vulkan_pipeline_cache(home: &std::path::Path) -> std::path::PathBuf {
+    home.join("cache").join("vulkan-pipelines.bin")
 }
 
 /// The window's display connection, so the OpenGL backend creates its EGL
@@ -4071,22 +4091,56 @@ impl Renderer {
         if let (Some(flat), Some(arena)) = (&mut flat, &translucent_arena) {
             flat.set_translucent_page_vertices(arena.page_vertices());
         }
-        let solid_paths = adreno::adreno_vulkan(&adapter.get_info())
-            .then(|| {
-                solid_paths::SolidPaths::new(
-                    &adreno::TerrainModule {
-                        kept: &kept,
-                        shader: &shader,
-                        format: config.format.remove_srgb_suffix(),
-                        constants: &sprite_constants,
-                    },
-                    &bindings,
-                    &layout,
-                    flat.as_ref().map(|flat| &flat.draw_layout),
-                    &terrain_buffers,
-                )
-            })
-            .flatten();
+        let make_solid_paths = |constants: &[(&str, f64)], cutout_fragment: &str| {
+            adreno::adreno_vulkan(&adapter.get_info())
+                .then(|| {
+                    solid_paths::SolidPaths::new(
+                        &adreno::TerrainModule {
+                            kept: &kept,
+                            shader: &shader,
+                            format: config.format.remove_srgb_suffix(),
+                            constants,
+                        },
+                        cutout_fragment,
+                        &bindings,
+                        &layout,
+                        flat.as_ref().map(|flat| &flat.draw_layout),
+                        &terrain_buffers,
+                    )
+                })
+                .flatten()
+        };
+        let solid_paths = make_solid_paths(&sprite_constants, "fs_cutout_static");
+        let solid_paths_sdr = make_solid_paths(&sprite_constants, "fs_cutout_static_sdr");
+        let adapter_info = adapter.get_info();
+        let solid_settled_single = (cfg!(target_os = "android")
+            && adapter_info.backend == wgpu::Backend::Vulkan
+            && adapter_info.vendor == 0x13b5
+            && !splits_solid(&adapter_info))
+        .then(|| {
+            let constants = [
+                sprite_constants[0],
+                sprite_constants[1],
+                ("SETTLED_TERRAIN", 1.0),
+            ];
+            let terrain = adreno::TerrainModule {
+                kept: &kept,
+                shader: &shader,
+                format: config.format.remove_srgb_suffix(),
+                constants: &constants,
+            };
+            terrain.pipeline(
+                &layout,
+                "Settled terrain single pass",
+                "vs_terrain",
+                "fs_cutout_static_sdr",
+                terrain_buffers.as_slice(),
+                Some(wgpu::Face::Back),
+                true,
+                None,
+            )
+        })
+        .flatten();
         // Without indirect draws (OpenGL before 4.0 without indirect execution, or
         // before 4.2 + GL_ARB_shader_draw_parameters without indirect first instance)
         // even creating an indirect buffer fails; one draw per section reads
@@ -4105,7 +4159,6 @@ impl Renderer {
         // frame however few its draws and little it hides, `shader` tests in
         // the shader as on Metal (A/B checks).
         let cull_env = std::env::var("HORIZON_GPU_CULL");
-        let adapter_info = adapter.get_info();
         let cull = cull::Cull::supported(&adapter, &device)
             .filter(|_| gpu_culling_requested(&adapter_info, cull_env.as_deref().ok()))
             .map(|depth_test| match cull_env.as_deref() {
@@ -4150,6 +4203,7 @@ impl Renderer {
                 )
             })
             .flatten();
+        let late_sky_on = late_sky::on_by_default(&adapter_info.name);
         let entity_outline = entity_outline::EntityOutline::new(
             &device,
             (&entity_shader, &entity_layout, &entity_vertex),
@@ -4209,16 +4263,22 @@ impl Renderer {
             solid_opaque,
             solid_cutout,
             solid_paths,
+            solid_paths_sdr,
+            cutout_sdr_on: true,
+            solid_settled_single,
+            settled_single_on: true,
+            settled_single_active: false,
             translucent,
             translucent_mark,
             flat_on: flat.is_some(),
+            flat_quad_cache_on: true,
             cull_on,
             sides_on: true,
             cull,
             flat,
             sky,
             late_sky,
-            late_sky_on: true,
+            late_sky_on,
             sky_base,
             sunrise_pipeline,
             sunrise_buffer,
@@ -4670,18 +4730,28 @@ impl Renderer {
             None if on => return Err("the cheaper terrain shaders are off on this device".into()),
             None => {}
         }
+        if let Some(paths) = &mut self.solid_paths_sdr {
+            paths.static_cutout_on = on;
+        }
         Ok(())
     }
     /// Whether frames that may take it draw whole sections through less work (`solid_paths`).
     pub fn settled_terrain_on(&self) -> bool {
-        self.solid_paths.as_ref().is_some_and(|p| p.settled_on)
+        self.settled_single_on || self.solid_paths.as_ref().is_some_and(|p| p.settled_on)
     }
     /// Switches drawing whole sections through less work, for A/B checks.
     pub fn set_settled_terrain(&mut self, on: bool) -> Result<()> {
+        if self.solid_settled_single.is_some() {
+            self.settled_single_on = on;
+            return Ok(());
+        }
         match &mut self.solid_paths {
             Some(paths) => paths.settled_on = on,
             None if on => return Err("the cheaper terrain shaders are off on this device".into()),
             None => {}
+        }
+        if let Some(paths) = &mut self.solid_paths_sdr {
+            paths.settled_on = on;
         }
         Ok(())
     }
@@ -5691,6 +5761,14 @@ impl Renderer {
     /// device) once a frame has been presented: the start went through.
     pub fn forget_start_marker(&mut self, marker: std::path::PathBuf) {
         self.start_marker = Some(marker);
+    }
+    /// Keeps the pipelines the driver compiled for the next start (`vulkan_pipeline_cache`): on
+    /// Android's Vulkan, written on a thread of its own; elsewhere nothing.
+    pub fn save_pipeline_cache(&self) {
+        #[cfg(target_os = "android")]
+        if self.info.backend == wgpu::Backend::Vulkan {
+            wgpu::hal::vulkan::disk_cache::save();
+        }
     }
     /// HDR output (Horizon setting): HDR10 or scRGB at `paper_white` nits, the world's
     /// highlights expanded up to `peak` nits. Off where the surface can't present it.
@@ -7852,6 +7930,12 @@ impl Renderer {
                 let lods = &self.lods;
                 let sorted = &self.sorted_indices;
                 let phase2 = self.cull.as_ref().filter(|_| culling).map(|c| &c.phase2);
+                let cache_quads = self.flat_quad_cache_on
+                    && adreno::adreno_vulkan(&self.info)
+                    && self.native.is_none()
+                    && self.pack_post.is_none()
+                    && self.hdr.is_none()
+                    && phase2.is_none();
                 crate::spans::time("flatten", || {
                     flat.prepare(
                         &self.device,
@@ -7881,6 +7965,7 @@ impl Renderer {
                                 Some((id, lod::instance(v.origin, v.fade)))
                             })),
                         |page| sorted.buffer(page).clone(),
+                        cache_quads,
                         self.own_timing.as_mut(),
                     )
                 })
@@ -8347,12 +8432,30 @@ impl Renderer {
             .as_ref()
             .filter(|_| !frame.title)
             .and_then(|n| Some((n.material.as_ref()?, &n.frame.group)));
-        let solid_pipeline = material.map_or(&self.solid, |(m, _)| &m.solid);
+        let hdr = self.hdr.is_some();
+        let settled_single = self.solid_settled_single.as_ref().filter(|_| {
+            self.settled_single_on
+                && !hdr
+                && !frame.title
+                && !flat_frame
+                && self.native.is_none()
+                && self.pack_post.is_none()
+                && cull.is_none()
+                && phase1_draws > 0
+                && solid_paths::can_use_settled(&self.origins, self.texture_filtering)
+        });
+        self.settled_single_active = settled_single.is_some();
+        let solid_pipeline = material.map_or(
+            settled_single.unwrap_or(&self.solid),
+            |(m, _)| &m.solid,
+        );
         let split_solid = splits_solid(&self.info);
         // What this frame's instances allow its two solid passes (`solid_paths`).
-        let solid_passes = self
-            .solid_paths
-            .as_ref()
+        let sdr_paths = (self.cutout_sdr_on && !hdr)
+            .then_some(self.solid_paths_sdr.as_ref())
+            .flatten();
+        let solid_passes = sdr_paths
+            .or(self.solid_paths.as_ref())
             .filter(|_| split_solid && self.native.is_none() && self.pack_post.is_none())
             .filter(|_| cull.is_none())
             .map_or_else(Default::default, |paths| {
@@ -9496,6 +9599,12 @@ impl Renderer {
                 Some(copy_frame(&self.device, &mut encoder, &texture, size))
             });
         let first_frame = self.first_frame == FirstFrame::Submit;
+        if flat_frame
+            && let Some(flat) = &mut self.flat
+        {
+            // From here the encoder is submitted either locally or in queue order.
+            flat.submitted();
+        }
         // Finished, submitted and presented on the submit thread when nothing after the
         // submission needs this one: screenshots' readbacks, the error scopes (one per
         // thread), the first frame's startup log, VSync's frame callback, a reconfigure.

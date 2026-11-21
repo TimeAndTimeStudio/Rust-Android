@@ -16,6 +16,15 @@ pub(super) fn wanted(info: &wgpu::AdapterInfo) -> bool {
     cfg!(target_os = "android") && info.backend == wgpu::Backend::Vulkan
 }
 
+/// Whether frames take the late sky until asked otherwise (`Renderer::set_late_sky`, the
+/// Diagnostics page's sky choice, `horizon-ctl sky-order`), on the GPU `name`d. Not on a Mali:
+/// the 0.8.1 test 2's guided test found the usual order faster there (median 4% over 144 Malis,
+/// 8 to 11% on the Mali-G57), while Adreno came out even and the fork measured the late sky
+/// ahead on an Adreno 710.
+pub(super) fn on_by_default(name: &str) -> bool {
+    !name.to_ascii_lowercase().contains("mali")
+}
+
 pub(super) struct LateSky {
     pub sky: wgpu::RenderPipeline,
     pub sunrise: wgpu::RenderPipeline,

@@ -82,6 +82,7 @@ impl SolidPaths {
     /// `flat_bindings`: the flat draws' bind group 1, where they exist.
     pub fn new(
         terrain: &TerrainModule<'_>,
+        cutout_fragment: &str,
         bindings: &wgpu::BindGroupLayout,
         layout: &wgpu::PipelineLayout,
         flat_bindings: Option<&wgpu::BindGroupLayout>,
@@ -121,7 +122,7 @@ impl SolidPaths {
             buffers,
             ("Settled terrain cutout", "Settled terrain cutout (flat)"),
             ("vs_terrain_cutout", "vs_terrain_flat_cutout"),
-            "fs_cutout_static",
+            cutout_fragment,
         );
         Some(Self {
             settled: settled_opaque.zip(settled_cutout).map(<[Pass; 2]>::from),
@@ -135,7 +136,7 @@ impl SolidPaths {
                     "Terrain cutout without fades (flat)",
                 ),
                 ("vs_terrain_cutout", "vs_terrain_flat_cutout"),
-                "fs_cutout_static",
+                cutout_fragment,
             )?,
             static_cutout_on: true,
         })
@@ -150,8 +151,7 @@ impl SolidPaths {
         let settled = self
             .settled
             .as_ref()
-            .filter(|_| self.settled_on && filtering != RGSS)
-            .filter(|_| origins.iter().all(|origin| settled(origin[3])));
+            .filter(|_| self.settled_on && can_use_settled(origins, filtering));
         match settled {
             Some([opaque, cutout]) => FramePasses {
                 opaque: Some(opaque),
@@ -177,6 +177,10 @@ fn unfaded(w: f32) -> bool {
 /// (`section_instance`, `lod::instance`).
 fn settled(w: f32) -> bool {
     w == 1.0 / crate::mesher::UV_STEPS
+}
+
+pub(super) fn can_use_settled(origins: &[[f32; 4]], filtering: u32) -> bool {
+    filtering != RGSS && origins.iter().all(|origin| settled(origin[3]))
 }
 
 #[cfg(test)]

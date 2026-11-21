@@ -32,6 +32,23 @@ const PARTS: [Part; 5] = [
     Part::DarkDisc,
 ];
 
+/// A Mali starts with the usual order, where the test 2 measured it faster; Adreno and the rest
+/// keep the late sky.
+#[test]
+fn a_mali_starts_with_the_sky_before_terrain() {
+    for mali in ["Mali-G57 MC2", "Mali-G52", "ARM Mali-G610 MC6"] {
+        assert!(!on_by_default(mali), "{mali}");
+    }
+    for other in [
+        "Adreno (TM) 740",
+        "Adreno (TM) 710",
+        "PowerVR B-Series BXM-8-256",
+        "Samsung Xclipse 920",
+    ] {
+        assert!(on_by_default(other), "{other}");
+    }
+}
+
 #[test]
 fn the_late_sky_draws_the_usual_pixels() {
     let instance = test_gpu::instance();

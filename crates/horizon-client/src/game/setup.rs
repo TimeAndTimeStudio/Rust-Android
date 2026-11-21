@@ -306,7 +306,7 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        Step::Start => ("Set up Starling", tr("setup.intro"), None),
+        Step::Start => ("Set up TML", tr("setup.intro"), None),
         Step::Offline => (
             "Are you sure?",
             "You will not be able to play on most servers! We highly recommend signing in with \
@@ -314,8 +314,8 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        Step::Talking(message) => ("Set up Starling", message.clone(), None),
-        Step::AccountForm => ("Set up Starling", String::new(), None),
+        Step::Talking(message) => ("Set up TML", message.clone(), None),
+        Step::AccountForm => ("Set up TML", String::new(), None),
         Step::Code { link, .. } => (
             "Sign in with Microsoft",
             format!("On {link}, enter this code:"),
@@ -342,11 +342,11 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
         Step::Unpacking => ("Preparing the game", "Unpacking Java.".into(), None),
         Step::Preparing(line) => (
             "Preparing the game",
-            "This takes a few minutes. Keep Starling open.".into(),
+            "This takes a few minutes. Keep TML open.".into(),
             Some(line.clone()),
         ),
         Step::Done => (
-            "Starting Starling",
+            "Starting TML",
             "The game files are ready.".into(),
             None,
         ),
@@ -390,7 +390,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             (tr("setup.microsoft"), Action::SignIn),
             (tr("setup.ely_title"), Action::Ely),
             (tr("setup.offline_title"), Action::Offline),
-            (tr("setup.import"), Action::Pick),
         ],
         Step::Offline => vec![
             (tr("setup.offline_title"), Action::PlayOffline),
@@ -404,7 +403,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
         Step::Talking(_) => vec![(tr("cancel"), Action::CancelSignIn)],
         Step::Failed(_) => vec![
             literal("Try again", Action::Retry),
-            (tr("setup.import"), Action::Pick),
         ],
         Step::SignInFailed(_) => vec![
             literal("Try again", Action::Retry),
@@ -980,8 +978,7 @@ mod account_tests {
         assert!(actions.contains(&Action::SignIn));
         assert!(actions.contains(&Action::Ely));
         assert!(actions.contains(&Action::Offline));
-        assert!(actions.contains(&Action::Pick));
-        assert_eq!(actions.len(), 4);
+        assert_eq!(actions.len(), 3);
     }
     #[test]
     fn cancelled_setup_does_not_trap_a_saved_profile_in_talking() {

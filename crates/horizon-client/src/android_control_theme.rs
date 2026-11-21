@@ -237,10 +237,9 @@ fn seg_dist(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
 fn icon_hit(icon: Icon, u: f32, v: f32) -> bool {
     match icon {
         Icon::HorizonLogo => {
-            let left_bar = seg_dist(u, v, 0.22, 0.16, 0.22, 0.84) <= 0.095;
-            let right_bar = seg_dist(u, v, 0.78, 0.16, 0.78, 0.84) <= 0.095;
-            let bridge = seg_dist(u, v, 0.22, 0.56, 0.78, 0.42) <= 0.088;
-            left_bar || right_bar || bridge
+            let top_bar = seg_dist(u, v, 0.20, 0.20, 0.80, 0.20) <= 0.095;
+            let stem = seg_dist(u, v, 0.50, 0.20, 0.50, 0.84) <= 0.095;
+            top_bar || stem
         }
         Icon::ChevronDown => {
             seg_dist(u, v, 0.24, 0.38, 0.50, 0.64) <= 0.075

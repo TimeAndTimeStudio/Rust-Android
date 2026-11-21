@@ -485,6 +485,23 @@ fn hdr_mark(tier: u32, y: f32) -> f32 {
     if color.a < 0.5 && (in.layer & 0x8000u) == 0u { discard; }
     return solid_finish(in, texel, color);
 }
+// `fs_cutout_static` without HDR normal derivatives or HDR emission texture lookups for SDR output.
+@fragment fn fs_cutout_static_sdr(in: TerrainOut) -> @location(0) vec4<f32> {
+    let texel = sprite(in.uv, in.layer & 0x7fffu);
+    var color = texel * in.color;
+    if !SETTLED_TERRAIN {
+        color = mix(globals.fog_color * vec4(1.0, 1.0, 1.0, color.a), color, in.visibility);
+    }
+    if color.a < 0.5 && (in.layer & 0x8000u) == 0u { discard; }
+    if in.emissive_layer != 0xffffffffu {
+        var mask = sprite(in.uv, in.emissive_layer & 0x7fffffffu);
+        if (in.emissive_layer & 0x80000000u) != 0u {
+            mask.a = select(0.0, 1.0, mask.a >= 0.1);
+        }
+        return apply_fog(vec4(mix(color.rgb, mask.rgb, mask.a), 1.0), in.spherical, in.cylindrical);
+    }
+    return apply_fog(vec4(color.rgb, 1.0), in.spherical, in.cylindrical);
+}
 fn solid_color(in: TerrainOut) -> vec4<f32> {
     let dx = dpdx(in.local);
     let dy = dpdy(in.local);

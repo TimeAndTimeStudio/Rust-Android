@@ -769,13 +769,8 @@ impl Settings {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        s.control_style = ControlStyle::Mcpe;
         s.sanitize();
-        if s.control_style == ControlStyle::GoyControl && s.custom_buttons.is_empty() {
-            s.custom_buttons = Self::default_goy_buttons();
-            for c in Control::ALL {
-                s.button_visibility[c as usize] = if c == Control::Move { 1 } else { 2 };
-            }
-        }
         // Migrate legacy action:key.sneak / action:key.sprint tokens without overwriting user custom keybinds.
         for button in &mut s.custom_buttons {
             if button.key == "action:key.sneak" {

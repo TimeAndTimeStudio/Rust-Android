@@ -77,15 +77,9 @@ pub(super) fn write_shader_options(options: &ShaderOptions) {
     }
 }
 
-/// The pack that runs over the world ("": none): `HORIZON_SHADER_PACK`, else the pick
-/// (`active_pack`).
-fn picked_pack(settings: &horizon_client::settings::Settings) -> &str {
-    static DEV_PACK: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    let dev = DEV_PACK.get_or_init(|| std::env::var("HORIZON_SHADER_PACK").ok());
-    active_pack(
-        dev.as_deref().unwrap_or(&settings.horizon.shader_pack),
-        &settings.mods,
-    )
+/// The pack that runs over the world ("": none): disabled in TML Client.
+fn picked_pack(_settings: &horizon_client::settings::Settings) -> &str {
+    ""
 }
 
 /// Whether the pack picked (`picked_pack`) draws flat where the device can (`pack_draws_flat`):
@@ -119,14 +113,8 @@ fn active_pack<'a>(picked: &'a str, mods: &horizon_client::mod_list::ModList) ->
 
 /// Whether the pack `settings` pick (or `HORIZON_SHADER_PACK`) is one of Horizon's own: only
 /// then do resource loads read the resource packs' LabPBR maps (`sprites::set_labpbr_maps`).
-pub(super) fn picks_native_pack(settings: &horizon_client::settings::Settings) -> bool {
-    let dev = std::env::var("HORIZON_SHADER_PACK").ok();
-    let picked = active_pack(
-        dev.as_deref().unwrap_or(&settings.horizon.shader_pack),
-        &settings.mods,
-    );
-    !picked.is_empty()
-        && horizon_shader_api::package::is_pack(&Game::shader_packs_dir().join(picked))
+pub(super) fn picks_native_pack(_settings: &horizon_client::settings::Settings) -> bool {
+    false
 }
 
 /// The ids a pack gives entities and block entities (4.1, 5.3), for the spans of the entity
@@ -274,12 +262,8 @@ impl Game<'_> {
             self.all_sections_changed();
         }
         // A new choice, once the options close (each load takes seconds): what ran for the old
-        // one goes, of either kind.
-        let choice = self
-            .settings
-            .horizon
-            .shader_choice()
-            .filter(|(name, _)| !active_pack(name, &self.settings.mods).is_empty());
+        // one goes, of either kind. Shaders are disabled in TML Client.
+        let choice: Option<(String, String)> = None;
         if choice != self.shader_choice && self.screen != super::Screen::Options {
             self.shader_choice = choice;
             self.native_shaders = Default::default();
