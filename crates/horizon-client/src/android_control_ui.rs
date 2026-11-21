@@ -4249,24 +4249,35 @@ fn draw_m3_stepper_cell(
             val_part,
         );
 
-        // Material 3 Expressive 8dp Slider Track + Vertical Pill Handle
+        // Material 3 Expressive Modern Slider Track with Custom Thumb & Active Glow
         let track_x = rx + 12.0;
         let track_w = (cw - 24.0).max(20.0);
         let track_y = ry + ch - 16.0;
-        ui.rounded(track_x, track_y, track_w, 8.0, 4.0, accent_soft);
-        let fill_w = (track_w * t).max(8.0);
-        ui.rounded(track_x, track_y, fill_w, 8.0, 4.0, accent);
-        let thumb_x = (track_x + track_w * t - 3.0).clamp(track_x, track_x + track_w - 6.0);
-        ui.rounded(thumb_x, track_y - 3.0, 6.0, 14.0, 3.0, text_c);
+        let track_h = 7.0;
+        let track_r = 3.5;
+        // Inactive background groove
+        ui.rounded(track_x, track_y, track_w, track_h, track_r, accent_soft);
+        let fill_w = (track_w * t).clamp(track_h, track_w);
+        // Active filled progress track
+        ui.rounded(track_x, track_y, fill_w, track_h, track_r, accent);
+        // Custom prominent thumb knob: 16x16 circular handle with accent core ring
+        let thumb_cx = (track_x + track_w * t).clamp(track_x + 8.0, track_x + track_w - 8.0);
+        let thumb_cy = track_y + track_h * 0.5;
+        ui.circle(thumb_cx, thumb_cy, 8.5, text_c);
+        ui.circle(thumb_cx, thumb_cy, 4.5, accent);
     } else {
         let track_x = rx + 10.0;
         let track_w = (cw - 20.0).max(16.0);
         let track_y = ry + ch - 10.0;
-        ui.rounded(track_x, track_y, track_w, 6.0, 3.0, accent_soft);
-        let fill_w = (track_w * t).max(6.0);
-        ui.rounded(track_x, track_y, fill_w, 6.0, 3.0, accent);
-        let thumb_x = (track_x + track_w * t - 2.5).clamp(track_x, track_x + track_w - 5.0);
-        ui.rounded(thumb_x, track_y - 2.0, 5.0, 10.0, 2.5, text_c);
+        let track_h = 5.0;
+        let track_r = 2.5;
+        ui.rounded(track_x, track_y, track_w, track_h, track_r, accent_soft);
+        let fill_w = (track_w * t).clamp(track_h, track_w);
+        ui.rounded(track_x, track_y, fill_w, track_h, track_r, accent);
+        let thumb_cx = (track_x + track_w * t).clamp(track_x + 6.0, track_x + track_w - 6.0);
+        let thumb_cy = track_y + track_h * 0.5;
+        ui.circle(thumb_cx, thumb_cy, 6.0, text_c);
+        ui.circle(thumb_cx, thumb_cy, 3.0, accent);
         ui.text_clipped(
             Face::Medium,
             9.0,

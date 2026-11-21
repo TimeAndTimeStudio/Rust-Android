@@ -581,11 +581,36 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let small = (size * 0.25).clamp(MICRO, 18.0);
     let block = size * 1.45 + small * 0.6 + small * 1.5;
     let top = (ui.h - block) / 2.0;
-    ui.text_centered(Face::Semibold, size, ui.w / 2.0, top, BOOT_TEXT, "TML");
+    let cx = ui.w / 2.0;
+
+    // App icon (.svg scalable horizon app icon) centered above the wordmark
+    let mark_s = (size * 0.65).clamp(32.0, 56.0);
+    let mark_cy = (top - mark_s * 0.75).max(mark_s * 0.6);
+    let mx = cx - mark_s * 0.5;
+    let my = mark_cy - mark_s * 0.5;
+    // Dark squircle tile background (viewBox 16x16: rx=3.5 -> rad ~ 0.22)
+    ui.rounded(mx, my, mark_s, mark_s, mark_s * 0.22, color::hex(0x16181f, 255));
+    // Top & bottom pillar brackets (x: 4/16 and 10/16, w: 2/16, h: 4/16)
+    let p_w = mark_s * (2.0 / 16.0);
+    let p_h = mark_s * (4.0 / 16.0);
+    let col1_x = mx + mark_s * (4.0 / 16.0);
+    let col2_x = mx + mark_s * (10.0 / 16.0);
+    let top_y = my + mark_s * (3.0 / 16.0);
+    let bot_y = my + mark_s * (8.0 / 16.0);
+    // Upper pillars (solid #ecedf3)
+    ui.fill(col1_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+    ui.fill(col2_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+    // Lower pillars (translucent #ecedf3 with opacity ~ 36%)
+    ui.fill(col1_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+    ui.fill(col2_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+    // Horizon accent bar across middle (y: 7/16, h: 1/16) - orange-accent matching TML theme
+    ui.fill(mx, my + mark_s * (7.0 / 16.0), mark_s, mark_s * (1.0 / 16.0), color::hex(0xF07427, 255));
+
+    ui.text_centered(Face::Semibold, size, cx, top, BOOT_TEXT, "TML");
     ui.text_centered(
         Face::Mono,
         small,
-        ui.w / 2.0,
+        cx,
         top + size * 1.45 + small * 0.6,
         BOOT_LOG,
         "Rust based minecraft client",

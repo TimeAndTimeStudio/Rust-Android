@@ -237,9 +237,14 @@ fn seg_dist(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
 fn icon_hit(icon: Icon, u: f32, v: f32) -> bool {
     match icon {
         Icon::HorizonLogo => {
-            let top_bar = seg_dist(u, v, 0.20, 0.20, 0.80, 0.20) <= 0.095;
-            let stem = seg_dist(u, v, 0.50, 0.20, 0.50, 0.84) <= 0.095;
-            top_bar || stem
+            // Horizon app icon (.svg tile: 16x16 with rounded corners):
+            // Outer squircle boundary, horizontal accent bar at v ~ 0.44-0.50,
+            // and top/bottom pillar brackets at u ~ 0.25-0.375 and 0.625-0.75
+            let in_tile = u >= 0.12 && u <= 0.88 && v >= 0.12 && v <= 0.88;
+            let left_col = u >= 0.22 && u <= 0.40 && v >= 0.18 && v <= 0.82;
+            let right_col = u >= 0.60 && u <= 0.78 && v >= 0.18 && v <= 0.82;
+            let horizon_bar = v >= 0.42 && v <= 0.52 && in_tile;
+            left_col || right_col || horizon_bar
         }
         Icon::ChevronDown => {
             seg_dist(u, v, 0.24, 0.38, 0.50, 0.64) <= 0.075
@@ -1916,31 +1921,29 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let top = (ui.h - block) / 2.0;
     let cx = ui.w / 2.0;
 
-    // Crisp vector T mark centered symmetrically above the wordmark
-    let mark_s = (size * 0.62).clamp(28.0, 52.0);
-    let mark_cy = (top - mark_s * 0.72).max(mark_s * 0.6);
-    let bar_w = (mark_s * 0.14).max(3.0);
-    let bar_h = (mark_s * 0.56).max(10.0);
-    let off_x = mark_s * 0.22;
+    // App icon (.svg scalable horizon app icon) centered above the wordmark
+    let mark_s = (size * 0.65).clamp(32.0, 56.0);
+    let mark_cy = (top - mark_s * 0.75).max(mark_s * 0.6);
+    let mx = cx - mark_s * 0.5;
+    let my = mark_cy - mark_s * 0.5;
     let accent = active_theme().accent;
-    // Horizontal top bar of 'T'
-    ui.rounded(
-        cx - off_x - bar_w * 0.5,
-        mark_cy - bar_h * 0.5,
-        off_x * 2.0 + bar_w,
-        bar_w,
-        bar_w * 0.5,
-        accent,
-    );
-    // Vertical stem of 'T'
-    ui.rounded(
-        cx - bar_w * 0.5,
-        mark_cy - bar_h * 0.5,
-        bar_w,
-        bar_h,
-        bar_w * 0.5,
-        BOOT_TEXT,
-    );
+    // Dark squircle tile background (viewBox 16x16: rx=3.5 -> rad ~ 0.22)
+    ui.rounded(mx, my, mark_s, mark_s, mark_s * 0.22, color::hex(0x16181f, 255));
+    // Top & bottom pillar brackets (x: 4/16 and 10/16, w: 2/16, h: 4/16)
+    let p_w = mark_s * (2.0 / 16.0);
+    let p_h = mark_s * (4.0 / 16.0);
+    let col1_x = mx + mark_s * (4.0 / 16.0);
+    let col2_x = mx + mark_s * (10.0 / 16.0);
+    let top_y = my + mark_s * (3.0 / 16.0);
+    let bot_y = my + mark_s * (8.0 / 16.0);
+    // Upper pillars (solid #ecedf3)
+    ui.fill(col1_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+    ui.fill(col2_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
+    // Lower pillars (translucent #ecedf3 with opacity ~ 36%)
+    ui.fill(col1_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+    ui.fill(col2_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
+    // Horizon accent bar across middle (y: 7/16, h: 1/16)
+    ui.fill(mx, my + mark_s * (7.0 / 16.0), mark_s, mark_s * (1.0 / 16.0), accent);
 
     ui.text_centered(Face::SemiBold, size, cx, top, BOOT_TEXT, "TML");
     let sub_y = top + size * 1.45 + small * 0.6;
