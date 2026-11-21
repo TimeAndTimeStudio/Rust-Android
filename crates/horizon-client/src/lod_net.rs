@@ -45,8 +45,8 @@ pub const DEFAULT_DISTANCE: u32 = 0;
 /// The protocol's version, first in an [`Offer`]: a client serves itself
 /// from a server that speaks its own only. Requests and replies follow it.
 pub const VERSION: u32 = 1;
-/// The most [`PROPERTY`] may be (the client's own LOD Distance cap).
-pub const MAX_DISTANCE: u32 = 1024;
+/// The most [`PROPERTY`] may be (the client's own LOD Distance cap). 0 disables far terrain.
+pub const MAX_DISTANCE: u32 = 0;
 /// Requests a player may have waiting at the server at once.
 pub const IN_FLIGHT: u32 = 8;
 /// Tiles a second a player may ask for, on average.

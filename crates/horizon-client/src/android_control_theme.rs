@@ -1060,29 +1060,29 @@ impl<'a> Ui<'a> {
         }
     }
 
-    /// Draw the vector TML app icon (.svg squircle tile, dual brackets, and accent bar) at `(x, y)` in `size x size` dp.
+    /// Draw the official TML dual-T logo in vector geometry at `(x, y)` in `size x size` dp.
     pub fn tml_app_icon(&mut self, x: f32, y: f32, size: f32) {
         if size <= 0.0 {
             return;
         }
-        let accent = active_theme().accent;
-        // Dark squircle tile background (viewBox 16x16: rx=3.5 -> rad ~ 0.22)
-        self.rounded(x, y, size, size, size * 0.22, color::hex(0x16181f, 255));
-        // Top & bottom pillar brackets (x: 4/16 and 10/16, w: 2/16, h: 4/16)
-        let p_w = (size * (2.0 / 16.0)).max(1.5);
-        let p_h = (size * (4.0 / 16.0)).max(2.5);
-        let col1_x = x + size * (4.0 / 16.0);
-        let col2_x = x + size * (10.0 / 16.0);
-        let top_y = y + size * (3.0 / 16.0);
-        let bot_y = y + size * (8.0 / 16.0);
-        // Upper pillars (solid #ecedf3)
-        self.fill(col1_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
-        self.fill(col2_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
-        // Lower pillars (translucent #ecedf3 with opacity ~ 36%)
-        self.fill(col1_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
-        self.fill(col2_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
-        // Horizon accent bar across middle (y: 7/16, h: 1/16)
-        self.fill(x, y + size * (7.0 / 16.0), size, (size * (1.0 / 16.0)).max(1.0), accent);
+        let orange = color::hex(0xFF751F, 255);
+        let s = size;
+        let bar_h = (s * (60.0 / 388.0)).max(1.5);
+        let stem_w = (s * (56.0 / 388.0)).max(1.5);
+
+        // 1. Top horizontal bar: across full width
+        self.fill(x, y, s, bar_h, orange);
+
+        // 2. Center vertical stem: from top bar down to bottom
+        let center_x = x + (s - stem_w) * 0.5;
+        self.fill(center_x, y, stem_w, s, orange);
+
+        // 3. Middle horizontal bar: from left edge across to right edge
+        let mid_bar_y = y + s * (118.0 / 388.0);
+        self.fill(x, mid_bar_y, s, bar_h, orange);
+
+        // 4. Left vertical stem: from middle bar down to bottom
+        self.fill(x, mid_bar_y, stem_w, s - (mid_bar_y - y), orange);
     }
 
     /// Draw the stylized two-tone Horizon `H` mark at `(x, y)` in `size x size` dp.
@@ -1942,29 +1942,25 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let top = (ui.h - block) / 2.0;
     let cx = ui.w / 2.0;
 
-    // App icon (.svg scalable horizon app icon) centered above the wordmark
-    let mark_s = (size * 0.65).clamp(32.0, 56.0);
+    // App icon (official TML dual-T vector icon) centered above the wordmark
+    let mark_s = (size * 0.70).clamp(36.0, 64.0);
     let mark_cy = (top - mark_s * 0.75).max(mark_s * 0.6);
     let mx = cx - mark_s * 0.5;
     let my = mark_cy - mark_s * 0.5;
-    let accent = active_theme().accent;
-    // Dark squircle tile background (viewBox 16x16: rx=3.5 -> rad ~ 0.22)
-    ui.rounded(mx, my, mark_s, mark_s, mark_s * 0.22, color::hex(0x16181f, 255));
-    // Top & bottom pillar brackets (x: 4/16 and 10/16, w: 2/16, h: 4/16)
-    let p_w = mark_s * (2.0 / 16.0);
-    let p_h = mark_s * (4.0 / 16.0);
-    let col1_x = mx + mark_s * (4.0 / 16.0);
-    let col2_x = mx + mark_s * (10.0 / 16.0);
-    let top_y = my + mark_s * (3.0 / 16.0);
-    let bot_y = my + mark_s * (8.0 / 16.0);
-    // Upper pillars (solid #ecedf3)
-    ui.fill(col1_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
-    ui.fill(col2_x, top_y, p_w, p_h, color::hex(0xecedf3, 255));
-    // Lower pillars (translucent #ecedf3 with opacity ~ 36%)
-    ui.fill(col1_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
-    ui.fill(col2_x, bot_y, p_w, p_h, color::with_alpha(color::hex(0xecedf3, 255), 0.36));
-    // Horizon accent bar across middle (y: 7/16, h: 1/16)
-    ui.fill(mx, my + mark_s * (7.0 / 16.0), mark_s, mark_s * (1.0 / 16.0), accent);
+    let orange = color::hex(0xFF751F, 255);
+    let bar_h = (mark_s * (60.0 / 388.0)).max(2.0);
+    let stem_w = (mark_s * (56.0 / 388.0)).max(2.0);
+
+    // 1. Top horizontal bar
+    ui.fill(mx, my, mark_s, bar_h, orange);
+    // 2. Center vertical stem
+    let center_x = mx + (mark_s - stem_w) * 0.5;
+    ui.fill(center_x, my, stem_w, mark_s, orange);
+    // 3. Middle horizontal bar
+    let mid_bar_y = my + mark_s * (118.0 / 388.0);
+    ui.fill(mx, mid_bar_y, mark_s, bar_h, orange);
+    // 4. Left vertical stem
+    ui.fill(mx, mid_bar_y, stem_w, mark_s - (mid_bar_y - my), orange);
 
     ui.text_centered(Face::SemiBold, size, cx, top, BOOT_TEXT, "TML");
     let sub_y = top + size * 1.45 + small * 0.6;

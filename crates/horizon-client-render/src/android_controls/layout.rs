@@ -769,8 +769,22 @@ impl Settings {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
-        s.control_style = ControlStyle::Mcpe;
         s.sanitize();
+        // If GoyControl is loaded with empty custom buttons, initialize default GoyControl buttons (including ZOOM)
+        if s.control_style == ControlStyle::GoyControl && s.custom_buttons.is_empty() {
+            s.custom_buttons = Self::default_goy_buttons();
+            for c in Control::ALL {
+                s.button_visibility[c as usize] = if c == Control::Move { 1 } else { 2 };
+            }
+        }
+        // Ensure ZOOM button exists in GoyControl layout if missing from an older layout version
+        if s.control_style == ControlStyle::GoyControl
+            && !s.custom_buttons.iter().any(|b| b.custom_label == "ZOOM" || b.key == "key.keyboard.c")
+        {
+            if let Some(zoom_btn) = Self::default_goy_buttons().into_iter().find(|b| b.custom_label == "ZOOM") {
+                s.custom_buttons.push(zoom_btn);
+            }
+        }
         // Migrate legacy action:key.sneak / action:key.sprint tokens without overwriting user custom keybinds.
         for button in &mut s.custom_buttons {
             if button.key == "action:key.sneak" {
@@ -1580,7 +1594,7 @@ impl Settings {
                 1.0,
                 true,
                 false,
-                2,
+                0,
                 true,
                 false,
             ),

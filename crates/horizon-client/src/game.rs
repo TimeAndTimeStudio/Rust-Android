@@ -16689,18 +16689,11 @@ impl Game<'_> {
     }
     /// LOD Distance and Far Detail coarseness as the player chose them, the
     /// distance no farther than a server sampling far terrain for us allows.
+    /// LOD system is completely disabled (returns distance 0).
     fn far_terrain_choice(&self) -> (u32, u8) {
         let g = &self.settings.horizon;
         let coarseness = g.far_detail.coarseness();
-        let distance = if self.ram_limit.far_off() {
-            0
-        } else {
-            match self.server_far_terrain() {
-                Some(offer) => g.lod_distance.min(offer.distance),
-                None => g.lod_distance,
-            }
-        };
-        (distance, coarseness)
+        (0, coarseness)
     }
     /// The far terrain another machine's server samples for us
     /// (`lod_net`): a client of a dedicated server or of a LAN world, not of
@@ -21386,7 +21379,10 @@ impl Loading {
             stop.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         horizon_client::hud::GUI_SCALE.store(self.settings.gui_scale, Ordering::Relaxed);
-        self.window = Some(window);
+        self.window = Some(window.clone());
+        // Immediately render the boot screen so the window does not sit on a blank/white surface
+        self.draw();
+        window.request_redraw();
     }
     /// The window is going away (Android): its surface goes with it, and the log is flushed
     /// before the system may end the process.

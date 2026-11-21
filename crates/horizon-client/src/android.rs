@@ -1299,6 +1299,8 @@ pub fn main(app: AndroidApp) {
         }
         // Read from the APK's assets, which the app above opens.
         crate::preparer::put_resource_packs(&home);
+        // Preload touch controls early on Android so layouts & settings are warm before the UI opens
+        let _ = horizon_client_render::android_controls::Settings::load();
         // The saved Microsoft sign-in renews while the game loads.
         crate::accounts::resume();
         winit::platform::android::set_input_hook(input::hook);
