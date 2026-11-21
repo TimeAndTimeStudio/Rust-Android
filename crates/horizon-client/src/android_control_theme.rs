@@ -1710,25 +1710,7 @@ impl<'a> Ui<'a> {
             return;
         }
         let theme = active_theme();
-        let ring_t = motion::ease_out_cubic((elapsed / 0.55).clamp(0.0, 1.0));
-        let ring_r = size * (0.56 + 0.08 * ring_t);
-        self.rounded(
-            cx - ring_r,
-            cy - ring_r,
-            ring_r * 2.0,
-            ring_r * 2.0,
-            ring_r * 0.36,
-            color::with_alpha(theme.accent, 0.14 * ring_t * a),
-        );
-        self.stroke_rounded(
-            cx - ring_r,
-            cy - ring_r,
-            ring_r * 2.0,
-            ring_r * 2.0,
-            ring_r * 0.36,
-            1.5,
-            color::with_alpha(theme.accent, 0.38 * ring_t * a),
-        );
+        // Removed outer expanding pulse rings as requested to eliminate the expanding wave/ripple effect.
 
         let plate_r = size * 0.46;
         self.rounded(

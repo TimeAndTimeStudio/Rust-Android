@@ -3230,7 +3230,7 @@ impl OptionsUi {
             Page::Skin => "options.skinCustomisation.title",
             Page::Online => "options.online.title",
             Page::Controls => "controls.title",
-            Page::Touch => "Touch Controls",
+            Page::Touch => "MCPE Touch Controls",
             Page::KeyBinds => "controls.keybinds.title",
             Page::Mouse => "options.mouse_settings.title",
             Page::Chat => "options.chat.title",
