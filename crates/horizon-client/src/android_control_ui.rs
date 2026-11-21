@@ -49,6 +49,8 @@ pub struct TouchUi {
     pub gyro_sensitivity_dragging: bool,
     /// The global button scale slider of the Buttons tab is being dragged.
     pub button_scale_dragging: bool,
+    /// The zoom distance factor slider is being dragged.
+    pub zoom_factor_dragging: bool,
     /// Step state for the Floating Menu "Send Custom Input" picker modal.
     pub custom_input_picker: crate::android_controls::PickerStep,
     /// Horizontal scroll offset for the Floating Menu custom keyboard picker.
@@ -105,6 +107,7 @@ impl Default for TouchUi {
             resolution_scale_dragging: false,
             gyro_sensitivity_dragging: false,
             button_scale_dragging: false,
+            zoom_factor_dragging: false,
             custom_input_picker: crate::android_controls::PickerStep::None,
             custom_kb_scroll_x: 0.0,
             custom_kb_drag: None,
@@ -178,6 +181,7 @@ pub enum InGameMenuAction {
     StepGyroSensitivity(i32),
     SetButtonScale(f32),
     StepButtonScale(i32),
+    SetZoomFactor(f32),
     TriggerKey(KeyCode),
     OpenKeyboard,
     /// Kill the game process now (no save, no shutdown sequence).
@@ -1752,6 +1756,7 @@ impl TouchUi {
                             self.mouse_speed_dragging = false;
                             self.gyro_sensitivity_dragging = false;
                             self.button_scale_dragging = false;
+                            self.zoom_factor_dragging = false;
                             self.hub_scroll_drag = None;
                         }
                     }
@@ -1790,6 +1795,7 @@ impl TouchUi {
                     self.resolution_scale_dragging = false;
                     self.gyro_sensitivity_dragging = false;
                     self.button_scale_dragging = false;
+                    self.zoom_factor_dragging = false;
                     self.hub_scroll_drag = Some((id, start[1], self.hub_scroll, true));
                 }
                 TouchPhase::Moved if delta[0].abs() > 6.0 => {
@@ -1803,6 +1809,7 @@ impl TouchUi {
                     self.resolution_scale_dragging = false;
                     self.gyro_sensitivity_dragging = false;
                     self.button_scale_dragging = false;
+                    self.zoom_factor_dragging = false;
                     return Some(if phase == TouchPhase::Ended {
                         tap.clone()
                     } else {
@@ -1911,6 +1918,23 @@ impl TouchUi {
                 }
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     self.button_scale_dragging = false;
+                    return None;
+                }
+                _ => {}
+            }
+        }
+
+        // Handle ongoing zoom factor slider drag on Tab 2
+        if self.zoom_factor_dragging {
+            match phase {
+                TouchPhase::Moved => {
+                    let sl_x = cx + 14.0;
+                    let sl_w = (cw - 28.0).max(40.0);
+                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
+                    return Some(InGameMenuAction::SetZoomFactor(1.5 + t * 8.5));
+                }
+                TouchPhase::Ended | TouchPhase::Cancelled => {
+                    self.zoom_factor_dragging = false;
                     return None;
                 }
                 _ => {}
@@ -2223,6 +2247,7 @@ impl TouchUi {
                 self.mouse_speed_dragging = false;
                 self.gyro_sensitivity_dragging = false;
                 self.button_scale_dragging = false;
+                self.zoom_factor_dragging = false;
                 self.custom_input_picker = crate::android_controls::PickerStep::None;
                 self.custom_kb_drag = None;
                 self.hub_scroll_drag = None;
@@ -2346,6 +2371,16 @@ impl TouchUi {
                     let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
                     self.slider_gesture =
                         Some((id, p, InGameMenuAction::SetGyroSensitivity(0.10 + t * 2.90)));
+                    return Some(InGameMenuAction::Close);
+                }
+                let zoom_card_y = body_y + 462.0;
+                if inside([cx, zoom_card_y, cw, 50.0]) {
+                    self.zoom_factor_dragging = true;
+                    let sl_x = cx + 14.0;
+                    let sl_w = (cw - 28.0).max(40.0);
+                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
+                    self.slider_gesture =
+                        Some((id, p, InGameMenuAction::SetZoomFactor(1.5 + t * 8.5)));
                     return Some(InGameMenuAction::Close);
                 }
             }
@@ -2539,6 +2574,12 @@ impl TouchUi {
                     let sl_w = (cw - 28.0).max(40.0);
                     let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
                     return Some(InGameMenuAction::SetGyroSensitivity(0.10 + t * 2.90));
+                }
+                if inside([cx, body_y + 462.0, cw, 50.0]) {
+                    let sl_x = cx + 14.0;
+                    let sl_w = (cw - 28.0).max(40.0);
+                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
+                    return Some(InGameMenuAction::SetZoomFactor(1.5 + t * 8.5));
                 }
             }
             3 => {
@@ -2851,7 +2892,7 @@ impl TouchUi {
         let content_height = match self.hub_tab {
             0 => 448.0,
             1 => 444.0,
-            2 => 470.0,
+            2 => 524.0,
             3 => 350.0,
             _ => 340.0,
         };
@@ -3555,6 +3596,76 @@ impl TouchUi {
                 ui.rounded(
                     gyro_thumb_x - 7.0,
                     gyro_sl_y - 4.0,
+                    14.0,
+                    14.0,
+                    7.0,
+                    accent_hi,
+                );
+
+                // Built-in Zoom Distance Factor slider card
+                let zoom_y = body_y + 462.0;
+                ui.rounded(cx, zoom_y, cw, 50.0, 11.0, card_bg);
+                ui.border(cx, zoom_y, cw, 50.0, 11.0, border_c);
+                ui.text(
+                    Face::SemiBold,
+                    10.8,
+                    cx + 14.0,
+                    zoom_y + 6.0,
+                    text_c,
+                    "Built-in Zoom Distance (Magnification)",
+                );
+                let zf = if settings.zoom_factor.is_finite() {
+                    settings.zoom_factor.clamp(1.5, 10.0)
+                } else {
+                    4.0
+                };
+                let zoom_lbl = format!("{zf:.1}x");
+                let zoom_pill_w = 48.0;
+                ui.rounded(
+                    cx + cw - zoom_pill_w - 12.0,
+                    zoom_y + 6.0,
+                    zoom_pill_w,
+                    18.0,
+                    6.0,
+                    card_sel,
+                );
+                ui.border(
+                    cx + cw - zoom_pill_w - 12.0,
+                    zoom_y + 6.0,
+                    zoom_pill_w,
+                    18.0,
+                    6.0,
+                    accent,
+                );
+                ui.centered_fit(
+                    Face::SemiBold,
+                    9.4,
+                    [
+                        cx + cw - zoom_pill_w - 12.0,
+                        zoom_y + 6.0,
+                        zoom_pill_w,
+                        18.0,
+                    ],
+                    accent_hi,
+                    &zoom_lbl,
+                );
+                let zoom_sl_x = cx + 14.0;
+                let zoom_sl_w = (cw - 28.0).max(40.0);
+                let zoom_sl_y = zoom_y + 33.0;
+                let zoom_frac = ((zf - 1.5) / 8.5).clamp(0.0, 1.0);
+                ui.rounded(zoom_sl_x, zoom_sl_y, zoom_sl_w, 6.0, 3.0, sidebar_bg);
+                ui.rounded(
+                    zoom_sl_x,
+                    zoom_sl_y,
+                    (zoom_sl_w * zoom_frac).max(6.0),
+                    6.0,
+                    3.0,
+                    accent,
+                );
+                let zoom_thumb_x = zoom_sl_x + zoom_sl_w * zoom_frac;
+                ui.rounded(
+                    zoom_thumb_x - 7.0,
+                    zoom_sl_y - 4.0,
                     14.0,
                     14.0,
                     7.0,

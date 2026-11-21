@@ -84,6 +84,7 @@ pub enum H {
     Antialiasing,
     Upscaling,
     ScreenshotQuality,
+    #[allow(dead_code)]
     FrameGeneration,
     Hdr,
     HdrBlackLevel,
@@ -303,11 +304,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                             H::ScreenshotQuality,
                             None,
                             "F2 screenshots at this many times the game's resolution. Higher takes longer.",
-                        ),
-                        h(
-                            H::FrameGeneration,
-                            Medium,
-                            "Shows a made-up frame between each two real ones: smoother, a little more lag.",
                         ),
                     ],
                 ),

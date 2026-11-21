@@ -22226,7 +22226,9 @@ pub fn run_with() -> Result<()> {
     let mut early_settings = Settings::load(&options_txt);
     // A phone's first start: settings for what it can take, saved before anything reads them.
     #[cfg(target_os = "android")]
-    if first_start && let Some(tier) = horizon_client::system_stats::Tier::here() {
+    if first_start {
+        let tier = horizon_client::system_stats::Tier::here()
+            .unwrap_or(horizon_client::system_stats::Tier::Mid);
         horizon_client::graphics::apply_mobile_defaults(tier, &mut early_settings);
         early_settings.save(&options_txt);
         log::info!(

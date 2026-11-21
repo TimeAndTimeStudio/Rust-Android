@@ -4,7 +4,7 @@
          first frame, shows the game's dark background matching setup (#121214). -->
     <style name="Starling.Game" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
         <item name="android:windowSplashScreenBackground">#FF121214</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
         <item name="android:statusBarColor">#FF121214</item>
         <item name="android:navigationBarColor">#FF121214</item>
         <item name="android:windowBackground">#FF121214</item>

@@ -516,6 +516,9 @@ pub struct Settings {
     pub disable_game_animations: bool,
     #[serde(default = "default_res_scale")]
     pub resolution_scale_percent: u32,
+    /// Built-in zoom strength (how many times the view is magnified).
+    #[serde(default = "default_zoom_factor")]
+    pub zoom_factor: f32,
     pub virtual_mouse_sensitivity: f32,
     /// Rendered size of the virtual mouse pointer, where 1.0 is the default height.
     #[serde(default = "default_pointer_scale")]
@@ -592,6 +595,9 @@ fn default_pointer_scale() -> f32 {
 }
 fn default_res_scale() -> u32 {
     100
+}
+fn default_zoom_factor() -> f32 {
+    4.0
 }
 // Append new buttons without resetting a player's existing ten-button layout.
 fn deserialize_layouts<'de, D: serde::Deserializer<'de>>(
@@ -675,6 +681,7 @@ impl Default for Settings {
             virtual_mouse_hidden: true,
             disable_game_animations: false,
             resolution_scale_percent: default_res_scale(),
+            zoom_factor: default_zoom_factor(),
             virtual_mouse_sensitivity: 1.0,
             virtual_mouse_pointer_scale: default_pointer_scale(),
             crosshair_gestures: false,

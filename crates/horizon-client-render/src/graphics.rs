@@ -349,10 +349,11 @@ pub enum FrameGeneration {
     #[default]
     Off,
     /// AMD FidelityFX Super Resolution 3.1's frame interpolation, ported to WGSL.
+    #[allow(dead_code)]
     Fsr31,
 }
 impl FrameGeneration {
-    pub const ALL: [FrameGeneration; 2] = [FrameGeneration::Off, FrameGeneration::Fsr31];
+    pub const ALL: [FrameGeneration; 1] = [FrameGeneration::Off];
     pub fn name(self) -> &'static str {
         match self {
             FrameGeneration::Off => "off",
@@ -1173,6 +1174,11 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
     g.leaf_culling = LeafCullingMode::Hidden;
     // Mobile devices keep distant terrain LOD disabled (0 chunks)
     g.lod_distance = 0;
+    // TML default: Ultra quality with 6 chunks render and simulation distance.
+    apply_preset(Preset::Ultra, s);
+    s.render_distance = 6;
+    s.simulation_distance = 6;
+    s.horizon.frame_generation = FrameGeneration::Off;
 }
 
 #[cfg(test)]
@@ -1194,16 +1200,13 @@ mod tests {
         let mut high = crate::settings::Settings::default();
         apply_mobile_defaults(Tier::High, &mut high);
         assert_eq!((low.max_fps, high.max_fps), (60, 60));
-        assert!(low.render_distance < high.render_distance);
-        assert_eq!(
-            (low.clouds.as_str(), high.clouds.as_str()),
-            ("false", "fast")
-        );
+        assert_eq!((low.render_distance, high.render_distance), (6, 6));
+        assert_eq!((low.simulation_distance, high.simulation_distance), (6, 6));
+        assert_eq!(high.horizon.preset, Preset::Ultra);
         assert_eq!(
             (low.horizon.resolution_scale, high.horizon.resolution_scale),
             (100, 100)
         );
-        assert!(!low.horizon.animated_textures && high.horizon.animated_textures);
         // Auto-Jump on, as on Bedrock's touch screens.
         assert!(low.auto_jump && high.auto_jump);
         // Far terrain as coarse as Mobile on every tier.
@@ -1276,7 +1279,7 @@ mod tests {
             taa: true,
             upscaling: Upscaling::Balanced,
             screenshot_quality: 4,
-            frame_generation: FrameGeneration::Fsr31,
+            frame_generation: FrameGeneration::Off,
             hdr: true,
             hdr_paper_white: 240,
             hdr_peak: 1400,

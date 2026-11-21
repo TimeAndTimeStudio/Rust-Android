@@ -1024,10 +1024,20 @@ impl<'a> Ui<'a> {
             self.px_x(x + w),
             self.px_y(y + h),
         );
-        self.raw_fill(x0, y0, x1, y0 + 1.0, color);
-        self.raw_fill(x0, y1 - 1.0, x1, y1, color);
-        self.raw_fill(x0, y0 + 1.0, x0 + 1.0, y1 - 1.0, color);
-        self.raw_fill(x1 - 1.0, y0 + 1.0, x1, y1 - 1.0, color);
+        // Minecraft-style bevel: black outline, light inner top-left, dark inner bottom-right.
+        let _ = color;
+        let outline = color::hex(0x000000, 255);
+        let light = color::hex(0xFFFFFF, 90);
+        let dark = color::hex(0x000000, 110);
+        let t = (self.px_x(x + 2.0) - x0).clamp(1.0, 3.0).round();
+        self.raw_fill(x0, y0, x1, y0 + t, outline);
+        self.raw_fill(x0, y1 - t, x1, y1, outline);
+        self.raw_fill(x0, y0 + t, x0 + t, y1 - t, outline);
+        self.raw_fill(x1 - t, y0 + t, x1, y1 - t, outline);
+        self.raw_fill(x0 + t, y0 + t, x1 - t, y0 + 2.0 * t, light);
+        self.raw_fill(x0 + t, y0 + 2.0 * t, x0 + 2.0 * t, y1 - 2.0 * t, light);
+        self.raw_fill(x0 + t, y1 - 2.0 * t, x1 - t, y1 - t, dark);
+        self.raw_fill(x1 - 2.0 * t, y0 + 2.0 * t, x1 - t, y1 - 2.0 * t, dark);
     }
 
     /// Draw a supersampled vector icon in `size x size` dp.
@@ -1087,21 +1097,25 @@ impl<'a> Ui<'a> {
     pub fn m3_switch(&mut self, x: f32, y: f32, on: bool) {
         let theme = active_theme();
         let track_w = 52.0;
-        let track_h = 28.0;
+        let track_h = 26.0;
         if on {
-            self.rounded(x, y, track_w, track_h, 14.0, theme.accent);
-            let thumb_d = 22.0;
-            let tx = x + track_w - thumb_d - 3.0;
-            let ty = y + (track_h - thumb_d) * 0.5;
-            self.rounded(tx, ty, thumb_d, thumb_d, 11.0, theme.on_accent);
-            self.icon(Icon::Check, tx + 4.0, ty + 4.0, 14.0, theme.accent);
+            self.rounded(x, y, track_w, track_h, 0.0, theme.accent);
+            self.border(x, y, track_w, track_h, 0.0, theme.border);
+            let thumb_w = 20.0;
+            let thumb_h = 22.0;
+            let tx = x + track_w - thumb_w - 2.0;
+            let ty = y + (track_h - thumb_h) * 0.5;
+            self.rounded(tx, ty, thumb_w, thumb_h, 0.0, theme.surface_bright);
+            self.border(tx, ty, thumb_w, thumb_h, 0.0, theme.border);
         } else {
-            self.rounded(x, y, track_w, track_h, 14.0, theme.surface_dim);
-            self.stroke_rounded(x, y, track_w, track_h, 14.0, 1.6, theme.border_strong);
-            let thumb_d = 16.0;
-            let tx = x + 6.0;
-            let ty = y + (track_h - thumb_d) * 0.5;
-            self.rounded(tx, ty, thumb_d, thumb_d, 8.0, theme.text_muted);
+            self.rounded(x, y, track_w, track_h, 0.0, theme.surface_dim);
+            self.border(x, y, track_w, track_h, 0.0, theme.border);
+            let thumb_w = 20.0;
+            let thumb_h = 22.0;
+            let tx = x + 2.0;
+            let ty = y + (track_h - thumb_h) * 0.5;
+            self.rounded(tx, ty, thumb_w, thumb_h, 0.0, theme.surface);
+            self.border(tx, ty, thumb_w, thumb_h, 0.0, theme.border);
         }
     }
 
@@ -1935,27 +1949,7 @@ fn wordmark(atlas: &HudAtlas, batch: &mut HudBatch) {
     let block = size * 1.45 + small * 0.6 + small * 1.5;
     let top = (ui.h - block) / 2.0;
     let cx = ui.w / 2.0;
-
-    // App icon (official TML dual-T vector icon) centered above the wordmark
-    let mark_s = (size * 0.70).clamp(36.0, 64.0);
-    let mark_cy = (top - mark_s * 0.75).max(mark_s * 0.6);
-    let mx = cx - mark_s * 0.5;
-    let my = mark_cy - mark_s * 0.5;
-    let orange = color::hex(0xFF751F, 255);
     let accent = active_theme().accent;
-    let bar_h = (mark_s * (60.0 / 388.0)).max(2.0);
-    let stem_w = (mark_s * (56.0 / 388.0)).max(2.0);
-
-    // 1. Top horizontal bar
-    ui.fill(mx, my, mark_s, bar_h, orange);
-    // 2. Center vertical stem
-    let center_x = mx + (mark_s - stem_w) * 0.5;
-    ui.fill(center_x, my, stem_w, mark_s, orange);
-    // 3. Middle horizontal bar
-    let mid_bar_y = my + mark_s * (118.0 / 388.0);
-    ui.fill(mx, mid_bar_y, mark_s, bar_h, orange);
-    // 4. Left vertical stem
-    ui.fill(mx, mid_bar_y, stem_w, mark_s - (mid_bar_y - my), orange);
 
     ui.text_centered(Face::SemiBold, size, cx, top, BOOT_TEXT, "TML");
     let sub_y = top + size * 1.45 + small * 0.6;
@@ -2562,9 +2556,37 @@ pub fn active_theme() -> ResolvedTheme {
     if let Ok(guard) = ACTIVE_THEME.lock()
         && let Some(theme) = *guard
     {
-        return theme;
+        return minecraft_style(theme);
     }
-    ResolvedTheme::default()
+    minecraft_style(ResolvedTheme::default())
+}
+
+/// The control settings in Minecraft's own menu look: stone-grey panels, bevelled
+/// buttons, white text and the green of a selected toggle.
+fn minecraft_style(mut t: ResolvedTheme) -> ResolvedTheme {
+    t.is_light = false;
+    t.is_gradient = false;
+    t.bg_solid = color::hex(0x1E1E1E, 255);
+    t.gradient_start = t.bg_solid;
+    t.gradient_mid = t.bg_solid;
+    t.gradient_end = t.bg_solid;
+    t.sidebar_bg = color::hex(0x313131, 250);
+    t.header_bg = color::hex(0x3C3C3C, 250);
+    t.surface = color::hex(0x6F6F6F, 255);
+    t.surface_dim = color::hex(0x4A4A4A, 255);
+    t.surface_bright = color::hex(0x8B8B8B, 255);
+    t.surface_selected = color::hex(0x7A86B8, 255);
+    t.border = color::hex(0x000000, 255);
+    t.border_strong = color::hex(0x000000, 255);
+    t.accent = color::hex(0x3C8527, 255);
+    t.accent_soft = color::hex(0x3C8527, 90);
+    t.on_accent = color::hex(0xFFFFFF, 255);
+    t.accent_text = color::hex(0xFFFFFF, 255);
+    t.text_primary = color::hex(0xFFFFFF, 255);
+    t.text_muted = color::hex(0xA0A0A0, 255);
+    t.success = color::hex(0x55FF55, 255);
+    t.danger = color::hex(0xFF5555, 255);
+    t
 }
 
 pub fn set_active_theme(theme: ResolvedTheme) {

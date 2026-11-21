@@ -736,11 +736,6 @@ impl Loading {
         drawn[4] = Some((rect, Action::Diagnostics));
         ui.finish();
         self.setup.buttons.set(drawn);
-        // Show live boot logs during wait/download/preparation steps so players can monitor progress
-        if waiting(&step) || matches!(step, Step::Done) {
-            let logs = horizon_client::logging::recent_lines();
-            horizon_client::ui_theme::draw_boot_log(&gui.atlas, batch, &logs);
-        }
         // Fishing under the card: the card itself takes no cast.
         let below = y + card_h + 8.0;
         self.setup

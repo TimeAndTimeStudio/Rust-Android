@@ -200,20 +200,6 @@ public final class LauncherActivity extends Activity {
             float top = (h - block) / 2f;
             float cx = w / 2f;
 
-            // TML dual-T vector icon centered above the wordmark
-            float markS = Math.max(36f, Math.min(size * 0.70f, 64f));
-            float markCy = Math.max(top - markS * 0.75f, markS * 0.6f);
-            float mx = cx - markS * 0.5f;
-            float my = markCy - markS * 0.5f;
-            float barH = Math.max(markS * (60f / 388f), 2f);
-            float stemW = Math.max(markS * (56f / 388f), 2f);
-
-            fill(mx * u, my * u, markS * u, barH * u, orange);
-            fill((mx + (markS - stemW) * 0.5f) * u, my * u, stemW * u, markS * u, orange);
-            float midBarY = my + markS * (118f / 388f);
-            fill(mx * u, midBarY * u, markS * u, barH * u, orange);
-            fill(mx * u, midBarY * u, stemW * u, (markS - (midBarY - my)) * u, orange);
-
             text("TML", cx * u, top * u, size * u,
                     Typeface.create("sans-serif-medium", Typeface.BOLD), textColor);
             float subY = top + size * 1.45f + small * 0.6f;

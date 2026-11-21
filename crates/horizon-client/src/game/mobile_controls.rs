@@ -1499,6 +1499,12 @@ impl Game<'_> {
                             .clamp(0.5, 2.0);
                     let _ = self.mobile.controls.settings.save();
                 }
+                InGameMenuAction::SetZoomFactor(val) => {
+                    let rounded = (val * 2.0).round() * 0.5;
+                    self.mobile.controls.settings.zoom_factor = rounded.clamp(1.5, 10.0);
+                    self.settings.touch.zoom_factor = self.mobile.controls.settings.zoom_factor;
+                    let _ = self.mobile.controls.settings.save();
+                }
                 InGameMenuAction::TriggerKey(key) => {
                     if key == KeyCode::KeyC {
                         if !self.keys.remove(&KeyCode::KeyC) {

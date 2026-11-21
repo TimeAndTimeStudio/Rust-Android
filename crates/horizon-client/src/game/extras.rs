@@ -214,8 +214,10 @@ impl Game<'_> {
         if let Some(z) = self.native_zoom_now() {
             (z.factor, z.smooth, f64::from(z.turn))
         } else if self.screen == Screen::Playing && self.keys.contains(&winit::keyboard::KeyCode::KeyC) {
-            // Built-in OptiFine-style smooth zoom (4x zoom, smooth FOV interpolation, 0.25 mouse turn scale)
-            (4.0, true, 0.25)
+            // Built-in smooth zoom: strength set in the control settings (2x-10x).
+            let factor = self.settings.touch.zoom_factor;
+            let factor = if factor.is_finite() { factor.clamp(1.5, 10.0) } else { 4.0 };
+            (factor, true, f64::from(1.0 / factor))
         } else {
             (1.0, true, 1.0)
         }
