@@ -138,6 +138,7 @@ pub fn friendly_token_name(token: &str) -> String {
         "mouse.scroll.down" => "Wheel Down".into(),
         "mouse.virtual.toggle" => "Virtual Mouse".into(),
         "mouse.look" => "Mouse Look".into(),
+        "key.keyboard.c" => "Zoom (C)".into(),
         _ => {
             if let Some(name) = token.strip_prefix("action:") {
                 let tr = crate::text::Text::translate(name, &[]).plain();

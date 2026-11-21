@@ -7405,7 +7405,7 @@ pub fn touch_hud_editor(
                                     if let Some(idx) = ed.selected_custom {
                                         let hints = [
                                             "PRI", "SEC", "JUMP", "SNEAK", "SPRINT", "INV", "SWAP",
-                                            "DROP", "CHAT", "DEBUG", "3RD", "MOUSE", "MACRO",
+                                            "DROP", "ZOOM", "CHAT", "DEBUG", "3RD", "MOUSE", "MACRO",
                                             "CLICK",
                                         ];
                                         if let Some(btn) = tc.settings.custom_buttons.get_mut(idx) {
