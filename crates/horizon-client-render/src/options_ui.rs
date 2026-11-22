@@ -3201,7 +3201,7 @@ impl OptionsUi {
                     events.push(Event::ButtonClick);
                     let native_idx = s.shader_packs.iter().position(|p| {
                         !s.horizon.shader_pack.is_empty()
-                            && p.key == s.horizon.shader_pack
+                            && p.file == s.horizon.shader_pack
                             && p.kind == crate::shader_pack_list::Kind::Horizon
                     });
                     if let Some(idx) = native_idx {
