@@ -3586,34 +3586,7 @@ impl OptionsUi {
                 rows
             }
             Page::Video => {
-                // Horizon's graphics settings screen, at General and at Advanced.
-                let mut rows = vec![Row::Buttons(
-                    button(
-                        0.0,
-                        0.0,
-                        150.0,
-                        tr("horizon.pages.open.horizon_graphics"),
-                        Act::Push(Page::Graphics),
-                    ),
-                    Some(button(
-                        0.0,
-                        0.0,
-                        150.0,
-                        tr("horizon.pages.open.graphics_advanced"),
-                        Act::Push(Page::GraphicsAdvanced),
-                    )),
-                )];
-                rows.push(Row::Buttons(
-                    button(
-                        0.0,
-                        0.0,
-                        310.0,
-                        Text::literal("Shader Packs..."),
-                        Act::Push(Page::ShaderPacks),
-                    ),
-                    None,
-                ));
-                rows.push(Row::Header("options.video.display.header"));
+                let mut rows = vec![Row::Header("options.video.display.header")];
                 // A phone's app always fills its screen.
                 let display: &[Opt] = if cfg!(target_os = "android") {
                     &[

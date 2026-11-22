@@ -726,7 +726,13 @@ impl H {
             }
             H::BatteryMode => labelled("Battery Mode", on_off(g.battery)),
             H::ShadowCache => labelled("Shadow Cache", on_off(g.shadow_cache)),
-            H::ShaderPacks => Text::literal(lang::get("Shader Packs...")),
+            H::ShaderPacks => {
+                if s.horizon.shader_pack.is_empty() {
+                    Text::literal(lang::get("Shader Packs..."))
+                } else {
+                    labelled("Shader Packs", &s.horizon.shader_pack)
+                }
+            }
             H::GraphicsApi => labelled("Graphics API", g.api.label()),
             // Greyed out where the device can't (`Item::blocked`): Off, as it is there,
             // while the saved value waits for a device that can.

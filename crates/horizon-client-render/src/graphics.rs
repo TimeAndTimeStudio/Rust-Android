@@ -724,7 +724,9 @@ pub fn auto_shader_scale() -> f32 {
 /// Starling Visuals and MakeUp Ultra Fast.
 pub fn light_shader_pack(name: &str) -> bool {
     let name = name.replace(['-', '_', ' '], "").to_ascii_lowercase();
-    name.starts_with("starlingvisuals") || name.starts_with("makeup")
+    name.starts_with("starlingvisuals")
+        || name.starts_with("tmlvisuals")
+        || name.starts_with("makeup")
 }
 
 impl Graphics {
