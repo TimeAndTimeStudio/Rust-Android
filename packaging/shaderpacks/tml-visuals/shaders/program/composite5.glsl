@@ -274,9 +274,11 @@ void ColorSaturation(inout vec3 color) {
 
 #ifdef LENS_FLARE
 vec2 GetLightPos() {
+	if (sunPosition.z >= 0.0) return vec2(100.0);
 	vec4 tpos = gbufferProjection * vec4(sunPosition, 1.0);
+	if (tpos.w <= 0.0) return vec2(100.0);
 	tpos.xyz /= tpos.w;
-	return tpos.xy / tpos.z * 0.5;
+	return tpos.xy * 0.5;
 }
 #endif
 
@@ -344,7 +346,9 @@ void main() {
 	vec2 lightPos = GetLightPos();
 	float truePos = sign(sunVec.z);
 	      
-    float visibleSun = float(texture2D(depthtex0, lightPos + 0.5).r >= 1.0);
+	vec2 lightCoord = lightPos + 0.5;
+	float onScreen = float(lightCoord.x >= 0.0 && lightCoord.x <= 1.0 && lightCoord.y >= 0.0 && lightCoord.y <= 1.0 && sunPosition.z < 0.0);
+	float visibleSun = onScreen * float(texture2D(depthtex0, clamp(lightCoord, 0.0, 1.0)).r >= 1.0);
 	visibleSun *= max(1.0 - isEyeInWater, eBS) * (1.0 - max(blindFactor, darknessFactor)) * (1.0 - rainStrength);
 
 	#ifdef SKY_UNDERGROUND
@@ -356,10 +360,10 @@ void main() {
 
 	if (lensFlareFactor > 0.0001) {
 		vec3 lensFlare = GetLensFlare(lightPos, truePos, lensFlareFactor);
-
-		color = mix(color, vec3(1.0), lensFlare);
+		vec3 clampedFlare = clamp(lensFlare, vec3(0.0), vec3(0.5));
+		color = mix(color, vec3(1.0), clampedFlare * 0.5);
 		#ifdef RETRO_FILTER
-		noVignetteColor = mix(noVignetteColor, vec3(1.0), lensFlare);
+		noVignetteColor = mix(noVignetteColor, vec3(1.0), clampedFlare * 0.5);
 		#endif
 	}
 	#endif
