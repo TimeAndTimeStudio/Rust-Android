@@ -793,7 +793,7 @@ impl Default for Graphics {
             hdr_ui_brightness: 100,
             hdr_key: "key.keyboard.unknown".into(),
             battery: false,
-            shadow_cache: false,
+            shadow_cache: true,
             api: GraphicsApi::Auto,
             translucent_batching: true,
             shader_pack: String::new(),
@@ -1181,6 +1181,7 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
     s.render_distance = 6;
     s.simulation_distance = 6;
     s.horizon.frame_generation = FrameGeneration::Off;
+    s.horizon.shadow_cache = true;
 }
 
 #[cfg(test)]

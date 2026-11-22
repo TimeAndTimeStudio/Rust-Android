@@ -294,6 +294,27 @@ pub fn put_shader_pack(game_folder: &Path) {
             dir.display()
         ),
     }
+
+    // Activate TML Visuals by default in horizon-graphics.txt if not yet set
+    let graphics_file = game_folder.join("horizon-graphics.txt");
+    if let Ok(content) = std::fs::read_to_string(&graphics_file) {
+        if !content.contains("pickedShaderPack:") || content.contains("pickedShaderPack:\n") {
+            let mut new_lines = Vec::new();
+            let mut found = false;
+            for line in content.lines() {
+                if line.starts_with("pickedShaderPack:") {
+                    found = true;
+                    new_lines.push("pickedShaderPack:TMLVisuals.zip".to_string());
+                } else {
+                    new_lines.push(line.to_string());
+                }
+            }
+            if !found {
+                new_lines.push("pickedShaderPack:TMLVisuals.zip".to_string());
+            }
+            let _ = std::fs::write(&graphics_file, new_lines.join("\n") + "\n");
+        }
+    }
 }
 
 /// Bundled resource packs the app carries (e.g. Faithful 32x),
