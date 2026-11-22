@@ -3053,9 +3053,6 @@ impl OptionsUi {
         }
         if let Some(at) = Self::graphics_page(page) {
             self.graphics.open(at);
-            if at == crate::graphics_ui::Page::Shaders {
-                self.refresh_shader_profiles(s);
-            }
         }
         if page == Page::SplitSetup {
             self.split_setup.reset();
