@@ -774,6 +774,8 @@ pub fn menu_background(
 ) {
     let sprite = if in_world {
         "gui/inworld_menu_background"
+    } else if atlas.sprites.contains_key("gui/options_background") {
+        "gui/options_background"
     } else {
         "gui/menu_background"
     };
@@ -833,20 +835,26 @@ pub fn list_background(
 ) {
     let sprite = if in_world {
         "gui/inworld_menu_list_background"
+    } else if atlas.sprites.contains_key("gui/options_background") {
+        "gui/options_background"
     } else {
         "gui/menu_list_background"
     };
-    tiled(
-        batch,
-        atlas,
-        sprite,
-        0.0,
-        top,
-        batch.width,
-        bottom - top,
-        32.0,
-        u32::MAX,
-    );
+    if atlas.sprites.contains_key(sprite) {
+        tiled(
+            batch,
+            atlas,
+            sprite,
+            0.0,
+            top,
+            batch.width,
+            bottom - top,
+            32.0,
+            u32::MAX,
+        );
+    } else {
+        batch.fill(atlas, 0.0, top, batch.width, bottom - top, rgba(0, 0, 0, 180));
+    }
 }
 /// The visible scrollbar thumb, shared by painting and pointer input.
 pub(crate) fn scrollbar_thumb(

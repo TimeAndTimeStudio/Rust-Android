@@ -3129,6 +3129,74 @@ impl OptionsUi {
             _ => None,
         }
     }
+    /// Whether `page` is one of the control settings screens.
+    pub fn is_controls_screen(&self) -> bool {
+        matches!(
+            self.page(),
+            Page::Controls
+                | Page::Touch
+                | Page::CustomButtons
+                | Page::CustomButton(_)
+                | Page::CustomPick(..)
+                | Page::CustomDraw(_)
+                | Page::Controller
+                | Page::PadBinds
+                | Page::KeyBinds
+                | Page::Mouse
+        )
+    }
+    fn draw_controls_background(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        w: f32,
+        h: f32,
+        top: f32,
+        bottom: f32,
+        in_world: bool,
+    ) {
+        if in_world {
+            batch.fill(atlas, 0.0, 0.0, w, h, rgba(12, 13, 20, 220));
+        } else if atlas.sprites.contains_key("gui/options_background") {
+            ui::tiled(batch, atlas, "gui/options_background", 0.0, 0.0, w, h, 32.0, u32::MAX);
+            batch.fill(atlas, 0.0, 0.0, w, h, rgba(14, 15, 23, 175));
+        } else {
+            batch.fill(atlas, 0.0, 0.0, w, h, rgba(18, 19, 26, 255));
+        }
+        if bottom > top {
+            let pw = 344.0;
+            let px = ((w - pw) / 2.0).floor();
+            // Subtle dark glass plate behind options
+            batch.fill(atlas, px, top - 2.0, pw, (bottom - top + 4.0).max(0.0), rgba(24, 26, 36, 175));
+            // 1px subtle edge
+            batch.fill(atlas, px, top - 2.0, pw, 1.0, rgba(255, 255, 255, 18));
+            batch.fill(atlas, px, bottom + 1.0, pw, 1.0, rgba(255, 255, 255, 18));
+            batch.fill(atlas, px, top - 1.0, 1.0, (bottom - top + 2.0).max(0.0), rgba(255, 255, 255, 18));
+            batch.fill(atlas, px + pw - 1.0, top - 1.0, 1.0, (bottom - top + 2.0).max(0.0), rgba(255, 255, 255, 18));
+        }
+        // Header bar
+        batch.fill(atlas, 0.0, 0.0, w, top, rgba(16, 17, 24, 248));
+        batch.fill(atlas, 0.0, top - 1.0, w, 1.0, rgba(255, 255, 255, 26));
+        // Footer bar
+        batch.fill(atlas, 0.0, bottom, w, (h - bottom).max(0.0), rgba(16, 17, 24, 248));
+        batch.fill(atlas, 0.0, bottom, w, 1.0, rgba(255, 255, 255, 26));
+    }
+    fn draw_controls_separators(
+        &self,
+        batch: &mut HudBatch,
+        atlas: &HudAtlas,
+        top: f32,
+        bottom: f32,
+        w: f32,
+    ) {
+        let pw = 344.0;
+        let px = ((w - pw) / 2.0).floor();
+        // Modern 1px rules with accent highlight lines
+        batch.fill(atlas, 0.0, top - 1.0, w, 1.0, rgba(255, 255, 255, 22));
+        batch.fill(atlas, px + 20.0, top - 1.0, pw - 40.0, 1.0, rgba(154, 134, 255, 120));
+        batch.fill(atlas, 0.0, bottom, w, 1.0, rgba(255, 255, 255, 22));
+        batch.fill(atlas, px + 20.0, bottom, pw - 40.0, 1.0, rgba(154, 134, 255, 120));
+    }
     /// The name of a Horizon pack's options page past its first, as the page's title.
     fn pack_page_title(s: &Settings, page: Page) -> Option<Text> {
         let Page::NativePackOptions(pack, at @ 1..) = page else {
@@ -3705,7 +3773,19 @@ impl OptionsUi {
                 self.filter_option_rows(rows)
             }
             Page::Touch => {
-                let mut rows = vec![Row::Header("Movement & Look Sensitivity")];
+                let mut rows = vec![
+                    Row::Buttons(
+                        button(
+                            0.0,
+                            0.0,
+                            310.0,
+                            Text::literal("✎ Customize Touch Layout..."),
+                            Act::TouchLayout,
+                        ),
+                        None,
+                    ),
+                    Row::Header("Movement & Look Sensitivity"),
+                ];
                 rows.push(Row::Big(Opt::TouchMode));
                 rows.extend(pairs(&[
                     Opt::TouchCrosshairGestures,
@@ -3751,7 +3831,7 @@ impl OptionsUi {
                         0.0,
                         0.0,
                         310.0,
-                        Text::literal("Customize Touch Layout..."),
+                        Text::literal("✎ Customize Touch Layout..."),
                         Act::TouchLayout,
                     ),
                     None,
@@ -3911,29 +3991,41 @@ impl OptionsUi {
             Page::NativeMod(i) => self.native_rows(s, i),
             Page::ShaderPacks | Page::ShaderOptions | Page::NativePackOptions(..) => Vec::new(),
             Page::CustomButtons => {
-                let mut rows = vec![Row::Note(
-                    "Buttons of your own: place them in Touch Controls".into(),
-                )];
+                let mut rows = vec![
+                    Row::Buttons(
+                        button(
+                            0.0,
+                            0.0,
+                            310.0,
+                            Text::literal("✎ Customize Touch Layout..."),
+                            Act::TouchLayout,
+                        ),
+                        None,
+                    ),
+                    Row::Note(
+                        "✦ Custom Buttons: Add on-screen HUD buttons for keys, commands, or chat.".into(),
+                    ),
+                ];
                 for b in &s.custom_buttons {
                     rows.push(Row::Buttons(
                         button(
                             0.0,
                             0.0,
                             150.0,
-                            Text::literal(b.label()),
+                            Text::literal(format!("✎ {}", b.label())),
                             Act::CustomEdit(b.id),
                         ),
                         Some(button(
                             0.0,
                             0.0,
                             150.0,
-                            Text::literal("Delete"),
+                            Text::literal("✕ Delete"),
                             Act::CustomDelete(b.id),
                         )),
                     ));
                 }
                 rows.push(Row::Buttons(
-                    button(0.0, 0.0, 310.0, Text::literal("Add Button"), Act::CustomAdd),
+                    button(0.0, 0.0, 310.0, Text::literal("+ Add New Button"), Act::CustomAdd),
                     None,
                 ));
                 rows
@@ -3965,14 +4057,16 @@ impl OptionsUi {
                     None => "Its Name",
                 };
                 vec![
-                    Row::Note("Sends a /command or a chat line when pressed".into()),
+                    Row::Header("Command or Chat Message"),
+                    Row::Note("Sends a /command or chat line when pressed".into()),
                     Row::SendField,
+                    Row::Header("Control & Key Binding"),
                     Row::Note("Or holds a key while pressed".into()),
                     Row::Buttons(
                         choice("Game Control", CustomPick::Control),
                         Some(choice("Keyboard Key", CustomPick::Keyboard)),
                     ),
-                    Row::Note("How it looks".into()),
+                    Row::Header("Button Appearance"),
                     Row::Buttons(
                         button(
                             0.0,
@@ -3989,14 +4083,14 @@ impl OptionsUi {
                             Act::CustomDraw(id),
                         )),
                     ),
-                    Row::Note("While pressed".into()),
+                    Row::Header("Press Behavior"),
                     Row::Buttons(
                         button(
                             0.0,
                             0.0,
                             150.0,
                             Text::literal(if b.is_some_and(|b| b.toggle) {
-                                "Type: Toggle"
+                                "Type: Toggle (Lock)"
                             } else {
                                 "Type: Hold"
                             }),
@@ -4007,7 +4101,7 @@ impl OptionsUi {
                             0.0,
                             150.0,
                             Text::literal(if b.is_some_and(|b| b.pressed) {
-                                "Pressed Image: Yours"
+                                "Pressed Image: Custom"
                             } else {
                                 "Pressed Image..."
                             }),
@@ -5067,11 +5161,17 @@ impl OptionsUi {
         let (widgets, top, bottom, content) = self.layout(s, w, h);
         self.size = (w, h);
         let in_world = self.in_world;
-        ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
-        let list = bottom > top;
-        if list {
-            ui::list_background(batch, atlas, top, bottom, in_world);
+        let is_controls = self.is_controls_screen();
+        if is_controls {
+            self.draw_controls_background(batch, atlas, w, h, top, bottom, in_world);
+        } else {
+            ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
+            let list = bottom > top;
+            if list {
+                ui::list_background(batch, atlas, top, bottom, in_world);
+            }
         }
+        let list = bottom > top;
         let visible = |wd: &Widget| !wd.list || (wd.y < bottom && wd.y + wd.h > top);
         // The list's narration: the language list is an ObjectSelectionList,
         // the others ContainerObjectSelectionLists whose rows' widgets are
@@ -5162,7 +5262,7 @@ impl OptionsUi {
                     label,
                     active,
                     icon,
-                    ..
+                    act,
                 } => {
                     match icon.as_deref().filter(|i| atlas.sprites.contains_key(*i)) {
                         Some(icon) => {
@@ -5171,6 +5271,24 @@ impl OptionsUi {
                         None => {
                             let label = fitted.as_ref().map_or(label, |f| &f.0);
                             ui::button(batch, atlas, wd.x, wd.y, wd.w, wd.h, label, *active, hover);
+                            if is_controls {
+                                if *act == Act::TouchLayout || *act == Act::CustomAdd {
+                                    // Hero button accent glow & border
+                                    batch.fill(atlas, wd.x, wd.y, wd.w, 1.0, rgba(154, 134, 255, 200));
+                                    batch.fill(atlas, wd.x, wd.y + wd.h - 1.0, wd.w, 1.0, rgba(154, 134, 255, 200));
+                                    batch.fill(atlas, wd.x, wd.y, 1.0, wd.h, rgba(154, 134, 255, 200));
+                                    batch.fill(atlas, wd.x + wd.w - 1.0, wd.y, 1.0, wd.h, rgba(154, 134, 255, 200));
+                                    if hover {
+                                        batch.fill(atlas, wd.x + 1.0, wd.y + 1.0, wd.w - 2.0, wd.h - 2.0, rgba(154, 134, 255, 35));
+                                    }
+                                } else if hover && matches!(act, Act::CustomDelete(_)) {
+                                    // Danger button red outline on hover
+                                    batch.fill(atlas, wd.x, wd.y, wd.w, 1.0, rgba(240, 122, 104, 220));
+                                    batch.fill(atlas, wd.x, wd.y + wd.h - 1.0, wd.w, 1.0, rgba(240, 122, 104, 220));
+                                    batch.fill(atlas, wd.x, wd.y, 1.0, wd.h, rgba(240, 122, 104, 220));
+                                    batch.fill(atlas, wd.x + wd.w - 1.0, wd.y, 1.0, wd.h, rgba(240, 122, 104, 220));
+                                }
+                            }
                         }
                     }
                     crate::widgets::last_narratable(|n| {
@@ -5224,9 +5342,39 @@ impl OptionsUi {
                         batch.fill(atlas, wd.x, wd.y, wd.w, wd.h, *color);
                     } else if *centered {
                         let tw = atlas.font.width_text(text);
-                        // A list's header row (OptionsList.HeaderEntry,
-                        // KeyBindsList.CategoryEntry): a FocusableTextWidget
-                        // narrating its text, 4 pixels of padding round it.
+                        if is_controls && wd.list {
+                            // Sleek Flat Dark header pill card for category headers
+                            let cw = (tw + 36.0).clamp(240.0, 320.0);
+                            let cx = wd.x + ((wd.w - cw) / 2.0).floor();
+                            let cy = wd.y - 4.0;
+                            let ch = 17.0;
+                            batch.fill(atlas, cx, cy, cw, ch, rgba(32, 35, 48, 220));
+                            batch.fill(atlas, cx, cy, cw, 1.0, rgba(255, 255, 255, 22));
+                            batch.fill(atlas, cx, cy + ch - 1.0, cw, 1.0, rgba(255, 255, 255, 14));
+                            // Left accent indicator bar
+                            batch.fill(atlas, cx, cy, 3.0, ch, rgba(154, 134, 255, 255));
+                            // Right decorative accent pip
+                            batch.fill(atlas, cx + cw - 12.0, cy + 7.0, 6.0, 2.0, rgba(154, 134, 255, 160));
+                        } else if is_controls && !wd.list && wd.y < top {
+                            // Top screen title badge for TML controls
+                            let badge_w = 32.0;
+                            let badge_x = wd.x + ((wd.w - tw) / 2.0).floor() - badge_w - 6.0;
+                            if badge_x > 8.0 {
+                                batch.fill(atlas, badge_x, wd.y - 1.0, badge_w, 11.0, rgba(91, 63, 214, 230));
+                                batch.fill(atlas, badge_x, wd.y - 1.0, badge_w, 1.0, rgba(154, 134, 255, 180));
+                                batch.fill(atlas, badge_x, wd.y + 10.0, badge_w, 1.0, rgba(154, 134, 255, 180));
+                                batch.fill(atlas, badge_x, wd.y - 1.0, 1.0, 11.0, rgba(154, 134, 255, 180));
+                                batch.fill(atlas, badge_x + badge_w - 1.0, wd.y - 1.0, 1.0, 11.0, rgba(154, 134, 255, 180));
+                                batch.text_styled(
+                                    atlas,
+                                    &Text::literal("TML"),
+                                    badge_x + 6.0,
+                                    wd.y,
+                                    rgba(255, 255, 255, 255),
+                                    true,
+                                );
+                            }
+                        }
                         if wd.list && *color == u32::MAX {
                             crate::widgets::narratable(|| {
                                 let x = wd.x + ((wd.w - tw) / 2.0).floor();
@@ -5247,6 +5395,18 @@ impl OptionsUi {
                             true,
                         );
                     } else {
+                        if is_controls && wd.list && *color == 0xFFA0_A0A0 {
+                            // Informational note / callout card
+                            let cw = 320.0;
+                            let cx = wd.x + ((wd.w - cw) / 2.0).floor();
+                            let cy = wd.y - 3.0;
+                            let ch = 15.0;
+                            batch.fill(atlas, cx, cy, cw, ch, rgba(22, 28, 42, 190));
+                            batch.fill(atlas, cx, cy, 2.0, ch, rgba(88, 101, 242, 220));
+                            batch.fill(atlas, cx, cy, cw, 1.0, rgba(88, 101, 242, 40));
+                            batch.fill(atlas, cx, cy + ch - 1.0, cw, 1.0, rgba(88, 101, 242, 40));
+                            batch.fill(atlas, cx + cw - 1.0, cy, 1.0, ch, rgba(88, 101, 242, 40));
+                        }
                         batch.text_styled(atlas, text, wd.x, wd.y, *color, true);
                     }
                 }
@@ -5288,7 +5448,11 @@ impl OptionsUi {
             }
         }
         if list {
-            ui::separators(batch, atlas, top, bottom, in_world);
+            if is_controls {
+                self.draw_controls_separators(batch, atlas, top, bottom, w);
+            } else {
+                ui::separators(batch, atlas, top, bottom, in_world);
+            }
             let sx = self.scrollbar_x(w);
             ui::scrollbar(batch, atlas, sx, top, bottom, content, self.scroll);
         }
