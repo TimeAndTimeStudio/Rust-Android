@@ -774,8 +774,6 @@ pub fn menu_background(
 ) {
     let sprite = if in_world {
         "gui/inworld_menu_background"
-    } else if atlas.sprites.contains_key("gui/options_background") {
-        "gui/options_background"
     } else {
         "gui/menu_background"
     };
@@ -835,8 +833,6 @@ pub fn list_background(
 ) {
     let sprite = if in_world {
         "gui/inworld_menu_list_background"
-    } else if atlas.sprites.contains_key("gui/options_background") {
-        "gui/options_background"
     } else {
         "gui/menu_list_background"
     };

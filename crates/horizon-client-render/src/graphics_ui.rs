@@ -103,6 +103,8 @@ pub enum H {
     ShadowCache,
     /// Picks a shader pack and opens shader options.
     ShaderPacks,
+    /// Detailed pack settings screen (shaders.properties / [[pages]]).
+    ShaderOptions,
     /// The active shader pack selected directly on the page.
     ActiveShaderPack,
     /// The quality profile of the active shader pack.
@@ -449,6 +451,11 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                             H::ActiveShaderPack,
                             High,
                             "Active shader pack: Off, TML Visuals (BSL), or custom packs.",
+                        ),
+                        h(
+                            H::ShaderOptions,
+                            Medium,
+                            "Detailed shader pack options (Lighting, Sky, Colors, Materials, Water, etc.).",
                         ),
                         h(
                             H::ShaderFolder,
@@ -853,6 +860,7 @@ impl H {
                     labelled("Manage Packs", &s.horizon.shader_pack)
                 }
             }
+            H::ShaderOptions => Text::literal(lang::get("Pack Settings...")),
             H::ActiveShaderPack => {
                 let pack = if s.horizon.shader_pack.is_empty() {
                     "Off"
@@ -1035,7 +1043,7 @@ impl H {
             return;
         }
         match self {
-            H::ShaderFolder => return,
+            H::ShaderFolder | H::ShaderOptions => return,
             H::ShaderShadows => {
                 if let Some(opt) = &mut s.shader_options {
                     let cur = opt.value("SHADOW").unwrap_or("true");
@@ -1285,6 +1293,9 @@ impl Item {
                 | H::HdrPaperWhite
                 | H::HdrUiBrightness,
             ) if !s.horizon.hdr => Some("Turn HDR on to use it."),
+            Item::Horizon(H::ShaderOptions) if s.horizon.shader_pack.is_empty() => {
+                Some("Pick a shader pack first to configure its options.")
+            }
             Item::Horizon(H::TranslucentBatching)
                 if !crate::graphics::translucent_batching_offered() =>
             {
@@ -1303,6 +1314,7 @@ impl Item {
                     H::HdrKey
                         | H::HdrCalibrate
                         | H::ShaderPacks
+                        | H::ShaderOptions
                         | H::ShaderFolder
                         | H::ShaderReset
                 )
@@ -1416,6 +1428,7 @@ impl Item {
                     | H::BatteryMode
                     | H::ShadowCache
                     | H::ShaderPacks
+                    | H::ShaderOptions
                     | H::ActiveShaderPack
                     | H::ShaderProfile
                     | H::ShaderFolder
@@ -1498,6 +1511,8 @@ pub enum Action {
     Calibrate,
     /// Open the shader packs options screen.
     ShaderPacks,
+    /// Open detailed shader pack options screen.
+    ShaderOptions,
     /// Open the shaderpacks folder in the file manager.
     OpenShaderFolder,
     /// Active shader pack changed.
@@ -1638,7 +1653,8 @@ fn shown(item: Item, s: &Settings) -> bool {
     let pack_active = !s.horizon.shader_pack.is_empty();
     match item {
         Item::Horizon(
-            H::ShaderShadows
+            H::ShaderOptions
+            | H::ShaderShadows
             | H::ShaderDynamicLight
             | H::ShaderAo
             | H::ShaderLightShaft
@@ -2390,6 +2406,7 @@ impl GraphicsUi {
             }
             Item::Horizon(H::HdrCalibrate) => vec![Action::ButtonClick, Action::Calibrate],
             Item::Horizon(H::ShaderPacks) => vec![Action::ButtonClick, Action::ShaderPacks],
+            Item::Horizon(H::ShaderOptions) => vec![Action::ButtonClick, Action::ShaderOptions],
             Item::Horizon(H::ShaderFolder) => vec![Action::ButtonClick, Action::OpenShaderFolder],
             Item::Horizon(H::ShaderReset) => {
                 item.cycle(s, back, framebuffer);

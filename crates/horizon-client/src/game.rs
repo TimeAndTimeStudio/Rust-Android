@@ -2306,7 +2306,6 @@ fn glfw_button(button: MouseButton) -> i32 {
 /// Bedrock Inventory: how far from the middle each of its two windows goes, and the slots of the
 /// crafting grid and its result it adds to the inventory's.
 const BEDROCK_SHIFT: f32 = 100.0;
-const BEDROCK_CRAFT: [usize; 5] = [100, 101, 102, 103, 200];
 use creative_shift::CREATIVE_SHIFT;
 
 fn select_creative_tab(
@@ -8784,11 +8783,7 @@ impl Game<'_> {
     /// 300.. are the open container's slots.
     fn slots(&self) -> Vec<usize> {
         if self.creative_inventory_open() {
-            let mut v: Vec<usize> = Creative::inventory_slots().collect();
-            if self.bedrock_items.is_some() {
-                v.extend(BEDROCK_CRAFT);
-            }
-            return v;
+            return Creative::inventory_slots().collect();
         }
         if self.creative_tab_open() {
             if CREATIVE_SHIFT.get() != 0.0 {
@@ -8851,12 +8846,7 @@ impl Game<'_> {
     /// branches in the same order, so the two stay in step.
     fn slot_count(&self) -> usize {
         if self.creative_inventory_open() {
-            let craft = if self.bedrock_items.is_some() {
-                BEDROCK_CRAFT.len()
-            } else {
-                0
-            };
-            return Creative::inventory_slots().count() + craft;
+            return Creative::inventory_slots().count();
         }
         if self.creative_tab_open() {
             if CREATIVE_SHIFT.get() != 0.0 {
@@ -8915,10 +8905,7 @@ impl Game<'_> {
     /// InventoryMenu / CraftingMenu slot layouts.
     fn slot_position(&self, i: usize) -> (f32, f32) {
         if self.creative_inventory_open()
-            && let Some(position) = Creative::inventory_slot_position(i).or_else(|| {
-                self.bedrock_items
-                    .and_then(|_| Creative::bedrock_craft_position(i))
-            })
+            && let Some(position) = Creative::inventory_slot_position(i)
         {
             return position;
         }
@@ -14931,27 +14918,7 @@ impl Game<'_> {
                 }
             }
         }
-        if panel {
-            // The crafting grid the window lacks, and the result's slot, as the game's windows
-            // draw a slot.
-            for slot in BEDROCK_CRAFT {
-                let Some((sx, sy)) = Creative::bedrock_craft_position(slot) else {
-                    continue;
-                };
-                let (x, y) = (ox + sx, oy + sy);
-                let atlas = &self.gui.atlas;
-                batch.sprite(atlas, "gui/sprites/container/slot", x - 1.0, y - 1.0);
-            }
-            if let Some(r) = self.gui.atlas.sprites.get("gui/container/inventory").copied() {
-                let (du, dv) = ((r.u1 - r.u0) / r.w as f32, (r.v1 - r.v0) / r.h as f32);
-                let mut arrow = r;
-                arrow.u0 += 135.0 * du;
-                arrow.v0 += 28.0 * dv;
-                arrow.u1 = arrow.u0 + 16.0 * du;
-                arrow.v1 = arrow.v0 + 15.0 * dv;
-                batch.rect_uv(ox + 163.0, oy + 14.0, 10.0, 15.0, arrow, u32::MAX);
-            }
-        } else {
+        if !panel {
             let (tx, ty) = Creative::tab_position(tab);
             batch.sprite(&self.gui.atlas, &tab_sprite(tab, true), ox + tx, oy + ty);
         }

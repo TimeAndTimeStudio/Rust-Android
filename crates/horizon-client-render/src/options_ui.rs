@@ -2450,6 +2450,114 @@ fn blank_slot(w: f32) -> Widget {
         row: 0,
     }
 }
+
+/// Page `at` of the options of the Horizon pack `s.shader_packs[i]`: the pack's own layout,
+/// else every option two a row.
+fn native_pack_option_rows(s: &Settings, i: usize, at: u8) -> Vec<Row> {
+    use horizon_shader_api::PageItem;
+    let Some(pack) = s.shader_packs.get(i) else {
+        return Vec::new();
+    };
+    let count = pack.options.len().min(pack.values.len());
+    let (columns, items) = match pack.pages.get(usize::from(at)) {
+        Some(page) => (usize::from(page.columns), page.items.clone()),
+        None => (2, (0..count).map(PageItem::Option).collect()),
+    };
+    let width = if columns == 1 { 310.0 } else { 150.0 };
+    let widget = |item: &PageItem| match *item {
+        PageItem::Option(o) if o < count => {
+            let option = &pack.options[o];
+            let value = crate::shader_pack_list::show_value(&option.kind, pack.values[o]);
+            let label = Text::literal(format!("{}: {value}", option.name));
+            button(0.0, 0.0, width, label, Act::NativePackOption(i, o))
+        }
+        PageItem::Page(p) if p < pack.pages.len() => {
+            let label = Text::literal(format!("{}...", pack.pages[p].name));
+            let page = Page::NativePackOptions(i, p as u8);
+            button(0.0, 0.0, width, label, Act::Push(page))
+        }
+        _ => blank_slot(width),
+    };
+    let mut rows = Vec::new();
+    if at == 0 {
+        rows.push(Row::Note(pack.title.clone()));
+    }
+    rows.extend(
+        items
+            .chunks(columns)
+            .map(|row| Row::Buttons(widget(&row[0]), row.get(1).map(widget))),
+    );
+    rows
+}
+
+/// The open screen of the picked pack: its title, then its items, one to a row on a phone, where
+/// long names fit and a finger finds them, else as the pack lays them out.
+fn shader_option_rows(s: &Settings) -> Vec<Row> {
+    let Some(options) = &s.shader_options else {
+        return vec![Row::Header("horizon.shader_options.loading")];
+    };
+    let columns = if cfg!(target_os = "android") {
+        1
+    } else {
+        options
+            .screens
+            .screen(options.screen())
+            .map_or(2, |(_, c)| c)
+    };
+    let blank = || blank_slot(150.0);
+    let width = if columns == 1 { 310.0 } else { 150.0 };
+    let widget = |item: &horizon_shaders::ScreenItem| -> Option<Widget> {
+        use horizon_shaders::ScreenItem;
+        Some(match item {
+            ScreenItem::Empty if columns > 2 || cfg!(target_os = "android") => return None,
+            ScreenItem::Empty => blank(),
+            ScreenItem::Profile => {
+                button(0.0, 0.0, width, options.profile_label(), Act::ShaderProfile)
+            }
+            ScreenItem::Screen(name) => button(
+                0.0,
+                0.0,
+                width,
+                options.screen_label(name),
+                Act::ShaderScreen(name.clone()),
+            ),
+            ScreenItem::Option(name) => match options.slider_position(name) {
+                Some(value) => Widget {
+                    x: 0.0,
+                    y: 0.0,
+                    w: width,
+                    h: 20.0,
+                    kind: WKind::ShaderSlider {
+                        label: options.option_label(name),
+                        value,
+                        name: name.clone(),
+                    },
+                    list: false,
+                    row: 0,
+                },
+                None => button(
+                    0.0,
+                    0.0,
+                    width,
+                    options.option_label(name),
+                    Act::ShaderOption(name.clone()),
+                ),
+            },
+        })
+    };
+    let widgets: Vec<Widget> = options.items().iter().filter_map(widget).collect();
+    let mut rows = vec![Row::Note(options.title().strip_legacy().plain())];
+    if columns == 1 {
+        rows.extend(widgets.into_iter().map(|w| Row::Buttons(w, None)));
+        return rows;
+    }
+    let mut widgets = widgets.into_iter();
+    while let Some(a) = widgets.next() {
+        rows.push(Row::Buttons(a, widgets.next()));
+    }
+    rows
+}
+
 /// Rows of an OptionsList: (big?, options) or a header.
 enum Row {
     Big(Opt),
@@ -3089,6 +3197,21 @@ impl OptionsUi {
                     self.refresh_shader_profiles(s);
                     events.push(Event::OpenShaderOptions);
                 }
+                Action::ShaderOptions => {
+                    events.push(Event::ButtonClick);
+                    let native_idx = s.shader_packs.iter().position(|p| {
+                        !s.horizon.shader_pack.is_empty()
+                            && p.key == s.horizon.shader_pack
+                            && p.kind == crate::shader_pack_list::Kind::Horizon
+                    });
+                    if let Some(idx) = native_idx {
+                        self.push(Page::NativePackOptions(idx, 0));
+                    } else {
+                        s.shader_options = None;
+                        self.push(Page::ShaderOptions);
+                        events.push(Event::OpenShaderOptions);
+                    }
+                }
                 Action::OpenShaderFolder => {
                     events.push(Event::ButtonClick);
                     events.push(Event::OpenShaderPackFolder);
@@ -3120,9 +3243,7 @@ impl OptionsUi {
         match page {
             Page::Graphics => Some(crate::graphics_ui::Page::General),
             Page::GraphicsAdvanced => Some(crate::graphics_ui::Page::Advanced),
-            Page::ShaderPacks | Page::ShaderOptions | Page::NativePackOptions(..) => {
-                Some(crate::graphics_ui::Page::Shaders)
-            }
+            Page::ShaderPacks => Some(crate::graphics_ui::Page::Shaders),
             _ => None,
         }
     }
@@ -3152,31 +3273,10 @@ impl OptionsUi {
         bottom: f32,
         in_world: bool,
     ) {
-        if in_world {
-            batch.fill(atlas, 0.0, 0.0, w, h, rgba(12, 13, 20, 220));
-        } else if atlas.sprites.contains_key("gui/options_background") {
-            ui::tiled(batch, atlas, "gui/options_background", 0.0, 0.0, w, h, 32.0, u32::MAX);
-            batch.fill(atlas, 0.0, 0.0, w, h, rgba(14, 15, 23, 175));
-        } else {
-            batch.fill(atlas, 0.0, 0.0, w, h, rgba(18, 19, 26, 255));
-        }
+        ui::menu_background(batch, atlas, 0.0, 0.0, w, h, in_world);
         if bottom > top {
-            let pw = 344.0;
-            let px = ((w - pw) / 2.0).floor();
-            // Subtle dark glass plate behind options
-            batch.fill(atlas, px, top - 2.0, pw, (bottom - top + 4.0).max(0.0), rgba(24, 26, 36, 175));
-            // 1px subtle edge
-            batch.fill(atlas, px, top - 2.0, pw, 1.0, rgba(255, 255, 255, 18));
-            batch.fill(atlas, px, bottom + 1.0, pw, 1.0, rgba(255, 255, 255, 18));
-            batch.fill(atlas, px, top - 1.0, 1.0, (bottom - top + 2.0).max(0.0), rgba(255, 255, 255, 18));
-            batch.fill(atlas, px + pw - 1.0, top - 1.0, 1.0, (bottom - top + 2.0).max(0.0), rgba(255, 255, 255, 18));
+            ui::list_background(batch, atlas, top, bottom, in_world);
         }
-        // Header bar
-        batch.fill(atlas, 0.0, 0.0, w, top, rgba(16, 17, 24, 248));
-        batch.fill(atlas, 0.0, top - 1.0, w, 1.0, rgba(255, 255, 255, 26));
-        // Footer bar
-        batch.fill(atlas, 0.0, bottom, w, (h - bottom).max(0.0), rgba(16, 17, 24, 248));
-        batch.fill(atlas, 0.0, bottom, w, 1.0, rgba(255, 255, 255, 26));
     }
     fn draw_controls_separators(
         &self,
@@ -3986,7 +4086,9 @@ impl OptionsUi {
                 rows
             }
             Page::NativeMod(i) => self.native_rows(s, i),
-            Page::ShaderPacks | Page::ShaderOptions | Page::NativePackOptions(..) => Vec::new(),
+            Page::ShaderPacks => Vec::new(),
+            Page::ShaderOptions => shader_option_rows(s),
+            Page::NativePackOptions(i, at) => native_pack_option_rows(s, i, at),
             Page::CustomButtons => {
                 let mut rows = vec![
                     Row::Buttons(
