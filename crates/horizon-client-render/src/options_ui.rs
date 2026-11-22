@@ -2450,111 +2450,6 @@ fn blank_slot(w: f32) -> Widget {
         row: 0,
     }
 }
-/// Page `at` of the options of the Horizon pack `s.shader_packs[i]`: the pack's own layout,
-/// else every option two a row.
-fn native_pack_option_rows(s: &Settings, i: usize, at: u8) -> Vec<Row> {
-    use horizon_shader_api::PageItem;
-    let Some(pack) = s.shader_packs.get(i) else {
-        return Vec::new();
-    };
-    let count = pack.options.len().min(pack.values.len());
-    let (columns, items) = match pack.pages.get(usize::from(at)) {
-        Some(page) => (usize::from(page.columns), page.items.clone()),
-        None => (2, (0..count).map(PageItem::Option).collect()),
-    };
-    let width = if columns == 1 { 310.0 } else { 150.0 };
-    let widget = |item: &PageItem| match *item {
-        PageItem::Option(o) if o < count => {
-            let option = &pack.options[o];
-            let value = crate::shader_pack_list::show_value(&option.kind, pack.values[o]);
-            let label = Text::literal(format!("{}: {value}", option.name));
-            button(0.0, 0.0, width, label, Act::NativePackOption(i, o))
-        }
-        PageItem::Page(p) if p < pack.pages.len() => {
-            let label = Text::literal(format!("{}...", pack.pages[p].name));
-            let page = Page::NativePackOptions(i, p as u8);
-            button(0.0, 0.0, width, label, Act::Push(page))
-        }
-        _ => blank_slot(width),
-    };
-    let mut rows = Vec::new();
-    if at == 0 {
-        rows.push(Row::Note(pack.title.clone()));
-    }
-    rows.extend(
-        items
-            .chunks(columns)
-            .map(|row| Row::Buttons(widget(&row[0]), row.get(1).map(widget))),
-    );
-    rows
-}
-/// The open screen of the picked pack: its title, then its items, one to a row on a phone, where
-/// long names fit and a finger finds them, else as the pack lays them out.
-fn shader_option_rows(s: &Settings) -> Vec<Row> {
-    let Some(options) = &s.shader_options else {
-        return vec![Row::Header("horizon.shader_options.loading")];
-    };
-    let columns = if cfg!(target_os = "android") {
-        1
-    } else {
-        options
-            .screens
-            .screen(options.screen())
-            .map_or(2, |(_, c)| c)
-    };
-    let blank = || blank_slot(150.0);
-    let width = if columns == 1 { 310.0 } else { 150.0 };
-    let widget = |item: &horizon_shaders::ScreenItem| -> Option<Widget> {
-        use horizon_shaders::ScreenItem;
-        Some(match item {
-            ScreenItem::Empty if columns > 2 || cfg!(target_os = "android") => return None,
-            ScreenItem::Empty => blank(),
-            ScreenItem::Profile => {
-                button(0.0, 0.0, width, options.profile_label(), Act::ShaderProfile)
-            }
-            ScreenItem::Screen(name) => button(
-                0.0,
-                0.0,
-                width,
-                options.screen_label(name),
-                Act::ShaderScreen(name.clone()),
-            ),
-            ScreenItem::Option(name) => match options.slider_position(name) {
-                Some(value) => Widget {
-                    x: 0.0,
-                    y: 0.0,
-                    w: width,
-                    h: 20.0,
-                    kind: WKind::ShaderSlider {
-                        label: options.option_label(name),
-                        value,
-                        name: name.clone(),
-                    },
-                    list: false,
-                    row: 0,
-                },
-                None => button(
-                    0.0,
-                    0.0,
-                    width,
-                    options.option_label(name),
-                    Act::ShaderOption(name.clone()),
-                ),
-            },
-        })
-    };
-    let widgets: Vec<Widget> = options.items().iter().filter_map(widget).collect();
-    let mut rows = vec![Row::Note(options.title().strip_legacy().plain())];
-    if columns == 1 {
-        rows.extend(widgets.into_iter().map(|w| Row::Buttons(w, None)));
-        return rows;
-    }
-    let mut widgets = widgets.into_iter();
-    while let Some(a) = widgets.next() {
-        rows.push(Row::Buttons(a, widgets.next()));
-    }
-    rows
-}
 /// Rows of an OptionsList: (big?, options) or a header.
 enum Row {
     Big(Opt),
@@ -3158,6 +3053,9 @@ impl OptionsUi {
         }
         if let Some(at) = Self::graphics_page(page) {
             self.graphics.open(at);
+            if at == crate::graphics_ui::Page::Shaders {
+                self.refresh_shader_profiles(s);
+            }
         }
         if page == Page::SplitSetup {
             self.split_setup.reset();
@@ -3192,11 +3090,30 @@ impl OptionsUi {
                     events.push(Event::ButtonClick);
                     events.push(Event::ListShaderPacks);
                     self.refresh_shader_profiles(s);
-                    s.shader_options = None;
                     events.push(Event::OpenShaderOptions);
-                    self.push(Page::ShaderPacks);
                 }
-                Action::Done => events.extend(self.back(s)),
+                Action::OpenShaderFolder => {
+                    events.push(Event::ButtonClick);
+                    events.push(Event::OpenShaderPackFolder);
+                }
+                Action::ShaderPackChanged => {
+                    events.push(Event::ShaderPack);
+                    events.push(Event::OpenShaderOptions);
+                }
+                Action::SaveShaderOptions => {
+                    events.push(Event::ShaderOptions);
+                }
+                Action::EnteredShaders => {
+                    events.push(Event::ListShaderPacks);
+                    self.refresh_shader_profiles(s);
+                    events.push(Event::OpenShaderOptions);
+                }
+                Action::Done => {
+                    if s.shader_options.as_ref().is_some_and(|o| o.changed) {
+                        events.push(Event::ShaderOptions);
+                    }
+                    events.extend(self.back(s));
+                }
             }
         }
         events
@@ -3206,6 +3123,9 @@ impl OptionsUi {
         match page {
             Page::Graphics => Some(crate::graphics_ui::Page::General),
             Page::GraphicsAdvanced => Some(crate::graphics_ui::Page::Advanced),
+            Page::ShaderPacks | Page::ShaderOptions | Page::NativePackOptions(..) => {
+                Some(crate::graphics_ui::Page::Shaders)
+            }
             _ => None,
         }
     }
@@ -3989,109 +3909,7 @@ impl OptionsUi {
                 rows
             }
             Page::NativeMod(i) => self.native_rows(s, i),
-            Page::ShaderPacks => {
-                use crate::shader_pack_list::Kind as PackKind;
-                let choice = s.horizon.shader_choice();
-                let pick = |on: bool, name: &str, act: Act| {
-                    let label = if on {
-                        format!("> {name} <")
-                    } else {
-                        name.to_owned()
-                    };
-                    Row::Buttons(button(0.0, 0.0, 310.0, Text::literal(label), act), None)
-                };
-                let mut rows = Vec::new();
-                // Packs cost per pixel: what matters most, above however many packs there are.
-                if let Some((pack, profile)) = &choice {
-                    let scale = s.horizon.resolution_scale;
-                    let limit = (crate::graphics::auto_shader_scale() * 100.0).round() as u32;
-                    let limited = profile == crate::graphics::AUTO_PROFILE
-                        && !crate::graphics::light_shader_pack(pack)
-                        && scale > limit;
-                    let resolution = if limited {
-                        format!("Resolution: {limit}% (Auto)")
-                    } else {
-                        format!("Resolution: {scale}%")
-                    };
-                    let fps = match s.max_fps {
-                        fps if fps >= 260 => "Off".to_owned(),
-                        fps => fps.to_string(),
-                    };
-                    rows.push(Row::Note("Settings of the pack on".into()));
-                    rows.push(Row::Buttons(
-                        button(
-                            0.0,
-                            0.0,
-                            150.0,
-                            Text::literal(resolution),
-                            Act::ShaderResolution,
-                        ),
-                        Some(button(
-                            0.0,
-                            0.0,
-                            150.0,
-                            Text::literal(format!("FPS Limit: {fps}")),
-                            Act::ShaderFpsLimit,
-                        )),
-                    ));
-                    // Profiles are a `shaders/` pack's; a Horizon pack has its own options page.
-                    let horizon = s
-                        .shader_packs
-                        .iter()
-                        .position(|p| p.file == *pack && p.kind == PackKind::Horizon);
-                    if let Some(i) = horizon.filter(|&i| !s.shader_packs[i].options.is_empty()) {
-                        let label = tr("horizon.shader_options.open");
-                        let act = Act::NativePackOptions(i);
-                        rows.push(Row::Buttons(button(0.0, 0.0, 310.0, label, act), None));
-                    }
-                    if horizon.is_none() {
-                        let shown = match profile.as_str() {
-                            "" => "Pack Default",
-                            crate::graphics::AUTO_PROFILE => "Auto",
-                            profile => profile,
-                        };
-                        rows.push(Row::Buttons(
-                            button(
-                                0.0,
-                                0.0,
-                                150.0,
-                                Text::literal(format!("Profile: {shown}")),
-                                Act::PackProfile,
-                            ),
-                            Some(button(
-                                0.0,
-                                0.0,
-                                150.0,
-                                tr("horizon.shader_options.open"),
-                                Act::ShaderOptions,
-                            )),
-                        ));
-                    }
-                }
-                rows.push(Row::Note(
-                    "Horizon's own packs, and Iris and OptiFine ones".into(),
-                ));
-                rows.push(Row::Note(shader_folder_note()));
-                rows.push(pick(choice.is_none(), "Off", Act::PickShaderPack(None)));
-                if s.shader_packs.is_empty() {
-                    rows.push(Row::Header("horizon.shader_packs.empty"));
-                }
-                for (i, pack) in s.shader_packs.iter().enumerate() {
-                    let on = choice.as_ref().is_some_and(|(p, _)| *p == pack.file);
-                    let name = match pack.kind {
-                        PackKind::Horizon => format!(
-                            "{}{}",
-                            pack.title,
-                            lang::get("horizon.shader_packs.kind_horizon")
-                        ),
-                        PackKind::Classic => pack.title.clone(),
-                    };
-                    rows.push(pick(on, &name, Act::PickShaderPack(Some(i))));
-                }
-                rows
-            }
-            Page::ShaderOptions => shader_option_rows(s),
-            Page::NativePackOptions(i, at) => native_pack_option_rows(s, i, at),
+            Page::ShaderPacks | Page::ShaderOptions | Page::NativePackOptions(..) => Vec::new(),
             Page::CustomButtons => {
                 let mut rows = vec![Row::Note(
                     "Buttons of your own: place them in Touch Controls".into(),
@@ -7624,82 +7442,6 @@ mod tests {
     }
 
     #[test]
-    fn a_horizon_packs_options_step_both_ways_from_the_picked_packs_button() {
-        let atlas = atlas();
-        let size = (960.0, 540.0);
-        let mut s = Settings::default();
-        s.horizon.shader_pack = "p".into();
-        s.shader_packs = vec![crate::shader_pack_list::Entry {
-            file: "p".into(),
-            title: "P".into(),
-            kind: crate::shader_pack_list::Kind::Horizon,
-            options: vec![horizon_shader_api::PackOption {
-                id: "a".into(),
-                name: "A".into(),
-                description: String::new(),
-                kind: horizon_shader_api::OptionKind::Float {
-                    default: 1.0,
-                    min: 0.0,
-                    max: 2.0,
-                    step: 0.5,
-                },
-            }],
-            values: vec![1.0],
-            pages: vec![
-                horizon_shader_api::OptionPage {
-                    id: "main".into(),
-                    name: "P".into(),
-                    description: String::new(),
-                    columns: 2,
-                    items: vec![horizon_shader_api::PageItem::Page(1)],
-                },
-                horizon_shader_api::OptionPage {
-                    id: "more".into(),
-                    name: "More".into(),
-                    description: String::new(),
-                    columns: 1,
-                    items: vec![horizon_shader_api::PageItem::Option(0)],
-                },
-            ],
-        }];
-        let mut ui = OptionsUi::default();
-        ui.show(Page::ShaderPacks);
-        let find = |ui: &mut OptionsUi, s: &Settings, want: &Act| {
-            let (widgets, ..) = ui.layout(s, size.0, size.1);
-            let w = widgets
-                .into_iter()
-                .find(|w| matches!(&w.kind, WKind::Button { act, .. } if act == want))
-                .expect("button");
-            (w.x + w.w / 2.0, w.y + w.h / 2.0)
-        };
-        let (x, y) = find(&mut ui, &s, &Act::NativePackOptions(0));
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        assert_eq!(ui.page(), Page::NativePackOptions(0, 0));
-        // The option is on the pack's second page, behind a button on its first.
-        let (x, y) = find(&mut ui, &s, &Act::Push(Page::NativePackOptions(0, 1)));
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        assert_eq!(ui.page(), Page::NativePackOptions(0, 1));
-        let (x, y) = find(&mut ui, &s, &Act::NativePackOption(0, 0));
-        let events = ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        assert!(events.contains(&Event::NativePackOptions(0)));
-        assert_eq!(s.shader_packs[0].values, [1.5]);
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, true);
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, true);
-        assert_eq!(s.shader_packs[0].values, [0.5]);
-        // Shift-click: the option's default.
-        ui.shift = true;
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        ui.shift = false;
-        assert_eq!(s.shader_packs[0].values, [1.0]);
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        let (x, y) = find(&mut ui, &s, &Act::NativePackReset(0));
-        ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-        assert_eq!(s.shader_packs[0].values, [1.0]);
-        ui.back(&mut s);
-        assert_eq!(ui.page(), Page::NativePackOptions(0, 0));
-    }
-
-    #[test]
     fn resource_reload_error_blocks_options_until_dismissed() {
         use winit::keyboard::KeyCode;
         let atlas = atlas();
@@ -10472,7 +10214,7 @@ mod tests {
         let _atlas = atlas();
         let s = Settings::default();
         for size in PHONE_GUI {
-            for page in [Page::Mods, Page::ShaderPacks] {
+            for page in [Page::Mods] {
                 let mut ui = OptionsUi {
                     catalog_buttons: true,
                     ..OptionsUi::default()
@@ -10510,7 +10252,7 @@ mod tests {
         let mut s = Settings::default();
         let size = (800.0, 360.0);
         let mut ui = OptionsUi::default();
-        for page in [Page::Mods, Page::ShaderPacks] {
+        for page in [Page::Mods] {
             ui.show(page);
             let (widgets, ..) = ui.layout(&s, size.0, size.1);
             assert!(!widgets.iter().any(|w| matches!(

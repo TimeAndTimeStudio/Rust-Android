@@ -107,6 +107,30 @@ pub enum H {
     ActiveShaderPack,
     /// The quality profile of the active shader pack.
     ShaderProfile,
+    /// Opens the shaderpacks folder in the system file manager.
+    ShaderFolder,
+    /// Toggles terrain & entity shadows in shader pack.
+    ShaderShadows,
+    /// Dynamic handheld lighting.
+    ShaderDynamicLight,
+    /// Ambient occlusion (AO) in shader pack.
+    ShaderAo,
+    /// Sun rays / volumetric light shafts.
+    ShaderLightShaft,
+    /// Volumetric clouds in shader pack.
+    ShaderClouds,
+    /// Wind waving on plants and water.
+    ShaderWaving,
+    /// Water wave quality & refraction.
+    ShaderWater,
+    /// Bloom & glare intensity.
+    ShaderBloom,
+    /// Camera motion blur.
+    ShaderMotionBlur,
+    /// Anti-aliasing (FXAA / TAA).
+    ShaderAntialiasing,
+    /// Resets all options of active pack to default.
+    ShaderReset,
     GraphicsApi,
     TranslucentBatching,
 }
@@ -417,36 +441,113 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
         ),
         (
             Page::Shaders,
-            vec![(
-                "Shader packs",
-                vec![
-                    h(
-                        H::ActiveShaderPack,
-                        High,
-                        "Active shader pack. Off, TML Visuals (BSL), or custom packs.",
-                    ),
-                    h(
-                        H::ShaderProfile,
-                        Medium,
-                        "Shader quality profile (Auto, Low, Medium, High, Ultra).",
-                    ),
-                    h(
-                        H::ResolutionScale,
-                        High,
-                        "World pixels per screen pixel. Lower is faster on the GPU.",
-                    ),
-                    h(
-                        H::ShadowCache,
-                        Saves,
-                        "Reuses the pack shadow map when sun, view and world match. Off by default.",
-                    ),
-                    h(
-                        H::ShaderPacks,
-                        None,
-                        "Browse and manage all installed shader pack files.",
-                    ),
-                ],
-            )],
+            vec![
+                (
+                    "Shader packs",
+                    vec![
+                        h(
+                            H::ActiveShaderPack,
+                            High,
+                            "Active shader pack: Off, TML Visuals (BSL), or custom packs.",
+                        ),
+                        h(
+                            H::ShaderFolder,
+                            None,
+                            "Opens the shaderpacks folder in the file manager.",
+                        ),
+                    ],
+                ),
+                (
+                    "Built-in settings",
+                    vec![
+                        h(
+                            H::ShadowCache,
+                            Saves,
+                            "Reuses the pack shadow map when sun, view and world match. Saves up to 50% GPU load on mobile.",
+                        ),
+                        h(
+                            H::ResolutionScale,
+                            High,
+                            "World pixels per screen pixel. Lower is faster on the GPU.",
+                        ),
+                        h(
+                            H::ShaderProfile,
+                            Medium,
+                            "Shader quality profile (Auto, MINIMUM, LOW, MEDIUM, HIGH, ULTRA).",
+                        ),
+                        v(
+                            Opt::MaxFps,
+                            None,
+                            "Limits the frame rate to reduce heat and save battery on mobile.",
+                        ),
+                    ],
+                ),
+                (
+                    "Lighting & shadows",
+                    vec![
+                        h(
+                            H::ShaderShadows,
+                            High,
+                            "Real-time dynamic terrain and entity shadows.",
+                        ),
+                        h(
+                            H::ShaderDynamicLight,
+                            Medium,
+                            "Handheld torches and items dynamically cast light around you.",
+                        ),
+                        h(
+                            H::ShaderAo,
+                            Medium,
+                            "Ambient Occlusion: soft realistic contact shadows in corners.",
+                        ),
+                        h(
+                            H::ShaderLightShaft,
+                            High,
+                            "Sun rays and volumetric light shafts through trees and clouds.",
+                        ),
+                    ],
+                ),
+                (
+                    "Environment & effects",
+                    vec![
+                        h(
+                            H::ShaderClouds,
+                            Medium,
+                            "Volumetric multi-layer 3D shader clouds.",
+                        ),
+                        h(
+                            H::ShaderWaving,
+                            Medium,
+                            "Wind animation on leaves, grass, crops and water surfaces.",
+                        ),
+                        h(
+                            H::ShaderWater,
+                            High,
+                            "Water surface waves, caustics, transparency and refraction.",
+                        ),
+                        h(
+                            H::ShaderBloom,
+                            Low,
+                            "Soft glow and glare around emissive light sources and the sun.",
+                        ),
+                        h(
+                            H::ShaderMotionBlur,
+                            Low,
+                            "Smooth camera motion blur when turning quickly.",
+                        ),
+                        h(
+                            H::ShaderAntialiasing,
+                            Medium,
+                            "Temporal or Fast Approximate Anti-Aliasing (TAA / FXAA).",
+                        ),
+                        h(
+                            H::ShaderReset,
+                            None,
+                            "Resets all options of this shader pack back to its default values.",
+                        ),
+                    ],
+                ),
+            ],
         ),
         (
             Page::Advanced,
@@ -768,6 +869,116 @@ impl H {
                 };
                 labelled("Shader Profile", profile)
             }
+            H::ShaderFolder => Text::literal(lang::get("pack.openFolder")),
+            H::ShaderShadows => {
+                let on = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("SHADOW"))
+                    .map_or(true, |v| v != "false");
+                labelled("Shadows", on_off(on))
+            }
+            H::ShaderDynamicLight => {
+                let val = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("DYNAMIC_HANDLIGHT"))
+                    .unwrap_or("true");
+                let label = match val {
+                    "false" | "0" => "Off",
+                    "fast" | "1" => "Fast",
+                    _ => "Fancy",
+                };
+                labelled("Dynamic Handlight", label)
+            }
+            H::ShaderAo => {
+                let on = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("AO"))
+                    .map_or(true, |v| v != "false");
+                labelled("Ambient Occlusion", on_off(on))
+            }
+            H::ShaderLightShaft => {
+                let on = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("LIGHT_SHAFT"))
+                    .map_or(false, |v| v != "false");
+                labelled("Light Shafts", on_off(on))
+            }
+            H::ShaderClouds => {
+                let val = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("CLOUDS"))
+                    .unwrap_or("1");
+                let label = match val {
+                    "false" | "0" => "Off",
+                    "1" => "Fast",
+                    _ => "Fancy",
+                };
+                labelled("Shader Clouds", label)
+            }
+            H::ShaderWaving => {
+                let on = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("WAVING_LEAF"))
+                    .map_or(true, |v| v != "false");
+                labelled("Waving Plants", on_off(on))
+            }
+            H::ShaderWater => {
+                let val = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("WATER_MODE"))
+                    .unwrap_or("0");
+                let label = match val {
+                    "0" => "Vanilla",
+                    "1" => "Default",
+                    _ => "Fancy",
+                };
+                labelled("Water Quality", label)
+            }
+            H::ShaderBloom => {
+                let val = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("BLOOM_RADIUS"))
+                    .unwrap_or("1");
+                let on = val != "0" && val != "false";
+                labelled("Bloom", on_off(on))
+            }
+            H::ShaderMotionBlur => {
+                let on = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("MOTION_BLUR"))
+                    .map_or(false, |v| v != "false");
+                labelled("Motion Blur", on_off(on))
+            }
+            H::ShaderAntialiasing => {
+                let taa = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("TAA"))
+                    .map_or(false, |v| v != "false");
+                let fxaa = s
+                    .shader_options
+                    .as_ref()
+                    .and_then(|o| o.value("FXAA"))
+                    .map_or(false, |v| v != "false");
+                let label = if taa {
+                    "TAA"
+                } else if fxaa {
+                    "FXAA"
+                } else {
+                    "Off"
+                };
+                labelled("Anti-Aliasing", label)
+            }
+            H::ShaderReset => Text::literal(lang::get("Reset Shader Options")),
             H::GraphicsApi => labelled("Graphics API", g.api.label()),
             // Greyed out where the device can't (`Item::blocked`): Off, as it is there,
             // while the saved value waits for a device that can.
@@ -822,6 +1033,119 @@ impl H {
             crate::graphics::apply_preset(preset, s);
             s.horizon.preset = preset;
             return;
+        }
+        match self {
+            H::ShaderFolder => return,
+            H::ShaderShadows => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("SHADOW").unwrap_or("true");
+                    let next = if cur == "false" { "true" } else { "false" };
+                    opt.set("SHADOW", next.to_string());
+                }
+                return;
+            }
+            H::ShaderDynamicLight => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("DYNAMIC_HANDLIGHT").unwrap_or("true");
+                    let next = match cur {
+                        "false" | "0" => "true",
+                        "true" | "2" => "fast",
+                        _ => "false",
+                    };
+                    opt.set("DYNAMIC_HANDLIGHT", next.to_string());
+                }
+                return;
+            }
+            H::ShaderAo => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("AO").unwrap_or("true");
+                    let next = if cur == "false" { "true" } else { "false" };
+                    opt.set("AO", next.to_string());
+                }
+                return;
+            }
+            H::ShaderLightShaft => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("LIGHT_SHAFT").unwrap_or("false");
+                    let next = if cur == "false" { "true" } else { "false" };
+                    opt.set("LIGHT_SHAFT", next.to_string());
+                }
+                return;
+            }
+            H::ShaderClouds => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("CLOUDS").unwrap_or("1");
+                    let next = match cur {
+                        "false" | "0" => "1",
+                        "1" => "2",
+                        _ => "0",
+                    };
+                    opt.set("CLOUDS", next.to_string());
+                }
+                return;
+            }
+            H::ShaderWaving => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("WAVING_LEAF").unwrap_or("true");
+                    let next = if cur == "false" { "true" } else { "false" };
+                    opt.set("WAVING_LEAF", next.to_string());
+                    opt.set("WAVING_PLANT", next.to_string());
+                    opt.set("WAVING_WATER", next.to_string());
+                }
+                return;
+            }
+            H::ShaderWater => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("WATER_MODE").unwrap_or("0");
+                    let next = match cur {
+                        "0" => "1",
+                        "1" => "2",
+                        _ => "0",
+                    };
+                    opt.set("WATER_MODE", next.to_string());
+                }
+                return;
+            }
+            H::ShaderBloom => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("BLOOM_RADIUS").unwrap_or("1");
+                    let next = if cur == "0" || cur == "false" { "1" } else { "0" };
+                    opt.set("BLOOM_RADIUS", next.to_string());
+                }
+                return;
+            }
+            H::ShaderMotionBlur => {
+                if let Some(opt) = &mut s.shader_options {
+                    let cur = opt.value("MOTION_BLUR").unwrap_or("false");
+                    let next = if cur == "false" { "true" } else { "false" };
+                    opt.set("MOTION_BLUR", next.to_string());
+                }
+                return;
+            }
+            H::ShaderAntialiasing => {
+                if let Some(opt) = &mut s.shader_options {
+                    let taa = opt.value("TAA").map_or(false, |v| v != "false");
+                    let fxaa = opt.value("FXAA").map_or(false, |v| v != "false");
+                    if !taa && !fxaa {
+                        opt.set("FXAA", "true".to_string());
+                        opt.set("TAA", "false".to_string());
+                    } else if fxaa {
+                        opt.set("FXAA", "false".to_string());
+                        opt.set("TAA", "true".to_string());
+                    } else {
+                        opt.set("FXAA", "false".to_string());
+                        opt.set("TAA", "false".to_string());
+                    }
+                }
+                return;
+            }
+            H::ShaderReset => {
+                if let Some(opt) = &mut s.shader_options {
+                    opt.reset();
+                }
+                return;
+            }
+            _ => {}
         }
         let g = &mut s.horizon;
         match self {
@@ -973,7 +1297,16 @@ impl Item {
     fn steps(self, s: &Settings) -> bool {
         self.switch(s).is_none()
             && self.slider(s).is_none()
-            && !matches!(self, Item::Horizon(H::HdrKey | H::HdrCalibrate | H::ShaderPacks))
+            && !matches!(
+                self,
+                Item::Horizon(
+                    H::HdrKey
+                        | H::HdrCalibrate
+                        | H::ShaderPacks
+                        | H::ShaderFolder
+                        | H::ShaderReset
+                )
+            )
     }
     /// On/off settings and their value.
     pub fn switch(self, s: &Settings) -> Option<bool> {
@@ -996,6 +1329,31 @@ impl Item {
             Item::Horizon(H::Hdr) => g.hdr,
             Item::Horizon(H::BatteryMode) => g.battery,
             Item::Horizon(H::ShadowCache) => g.shadow_cache,
+            Item::Horizon(H::ShaderShadows) => s
+                .shader_options
+                .as_ref()
+                .and_then(|o| o.value("SHADOW"))
+                .map_or(true, |v| v != "false"),
+            Item::Horizon(H::ShaderAo) => s
+                .shader_options
+                .as_ref()
+                .and_then(|o| o.value("AO"))
+                .map_or(true, |v| v != "false"),
+            Item::Horizon(H::ShaderLightShaft) => s
+                .shader_options
+                .as_ref()
+                .and_then(|o| o.value("LIGHT_SHAFT"))
+                .map_or(false, |v| v != "false"),
+            Item::Horizon(H::ShaderWaving) => s
+                .shader_options
+                .as_ref()
+                .and_then(|o| o.value("WAVING_LEAF"))
+                .map_or(true, |v| v != "false"),
+            Item::Horizon(H::ShaderMotionBlur) => s
+                .shader_options
+                .as_ref()
+                .and_then(|o| o.value("MOTION_BLUR"))
+                .map_or(false, |v| v != "false"),
             Item::Horizon(H::TranslucentBatching) => g.translucent_batching,
             Item::Vanilla(Opt::ViewBobbing) => s.view_bobbing,
             Item::Vanilla(Opt::Vsync) => s.vsync,
@@ -1060,6 +1418,18 @@ impl Item {
                     | H::ShaderPacks
                     | H::ActiveShaderPack
                     | H::ShaderProfile
+                    | H::ShaderFolder
+                    | H::ShaderShadows
+                    | H::ShaderDynamicLight
+                    | H::ShaderAo
+                    | H::ShaderLightShaft
+                    | H::ShaderClouds
+                    | H::ShaderWaving
+                    | H::ShaderWater
+                    | H::ShaderBloom
+                    | H::ShaderMotionBlur
+                    | H::ShaderAntialiasing
+                    | H::ShaderReset
                     | H::GraphicsApi
                     | H::TranslucentBatching
             ) | Item::Vanilla(
@@ -1128,6 +1498,14 @@ pub enum Action {
     Calibrate,
     /// Open the shader packs options screen.
     ShaderPacks,
+    /// Open the shaderpacks folder in the file manager.
+    OpenShaderFolder,
+    /// Active shader pack changed.
+    ShaderPackChanged,
+    /// Shader options need saving / reloading.
+    SaveShaderOptions,
+    /// Player switched to the shaders tab.
+    EnteredShaders,
     Done,
 }
 
@@ -1254,7 +1632,26 @@ impl Columns {
 
 /// Whether a setting is on the screen now: Upscaling only while TAA is, which does it.
 fn shown(item: Item, s: &Settings) -> bool {
-    item != Item::Horizon(H::Upscaling) || s.horizon.taa
+    if item == Item::Horizon(H::Upscaling) && !s.horizon.taa {
+        return false;
+    }
+    let pack_active = !s.horizon.shader_pack.is_empty();
+    match item {
+        Item::Horizon(
+            H::ShaderShadows
+            | H::ShaderDynamicLight
+            | H::ShaderAo
+            | H::ShaderLightShaft
+            | H::ShaderClouds
+            | H::ShaderWaving
+            | H::ShaderWater
+            | H::ShaderBloom
+            | H::ShaderMotionBlur
+            | H::ShaderAntialiasing
+            | H::ShaderReset,
+        ) => pack_active,
+        _ => true,
+    }
 }
 /// A control's label as its name and its value ("Render Distance" and "12 chunks").
 fn parts(item: Item, s: &Settings, binding: bool) -> (String, Option<String>) {
@@ -1949,7 +2346,11 @@ impl GraphicsUi {
             if at(cols.page(i)) && self.has(page, &lines) {
                 self.focus = Some(Target::Page(page));
                 self.pick(page, &lines, &cols, content);
-                return vec![Action::ButtonClick];
+                let mut actions = vec![Action::ButtonClick];
+                if page == Page::Shaders {
+                    actions.push(Action::EnteredShaders);
+                }
+                return actions;
             }
         }
         if y < cols.top || y >= cols.bottom {
@@ -1989,6 +2390,16 @@ impl GraphicsUi {
             }
             Item::Horizon(H::HdrCalibrate) => vec![Action::ButtonClick, Action::Calibrate],
             Item::Horizon(H::ShaderPacks) => vec![Action::ButtonClick, Action::ShaderPacks],
+            Item::Horizon(H::ShaderFolder) => vec![Action::ButtonClick, Action::OpenShaderFolder],
+            Item::Horizon(H::ShaderReset) => {
+                item.cycle(s, back, framebuffer);
+                vec![Action::ButtonClick, Action::Changed, Action::SaveShaderOptions]
+            }
+            Item::Horizon(H::ActiveShaderPack) => {
+                self.can_change_value = false;
+                item.cycle(s, back, framebuffer);
+                vec![Action::ButtonClick, Action::Changed, Action::ShaderPackChanged]
+            }
             Item::Horizon(H::HdrKey) => {
                 vec![
                     Action::ButtonClick,
