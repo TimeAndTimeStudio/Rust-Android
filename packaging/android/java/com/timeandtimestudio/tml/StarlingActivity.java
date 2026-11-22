@@ -178,6 +178,14 @@ public class StarlingActivity extends NativeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (Build.VERSION.SDK_INT >= 31) {
+            getSplashScreen().setOnExitAnimationListener(new android.window.SplashScreen.OnExitAnimationListener() {
+                @Override
+                public void onSplashScreenExit(android.window.SplashScreenView view) {
+                    view.remove();
+                }
+            });
+        }
         StartupRecovery.begin(this);
         loadGame();
         // Before super.onCreate starts the game's thread, which reads it first thing.

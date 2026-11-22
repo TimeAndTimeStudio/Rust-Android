@@ -37,6 +37,14 @@ public final class LauncherActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (Build.VERSION.SDK_INT >= 31) {
+            getSplashScreen().setOnExitAnimationListener(new android.window.SplashScreen.OnExitAnimationListener() {
+                @Override
+                public void onSplashScreenExit(android.window.SplashScreenView view) {
+                    view.remove();
+                }
+            });
+        }
         super.onCreate(savedInstanceState);
         Intent intent = getIntent();
         final int after = intent == null ? 0 : intent.getIntExtra(AFTER, 0);
