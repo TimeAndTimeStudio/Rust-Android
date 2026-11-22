@@ -1491,12 +1491,8 @@ fn with_diagnostics<const N: usize>(
 
 /// The catalog's shelf for a page with a footer that has a Catalog button. The Resource Packs page
 /// draws its own (`pack_screen`).
-fn catalog_shelf(page: Page) -> Option<CatalogShelf> {
-    match page {
-        Page::Mods => Some(CatalogShelf::Mods),
-        Page::ShaderPacks => Some(CatalogShelf::ShaderPacks),
-        _ => None,
-    }
+fn catalog_shelf(_page: Page) -> Option<CatalogShelf> {
+    None
 }
 
 fn graphics_api_tooltip(s: &Settings) -> Text {
@@ -3607,6 +3603,16 @@ impl OptionsUi {
                         Act::Push(Page::GraphicsAdvanced),
                     )),
                 )];
+                rows.push(Row::Buttons(
+                    button(
+                        0.0,
+                        0.0,
+                        310.0,
+                        Text::literal("Shader Packs..."),
+                        Act::Push(Page::ShaderPacks),
+                    ),
+                    None,
+                ));
                 rows.push(Row::Header("options.video.display.header"));
                 // A phone's app always fills its screen.
                 let display: &[Opt] = if cfg!(target_os = "android") {
@@ -6507,10 +6513,10 @@ impl OptionsUi {
                 self.pack_screen = Some(screen);
             }
         }
-        // Here, not when it's made: the menu's screen goes on as the game's (`offer_catalog`).
-        let catalog = self.catalog_buttons && self.data_pack_dir.is_none();
+        // Catalog button is permanently disabled
+        let catalog = false;
         let screen = self.pack_screen.as_mut().expect("made above");
-        screen.catalog = catalog;
+        screen.catalog = false;
         screen
     }
     /// Escape or Done: leave the current page, applying page results.
@@ -10490,13 +10496,10 @@ mod tests {
 
     #[test]
     fn the_mods_and_shader_packs_pages_open_the_catalog_on_their_own_shelf() {
-        let atlas = atlas();
-        let mut s = Settings::default();
+        let _atlas = atlas();
+        let s = Settings::default();
         for size in PHONE_GUI {
-            for (page, shelf) in [
-                (Page::Mods, CatalogShelf::Mods),
-                (Page::ShaderPacks, CatalogShelf::ShaderPacks),
-            ] {
+            for page in [Page::Mods, Page::ShaderPacks] {
                 let mut ui = OptionsUi {
                     catalog_buttons: true,
                     ..OptionsUi::default()
@@ -10507,62 +10510,24 @@ mod tests {
                     .iter()
                     .filter(|w| !w.list && matches!(w.kind, WKind::Button { .. }))
                     .collect();
-                assert_eq!(footer.len(), 3, "{page:?} at {size:?}");
-                let catalog = footer
-                    .iter()
-                    .find(|w| {
-                        matches!(&w.kind, WKind::Button { act: Act::OpenCatalog(on), .. } if *on == shelf)
-                    })
-                    .expect("Catalog button");
-                // On the screen, on the footer's row, and clear of its two buttons.
-                assert!(catalog.x >= 0.0, "{page:?} at {size:?}");
-                for other in &footer {
-                    assert_eq!(other.y, size.1 - 27.0);
-                    if std::ptr::eq(*other, *catalog) {
-                        continue;
-                    }
-                    // Open Folder is left of it and Done right of it, with room between.
-                    let clear = if other.x < catalog.x {
-                        other.x + other.w < catalog.x
-                    } else {
-                        catalog.x + catalog.w < other.x
-                    };
-                    assert!(
-                        clear,
-                        "{page:?} at {size:?}: Catalog runs into the button at {}",
-                        other.x
-                    );
-                    if other.x < catalog.x {
-                        // Together they fill the 150 Open Folder had.
-                        assert_eq!(catalog.x + catalog.w - other.x, 150.0);
-                    }
-                }
-                let (x, y) = (catalog.x + catalog.w / 2.0, catalog.y + catalog.h / 2.0);
-                let events = ui.click(&mut s, &atlas, x, y, size, [854, 480], false, false);
-                assert_eq!(events, vec![Event::ButtonClick, Event::OpenCatalog(shelf)]);
+                assert_eq!(footer.len(), 2, "{page:?} at {size:?}");
+                assert!(!footer.iter().any(|w| matches!(&w.kind, WKind::Button { act: Act::OpenCatalog(_), .. })));
             }
         }
     }
 
     #[test]
     fn the_resource_packs_page_opens_the_catalog_on_its_shelf() {
-        let atlas = atlas();
-        let mut s = Settings::default();
+        let _atlas = atlas();
+        let s = Settings::default();
         let size = (800.0, 360.0);
         let mut ui = OptionsUi {
             catalog_buttons: true,
             ..OptionsUi::default()
         };
         ui.show(Page::Packs);
-        // The right half of Open Folder's slot: the footer starts at (800 - 308) / 2.
-        let events = ui.click(&mut s, &atlas, 330.0, 344.0, size, [854, 480], false, false);
-        assert_eq!(
-            events,
-            vec![
-                Event::ButtonClick,
-                Event::OpenCatalog(CatalogShelf::ResourcePacks)
-            ]
-        );
+        let (widgets, ..) = ui.layout(&s, size.0, size.1);
+        assert!(!widgets.iter().any(|w| matches!(&w.kind, WKind::Button { act: Act::OpenCatalog(_), .. })));
         assert_eq!(ui.page(), Page::Packs);
     }
 

@@ -3446,7 +3446,7 @@ impl Renderer {
         let cloud_pipeline = entity_pipeline(
             "Clouds",
             Some(wgpu::Face::Back),
-            true,
+            false,
             wgpu::CompareFunction::GreaterEqual,
             Default::default(),
             alpha_blend,

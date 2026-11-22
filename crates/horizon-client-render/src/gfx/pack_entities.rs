@@ -115,7 +115,7 @@ pub fn cloud_inputs() -> horizon_shaders::GbuffersInputs {
          layout(set = 1, binding = 0) uniform HzCloud { vec4 hz_cloud_offset; vec4 hz_cloud_colors[4]; };\n"
         .to_owned();
     let body = "    hz_Vertex = vec4(hz_v_pos + hz_cloud_offset.xyz, 1.0);\n    \
-         hz_MultiTexCoord0 = vec4(hz_v_uv, 0.0, 1.0);\n    \
+         hz_MultiTexCoord0 = vec4(0.5, 0.5, 0.0, 1.0);\n    \
          hz_MultiTexCoord1 = vec4(240.0, 240.0, 0.0, 1.0);\n    \
          hz_MultiTexCoord2 = hz_MultiTexCoord1;\n    \
          hz_Color = hz_cloud_colors[min(hz_v_light.x, 3u)];\n    \

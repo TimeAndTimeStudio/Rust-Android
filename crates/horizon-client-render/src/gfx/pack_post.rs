@@ -2184,10 +2184,10 @@ impl PackPost {
         let cloud_geometry = world.clouds.map(|layout| Geometry {
             buffers: &entity_buffers,
             table: Some(layout),
-            depth_write: true,
-            atlas: world.celestial.clone(),
+            depth_write: false,
+            atlas: None,
             ids: None,
-            cull: false,
+            cull: true,
             prepass: false,
         });
         let hides_clouds = post.clouds.is_some() && cloud_geometry.is_some();

@@ -169,8 +169,12 @@ float sunReaches() {
 }
 
 void main() {
-    vec4 albedo = texture2D(gtexture, texcoord) * glcolor;
-    if (albedo.a < 0.1) discard;
+    #ifdef CLOUDS
+        vec4 albedo = glcolor;
+    #else
+        vec4 albedo = texture2D(gtexture, texcoord) * glcolor;
+        if (albedo.a < 0.1) discard;
+    #endif
     #ifdef ENTITIES
         albedo.rgb = mix(albedo.rgb, entityColor.rgb, entityColor.a);
     #endif

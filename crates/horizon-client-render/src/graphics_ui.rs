@@ -23,13 +23,15 @@ pub enum Page {
     General,
     Quality,
     Performance,
+    Shaders,
     Advanced,
 }
 impl Page {
-    pub const ALL: [Page; 4] = [
+    pub const ALL: [Page; 5] = [
         Page::General,
         Page::Quality,
         Page::Performance,
+        Page::Shaders,
         Page::Advanced,
     ];
     pub fn name(self) -> &'static str {
@@ -37,6 +39,7 @@ impl Page {
             Page::General => "General",
             Page::Quality => "Quality",
             Page::Performance => "Performance",
+            Page::Shaders => "Shaders",
             Page::Advanced => "Advanced",
         }
     }
@@ -46,6 +49,7 @@ impl Page {
             Page::General => "How far you see, the window and the HUD.",
             Page::Quality => "The sky and weather, lighting, textures and the image.",
             Page::Performance => "Chunk loading, culling and power use.",
+            Page::Shaders => "Shader packs, Horizon's and shaders/ folder ones, and their options.",
             Page::Advanced => "How frames reach the screen, and the performance overlay.",
         }
     }
@@ -406,6 +410,24 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                     )],
                 ),
             ],
+        ),
+        (
+            Page::Shaders,
+            vec![(
+                "Shader packs",
+                vec![
+                    h(
+                        H::ShaderPacks,
+                        High,
+                        "Picks a shader pack, Horizon's or a shaders/ folder one, and sets its options.",
+                    ),
+                    h(
+                        H::ShadowCache,
+                        Saves,
+                        "Reuses the pack shadow map when sun, view and world match. Off by default.",
+                    ),
+                ],
+            )],
         ),
         (
             Page::Advanced,
@@ -2388,7 +2410,7 @@ mod tests {
         let mut ui = GraphicsUi::default();
         let cols = Columns::of(size.0, size.1);
         assert!((cols.bottom - cols.top) / style::ROW >= 5.0);
-        let [x, y, w, h] = cols.page(3);
+        let [x, y, w, h] = cols.page(Page::ALL.len() - 1);
         assert!(y >= 0.0 && x + w <= size.0);
         // Undo, over Done, stays clear of the page list.
         assert!(cols.button(1)[1] >= y + h);
