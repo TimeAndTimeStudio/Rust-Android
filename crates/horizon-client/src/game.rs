@@ -14942,6 +14942,15 @@ impl Game<'_> {
                 let atlas = &self.gui.atlas;
                 batch.sprite(atlas, "gui/sprites/container/slot", x - 1.0, y - 1.0);
             }
+            if let Some(r) = self.gui.atlas.sprites.get("gui/container/inventory").copied() {
+                let (du, dv) = ((r.u1 - r.u0) / r.w as f32, (r.v1 - r.v0) / r.h as f32);
+                let mut arrow = r;
+                arrow.u0 += 135.0 * du;
+                arrow.v0 += 28.0 * dv;
+                arrow.u1 = arrow.u0 + 16.0 * du;
+                arrow.v1 = arrow.v0 + 15.0 * dv;
+                batch.rect_uv(ox + 163.0, oy + 14.0, 10.0, 15.0, arrow, u32::MAX);
+            }
         } else {
             let (tx, ty) = Creative::tab_position(tab);
             batch.sprite(&self.gui.atlas, &tab_sprite(tab, true), ox + tx, oy + ty);
