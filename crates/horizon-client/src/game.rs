@@ -14940,9 +14940,7 @@ impl Game<'_> {
                 };
                 let (x, y) = (ox + sx, oy + sy);
                 let atlas = &self.gui.atlas;
-                batch.fill(atlas, x - 1.0, y - 1.0, 18.0, 18.0, rgba(55, 55, 55, 255));
-                batch.fill(atlas, x, y, 17.0, 17.0, u32::MAX);
-                batch.fill(atlas, x, y, 16.0, 16.0, rgba(139, 139, 139, 255));
+                batch.sprite(atlas, "gui/sprites/container/slot", x - 1.0, y - 1.0);
             }
         } else {
             let (tx, ty) = Creative::tab_position(tab);
