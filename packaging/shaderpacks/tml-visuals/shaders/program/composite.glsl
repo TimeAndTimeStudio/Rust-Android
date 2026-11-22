@@ -1,4 +1,4 @@
-// Starling Visuals: the sky and the air. Pixels at the far plane get the sky, the sun and the other
+// TML Visuals: the sky and the air. Pixels at the far plane get the sky, the sun and the other
 // bodies (colortex2: stars and moon over black) in place of the game's own sky; the others the haze
 // they are seen through, thicker low down, and past most of the render distance the sky itself.
 // The alpha is how much of the sky shows there, which `final` follows to the sun for its rays.

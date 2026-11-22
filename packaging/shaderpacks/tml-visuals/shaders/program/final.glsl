@@ -1,4 +1,4 @@
-// Starling Visuals: the lens. Bloom from colortex0's mipmaps (the scene at ever smaller sizes,
+// TML Visuals: the lens. Bloom from colortex0's mipmaps (the scene at ever smaller sizes,
 // which the game makes before this pass), the sun's rays from where the sky shows on the way to it
 // (their alpha, at a small size: soft without many samples), then the film curve.
 

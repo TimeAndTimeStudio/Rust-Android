@@ -1,4 +1,4 @@
-// Starling Visuals: lines and other untextured shapes (the block outline, leads), unlit.
+// TML Visuals: lines and other untextured shapes (the block outline, leads), unlit.
 
 #include "/lib/common.glsl"
 

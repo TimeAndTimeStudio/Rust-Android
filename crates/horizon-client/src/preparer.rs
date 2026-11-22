@@ -301,6 +301,7 @@ pub fn put_shader_pack(game_folder: &Path) {
 pub fn put_resource_packs(game_folder: &Path) {
     let packs = [
         "Faithful 32x - 26.3.zip",
+        "OrangeBlack_UI_Pack_26.2_26.3.zip",
     ];
     let dir = game_folder.join("resourcepacks");
     for pack_name in packs {
@@ -316,11 +317,44 @@ pub fn put_resource_packs(game_folder: &Path) {
             .and_then(|()| std::fs::write(dir.join(pack_name), &bytes))
             .and_then(|()| std::fs::write(&marker, &stamp))
         {
-            Ok(()) => log::info!("Horizon: {pack_name} put in {}", dir.display()),
+            Ok(()) => log::info!("TML: {pack_name} put in {}", dir.display()),
             Err(e) => log::warn!(
-                "Horizon: {pack_name} could not be put in {}: {e}",
+                "TML: {pack_name} could not be put in {}: {e}",
                 dir.display()
             ),
+        }
+    }
+    // Activate OrangeBlack UI Pack by default in options.txt if not yet specified
+    let options_file = game_folder.join("options.txt");
+    if let Ok(content) = std::fs::read_to_string(&options_file) {
+        if !content.contains("OrangeBlack_UI_Pack") {
+            let orange_pack = "file/OrangeBlack_UI_Pack_26.2_26.3.zip";
+            let mut new_lines = Vec::new();
+            let mut found_packs = false;
+            for line in content.lines() {
+                if line.starts_with("resourcePacks:") {
+                    found_packs = true;
+                    if let Some(list_part) = line.strip_prefix("resourcePacks:") {
+                        let trimmed = list_part.trim();
+                        if trimmed == "[]" {
+                            new_lines.push(format!("resourcePacks:[\"vanilla\",\"{orange_pack}\"]"));
+                        } else if trimmed.ends_with(']') {
+                            let without_closing = &trimmed[..trimmed.len() - 1];
+                            new_lines.push(format!("{without_closing},\"{orange_pack}\"]"));
+                        } else {
+                            new_lines.push(line.to_string());
+                        }
+                    } else {
+                        new_lines.push(line.to_string());
+                    }
+                } else {
+                    new_lines.push(line.to_string());
+                }
+            }
+            if !found_packs {
+                new_lines.push(format!("resourcePacks:[\"vanilla\",\"{orange_pack}\"]"));
+            }
+            let _ = std::fs::write(&options_file, new_lines.join("\n") + "\n");
         }
     }
 }

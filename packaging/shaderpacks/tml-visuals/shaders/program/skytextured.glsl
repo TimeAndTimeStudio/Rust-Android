@@ -1,4 +1,4 @@
-// Starling Visuals: the moon's texture, in colortex2 (the sky's bodies, black elsewhere), bright
+// TML Visuals: the moon's texture, in colortex2 (the sky's bodies, black elsewhere), bright
 // enough to stand out of the sky `composite` puts behind it. The sun is composite's own disk.
 
 #include "/lib/common.glsl"

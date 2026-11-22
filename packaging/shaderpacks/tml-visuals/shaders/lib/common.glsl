@@ -1,4 +1,4 @@
-// Starling Visuals: the uniforms every program reads, and the light and sky model. Colours are
+// TML Visuals: the uniforms every program reads, and the light and sky model. Colours are
 // linear and in the scene's own units: the sun gives about SUN_STRENGTH, the open sky a fraction.
 
 #include "/lib/settings.glsl"

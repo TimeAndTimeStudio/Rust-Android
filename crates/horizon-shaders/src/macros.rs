@@ -8,13 +8,24 @@ use std::collections::BTreeMap;
 /// "Separate Hardware Shadow Samplers"): `shadowtex0`/`shadowtex1` stay plain depth samplers when
 /// hardware filtering is on, `shadowtex0HW`/`shadowtex1HW` compare; Horizon picks a comparison
 /// sampler by the declared type (`sampler2DShadow`), so they always are.
-const FEATURES: [&str; 6] = [
+const FEATURES: &[&str] = &[
     "BLOCK_EMISSION_ATTRIBUTE",
+    "BUFFER_OBJECT",
+    "COLOR_ATTACHMENT_LIMIT",
+    "COLORED_SHADOWS",
     "COMPUTE_SHADERS",
     "CUSTOM_IMAGES",
+    "CUSTOM_UNIFORMS",
+    "DEPTH_TEXTURES",
+    "DIRECT_IMAGE_BIND",
     "ENTITY_TRANSLUCENT",
+    "IMAGE_LOAD_STORE",
+    "RENDER_TARGETS",
+    "SEPARATE_ENTITY_DRAWS",
     "SEPARATE_HARDWARE_SAMPLERS",
+    "SHADOW_COLOR",
     "SSBO",
+    "TEXTURE_FORMAT",
 ];
 
 /// `MC_VERSION` of the version Horizon plays: 26.3 → 260300.

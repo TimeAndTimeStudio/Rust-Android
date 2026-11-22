@@ -1,4 +1,4 @@
-// Starling Visuals: the world seen from the sun (or moon) into the shadow map, distorted as the
+// TML Visuals: the world seen from the sun (or moon) into the shadow map, distorted as the
 // lookups in lit.glsl undo. Water casts none: the sun goes on lighting what is under it.
 
 #include "/lib/common.glsl"

@@ -1,4 +1,4 @@
-// Starling Visuals: everything drawn with the world's light, in one forward pass. The light is
+// TML Visuals: everything drawn with the world's light, in one forward pass. The light is
 // worked out per vertex (faces are flat, the lightmap is per vertex anyway); the fragment stage
 // samples, looks the sun up in the shadow map and blends, and water adds its reflection.
 // `composite` adds the haze. The stage file defines VERTEX_SHADER or FRAGMENT_SHADER, and what it

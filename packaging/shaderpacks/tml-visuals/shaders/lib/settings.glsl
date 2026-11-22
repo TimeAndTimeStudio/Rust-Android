@@ -1,4 +1,4 @@
-// Starling Visuals: the options its screen lists.
+// TML Visuals: the options its screen lists.
 
 #define SUN_STRENGTH 2.4 // [1.5 2.0 2.4 2.8 3.2 3.6]
 #define SKY_BRIGHTNESS 1.0 // [0.6 0.8 1.0 1.2 1.4]
