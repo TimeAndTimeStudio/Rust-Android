@@ -6466,7 +6466,6 @@ impl OptionsUi {
             }
         }
         // Catalog button is permanently disabled
-        let catalog = false;
         let screen = self.pack_screen.as_mut().expect("made above");
         screen.catalog = false;
         screen

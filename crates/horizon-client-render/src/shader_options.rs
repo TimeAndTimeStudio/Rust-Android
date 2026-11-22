@@ -65,7 +65,7 @@ impl ShaderOptions {
             .map(String::as_str)
     }
 
-    fn set(&mut self, name: &str, value: String) {
+    pub fn set(&mut self, name: &str, value: String) {
         let Some(option) = self.options.get(name).filter(|o| o.values.contains(&value)) else {
             return;
         };
