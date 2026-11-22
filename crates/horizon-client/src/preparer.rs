@@ -301,7 +301,6 @@ pub fn put_shader_pack(game_folder: &Path) {
 pub fn put_resource_packs(game_folder: &Path) {
     let packs = [
         "Faithful 32x - 26.3.zip",
-        "OrangeBlack_UI_Pack_26.2_26.3.zip",
         "TML.zip",
     ];
     let dir = game_folder.join("resourcepacks");
