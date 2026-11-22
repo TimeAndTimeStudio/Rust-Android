@@ -103,6 +103,10 @@ pub enum H {
     ShadowCache,
     /// Picks a shader pack and opens shader options.
     ShaderPacks,
+    /// The active shader pack selected directly on the page.
+    ActiveShaderPack,
+    /// The quality profile of the active shader pack.
+    ShaderProfile,
     GraphicsApi,
     TranslucentBatching,
 }
@@ -417,14 +421,29 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                 "Shader packs",
                 vec![
                     h(
-                        H::ShaderPacks,
+                        H::ActiveShaderPack,
                         High,
-                        "Picks a shader pack, Horizon's or a shaders/ folder one, and sets its options.",
+                        "Active shader pack. Off, TML Visuals (BSL), or custom packs.",
+                    ),
+                    h(
+                        H::ShaderProfile,
+                        Medium,
+                        "Shader quality profile (Auto, Low, Medium, High, Ultra).",
+                    ),
+                    h(
+                        H::ResolutionScale,
+                        High,
+                        "World pixels per screen pixel. Lower is faster on the GPU.",
                     ),
                     h(
                         H::ShadowCache,
                         Saves,
                         "Reuses the pack shadow map when sun, view and world match. Off by default.",
+                    ),
+                    h(
+                        H::ShaderPacks,
+                        None,
+                        "Browse and manage all installed shader pack files.",
                     ),
                 ],
             )],
@@ -728,10 +747,26 @@ impl H {
             H::ShadowCache => labelled("Shadow Cache", on_off(g.shadow_cache)),
             H::ShaderPacks => {
                 if s.horizon.shader_pack.is_empty() {
-                    Text::literal(lang::get("Shader Packs..."))
+                    Text::literal(lang::get("Manage Packs..."))
                 } else {
-                    labelled("Shader Packs", &s.horizon.shader_pack)
+                    labelled("Manage Packs", &s.horizon.shader_pack)
                 }
+            }
+            H::ActiveShaderPack => {
+                let pack = if s.horizon.shader_pack.is_empty() {
+                    "Off"
+                } else {
+                    &s.horizon.shader_pack
+                };
+                labelled("Shader Pack", pack)
+            }
+            H::ShaderProfile => {
+                let profile = match s.horizon.shader_profile.as_str() {
+                    "" => "Auto",
+                    "default" => "Pack Default",
+                    other => other,
+                };
+                labelled("Shader Profile", profile)
             }
             H::GraphicsApi => labelled("Graphics API", g.api.label()),
             // Greyed out where the device can't (`Item::blocked`): Off, as it is there,
@@ -863,6 +898,27 @@ impl H {
                     g.overlay,
                     back,
                 )
+            }
+            H::ActiveShaderPack => {
+                let mut packs = vec!["".to_string(), "TMLVisuals.zip".to_string()];
+                for p in &s.shader_packs {
+                    if !packs.contains(&p.file) {
+                        packs.push(p.file.clone());
+                    }
+                }
+                let now = g.shader_pack.clone();
+                let idx = packs.iter().position(|p| *p == now).unwrap_or(0);
+                let n = packs.len();
+                let next = if back { (idx + n - 1) % n } else { (idx + 1) % n };
+                g.shader_pack = packs[next].clone();
+            }
+            H::ShaderProfile => {
+                let profiles = ["", "MINIMUM", "LOW", "MEDIUM", "HIGH", "ULTRA"];
+                let now = g.shader_profile.as_str();
+                let idx = profiles.iter().position(|&p| p == now).unwrap_or(0);
+                let n = profiles.len();
+                let next = if back { (idx + n - 1) % n } else { (idx + 1) % n };
+                g.shader_profile = profiles[next].to_string();
             }
             _ => {}
         }
@@ -1001,6 +1057,9 @@ impl Item {
                     | H::FrameGeneration
                     | H::BatteryMode
                     | H::ShadowCache
+                    | H::ShaderPacks
+                    | H::ActiveShaderPack
+                    | H::ShaderProfile
                     | H::GraphicsApi
                     | H::TranslucentBatching
             ) | Item::Vanilla(
