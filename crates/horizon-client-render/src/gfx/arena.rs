@@ -448,8 +448,8 @@ impl Arena {
         self.pages.iter().enumerate().find_map(|(i, p)| {
             let p = p.as_ref()?;
             let used = p.capacity - p.free_vertices();
-            let capacity = self
-                .grown(used, 0)
+            // Room for its ranges to double, bounded as growth is.
+            let capacity = (used + used.min(saving))
                 .max(self.initial_capacity)
                 .next_multiple_of(GRAIN)
                 .min(self.page_limit);
@@ -536,9 +536,11 @@ impl Arena {
             }
         }
     }
-    /// The capacity the newest page grows to for a range of `len`: double, but
-    /// by at most `PAGE_BYTES` past that size, so a large page is never left
-    /// half empty (nor held twice during the copy) by hundreds of MiB.
+    /// The capacity the newest page grows to for a range of `len`: half as
+    /// large again, but by at most `PAGE_BYTES` past that size, so a large page
+    /// is never left half empty (nor held twice during the copy) by hundreds of
+    /// MiB. Doubling left the section arena of a loaded view at render distance
+    /// 12 at 192 MiB for some 95 MiB of vertices.
     fn grown(&self, current: u64, len: u64) -> u64 {
         // Bound geometric growth as in the Android fork: copying a larger page
         // temporarily holds both allocations in the 32-bit address space.
@@ -547,7 +549,9 @@ impl Arena {
         } else {
             PAGE_BYTES / self.stride
         };
-        let step = current.min(limit);
+        // Half as large again, not double: a loaded view at render distance 12 held 192 MiB
+        // for some 95 MiB of vertices with doubling.
+        let step = (current / 2).min(limit);
         (current + step).max(current + len).min(self.page_limit)
     }
     /// Moves a page into a larger buffer; false (the page unchanged) when
@@ -1205,17 +1209,18 @@ mod tests {
             return;
         };
         let mut arena = Arena::translucent(&device, 24, GRAIN);
-        let ranges: Vec<_> = (0..3)
+        let ranges: Vec<_> = (0..4)
             .map(|_| alloc(&mut arena, &device, &queue, GRAIN).unwrap())
             .collect();
-        // The third grain grew the page to four.
-        assert_eq!(arena.buffer(0).size(), 4 * GRAIN * 24);
-        assert_eq!(arena.binding(0).size(), 3 * GRAIN * 24);
+        // The fourth grain grew the page from three to five (half again, in grains).
+        assert_eq!(arena.buffer(0).size(), 5 * GRAIN * 24);
+        assert_eq!(arena.binding(0).size(), 4 * GRAIN * 24);
         // A free range before the last in use stays bound, none after it; an empty
         // page binds a grain (wgpu refuses an empty slice).
         arena.release(0, ranges[1].1, GRAIN);
-        assert_eq!(arena.binding(0).size(), 3 * GRAIN * 24);
         arena.release(0, ranges[2].1, GRAIN);
+        assert_eq!(arena.binding(0).size(), 4 * GRAIN * 24);
+        arena.release(0, ranges[3].1, GRAIN);
         assert_eq!(arena.binding(0).size(), GRAIN * 24);
         arena.release(0, ranges[0].1, GRAIN);
         assert_eq!(arena.binding(0).size(), GRAIN * 24);
@@ -1347,8 +1352,9 @@ mod tests {
         } else {
             PAGE_BYTES / 24
         };
-        assert_eq!(arena.grown(1 << 18, GRAIN), 1 << 19);
-        assert_eq!(arena.grown(step, GRAIN), 2 * step);
+        assert_eq!(arena.grown(1 << 18, GRAIN), 3 << 17);
+        assert_eq!(arena.grown(1 << 18, 1 << 18), 1 << 19);
+        assert_eq!(arena.grown(step, GRAIN), step + step / 2);
         assert_eq!(arena.grown(3 * step, GRAIN), 4 * step);
         assert_eq!(arena.grown(3 * step, step + GRAIN), 4 * step + GRAIN);
         assert_eq!(
