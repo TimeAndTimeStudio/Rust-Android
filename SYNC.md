@@ -72,3 +72,16 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   inputs did not change. The sprite tick cache and per-frame upload skip are still to port.
 - `8e0b8ff5a5` (part 2) — skip hand/crosshair global uploads when there is nothing to draw, and
   skip the sunrise fan upload when the sky is not visible.
+- Java removed from the app: no runtime download, no on-phone preparation, no exporter bundle
+  or `java`/`javac` launchers in the APK. The first-run screen imports the `resources` folder
+  prepared on a computer (zipped) and keeps sign-in/offline; nothing is fetched from Mojang.
+- Storage: dead space is freed at start — `minecraft/` (the phone no longer prepares), the old
+  Java preparation folders, downloaded update APKs, staged imports, and a redundant private
+  `resources` copy; old resource-pack overlays beyond the one in use are dropped. The log prints
+  what the app's own files hold, folder by folder.
+- Android: `--resources` follows the game folder (shared storage when allowed), so moving the
+  resources out of app storage no longer hides them from the game.
+- TML Visuals Lite: two cloud sheets (the vanilla height and a higher, slower one), drawn over
+  terrain where they are in front of it, to the horizon instead of only overhead.
+- Shadows: a `shaders/` pack with its own shadow pass hides vanilla's round entity shadows too;
+  a pack whose shadow programs did not load says so when it loads.

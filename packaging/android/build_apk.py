@@ -2,10 +2,9 @@
 """Build Starling's Android APK (Horizon on Android): horizon-android as a
 NativeActivity library.
 
-The APK holds the game library, the launcher icon, Starling Visuals and what prepares the game
-files on the phone (the Java launchers in native/ and original exporter classes/sources), nothing of
-Minecraft: the resources
-horizon-prepare makes from the player's own copy are made on the phone, or copied there.
+The APK holds the game library, the launcher icon, Starling Visuals, the setup's skin and the
+packs it carries, nothing of Minecraft: the resources horizon-prepare makes from the player's
+own copy on a computer are imported as a zip. The phone runs no Java.
 
     python3 packaging/android/build_apk.py                 # build the library, then the APK
     python3 packaging/android/build_apk.py --no-build      # package the library built last
@@ -16,13 +15,11 @@ horizon-prepare makes from the player's own copy are made on the phone, or copie
 
 Needs the Android SDK (ANDROID_HOME, else the default folder) with the build-tools, platform and
 NDK pinned below, the aarch64-linux-android Rust target, cargo-ndk and a JDK (javac, keytool,
-apksigner), of the pinned Java major (currently 25). Original exporters are compiled
-on the host against checksum-pinned jars, which are never packaged. Without
-HORIZON_ANDROID_KEYSTORE it signs with a debug key kept in target/android.
+apksigner) for the activity's dex and the signing, of the pinned Java major (currently 25).
+Without HORIZON_ANDROID_KEYSTORE it signs with a debug key kept in target/android.
 """
 
 import argparse
-import json
 import os
 import re
 import shutil
@@ -42,8 +39,8 @@ LABEL = "TML"
 # CI builds, signed with that repository's test key: the release key stays out of it.
 DEV_SUFFIX = ".dev"
 VARIANTS = {"dev": (DEV_SUFFIX, " Dev"), "preview": (".preview", " Preview")}
-VERSION_NAME = "1.0.29"
-VERSION_CODE = 44
+VERSION_NAME = "1.0.30"
+VERSION_CODE = 45
 MIN_SDK = 26  # AAudio (cpal)
 TARGET_SDK = 35
 PLATFORM = 36
@@ -69,14 +66,6 @@ ICONS = {
     "mipmap-xxhdpi": "128x128",
     "mipmap-xxxhdpi": "256x256",
 }
-# What horizon-prepare reads from its version folder on the phone (assets/prepare-kit.zip):
-# the pins, original sources and verified original exporter classes. The phone
-# runs these against the player's jars; ARM32's runtime has no javac module.
-PREPARE_KIT = (
-    "research-lock.json",
-    "crates/horizon-prepare/src/exporters.rs",
-    "mods/horizon/src/test/java",
-)
 
 
 def sdk_dir():
@@ -128,26 +117,6 @@ def build_library(profile, ndk, sdk, abi=ABI):
     )
 
 
-def build_launchers(ndk, out, abi=ABI):
-    """The `java` and `javac` horizon-prepare runs on the phone (native/java_launcher.c), with the
-    C++ runtime the Java runtime's libraries need: an app runs programs only from its library
-    folder, so they go in the APK as libraries."""
-    _, compiler, sysroot_triple = TARGETS[abi]
-    clang = ndk_tool(ndk, f"{compiler}{MIN_SDK}-clang")
-    source = HERE / "native" / "java_launcher.c"
-    libraries = {}
-    for name, flags in (("libstarling_java.so", []), ("libstarling_javac.so", ["-DJAVAC"])):
-        target = out / name
-        run(
-            clang, "-O2", "-fPIE", "-pie", "-Wall", "-Werror", *flags,
-            "-Wl,-z,max-page-size=16384", "-o", target, source, "-ldl",
-        )
-        libraries[name] = target
-    sysroot = ndk_tool(ndk, "clang").parent.parent / "sysroot"
-    libraries["libc++_shared.so"] = sysroot / "usr" / "lib" / sysroot_triple / "libc++_shared.so"
-    return libraries
-
-
 def zip_folder(folder, archive):
     """`folder`'s files in the zip `archive`, all dated alike: the same files make the same zip,
     which the app tells from the next by its bytes."""
@@ -159,11 +128,9 @@ def zip_folder(folder, archive):
 
 
 def assets(out):
-    """The APK's assets/: prepare-kit.zip (PREPARE_KIT, with the paths horizon-prepare reads),
-    lowbudget.zip, the skin the setup draws the menus with (packaging/lowbudget/pack, made by its
-    make.py), and TMLVisualsLite.zip, the shader pack the app puts in shaderpacks/ (also left
-    in `out` for the release page)."""
-    run(sys.executable, ROOT / "tools/build_android_exporters.py")
+    """The APK's assets/: lowbudget.zip, the skin the setup draws the menus with
+    (packaging/lowbudget/pack, made by its make.py), and TMLVisualsLite.zip, the shader pack
+    the app puts in shaderpacks/ (also left in `out` for the release page)."""
     folder = out / "assets"
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir()
@@ -171,16 +138,6 @@ def assets(out):
     fonts.mkdir()
     for name in ("Geist-Regular.ttf", "Geist-SemiBold.ttf"):
         shutil.copyfile(ROOT / "crates/horizon-theme/fonts" / name, fonts / name)
-    with zipfile.ZipFile(folder / "prepare-kit.zip", "w", zipfile.ZIP_DEFLATED) as kit:
-        for entry in PREPARE_KIT:
-            path = ROOT / entry
-            files = sorted(p for p in path.rglob("*.java")) if path.is_dir() else [path]
-            for file in files:
-                kit.write(file, file.relative_to(ROOT).as_posix())
-        bundle = ROOT / "exporters"
-        manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
-        for name in ["manifest.json", *sorted(manifest["classes"])]:
-            kit.write(bundle / name, "exporters/" + name)
     zip_folder(HERE.parent / "lowbudget" / "pack", folder / "lowbudget.zip")
     zip_folder(HERE.parent / "shaderpacks" / "tml-visuals-lite", folder / "TMLVisualsLite.zip")
     shutil.copyfile(folder / "TMLVisualsLite.zip", out / "TMLVisualsLite.zip")
@@ -267,8 +224,7 @@ def link_resources(aapt2, android_jar, out, assets, variant, abi=ABI):
 
 
 def add_code(base, libraries, dex, unsigned, abi=ABI):
-    """`base` plus the activity's dex and the libraries, compressed: Android extracts them at
-    install (extractNativeLibs), as it must for the Java launchers to run."""
+    """`base` plus the activity's dex and the game library, compressed."""
     shutil.copyfile(base, unsigned)
     with zipfile.ZipFile(unsigned, "a") as apk:
         apk.write(dex, "classes.dex", compress_type=zipfile.ZIP_DEFLATED)
@@ -371,8 +327,7 @@ def main():
     variant = "dev" if args.dev else "preview" if args.preview else None
     link_resources(tool(build_tools, "aapt2"), android_jar, out, assets(out), variant, args.abi)
     dex = compile_java(build_tools, android_jar, out)
-    libraries = build_launchers(ndk, out, args.abi)
-    libraries[library.name] = library
+    libraries = {library.name: library}
     add_code(out / "base.apk", libraries, dex, out / "unsigned.apk", args.abi)
     aligned = out / "aligned.apk"
     run(tool(build_tools, "zipalign"), "-P", "16", "-f", "4", out / "unsigned.apk", aligned)

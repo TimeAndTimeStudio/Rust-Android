@@ -10908,10 +10908,12 @@ impl Game<'_> {
         laps.lap("eg_name_tags");
         // Entity shadows (EntityRenderer.extractShadow), unless the Entity Shadows option is off.
         self.mark_translucent_entity(out.len(), "minecraft:entity_shadow");
-        // A native shader pack's sun shadows already fall under the entities in the Overworld:
-        // the round blob would be a second one. The Nether and the End have no sun to cast them.
-        let pack_shadows =
-            self.dim == Dim::Overworld && self.renderer.as_ref().is_some_and(|r| r.native_shadow());
+        // A shader pack's sun shadows already fall under the entities in the Overworld: the round
+        // blob would be a second one. The Nether and the End have no sun to cast them; a
+        // `shaders/` pack with its own shadow pass covers the dimensions it draws.
+        let pack_shadows = self.renderer.as_ref().is_some_and(|r| {
+            (self.dim == Dim::Overworld && r.native_shadow()) || r.pack_post_shadows()
+        });
         let shadow_sprite = (self.settings.entity_shadows && !pack_shadows)
             .then(|| self.gui.atlas.sprites.get("misc/shadow").copied())
             .flatten();
@@ -22058,11 +22060,7 @@ fn run_loading(
     let menu = startup_menu::StartupMenu::new(&options, pack_error.as_deref())?;
     let sound_registry = options.dedicated.is_none().then(|| {
         let root = vanilla_root.clone();
-        std::thread::spawn(move || {
-            // Starling: a phone's setup before 0.1.6 left the sounds out.
-            horizon_client::preparer::complete_sounds(&root);
-            horizon_client::sound_events::SoundRegistry::load(&root)
-        })
+        std::thread::spawn(move || horizon_client::sound_events::SoundRegistry::load(&root))
     });
     let loading = Loading {
         window: None,
@@ -22282,8 +22280,6 @@ pub fn run_with() -> Result<()> {
     )?;
     let gui = loaded.gui.ok_or("missing menu bundle")?;
     options.resources = loaded.root.clone();
-    // Starling: a phone's setup before 0.1.6 left the sounds out.
-    horizon_client::preparer::complete_sounds(&vanilla_root);
     let audio = if !options.execution_role.is_client() || options.headless {
         Audio::silent(&options.resources)
     } else {

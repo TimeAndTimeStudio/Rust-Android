@@ -406,6 +406,10 @@ const NO_MEDIA: &[&str] = &[
 /// starts after. GameFolder.choose (Java) makes the same choice for the Files app.
 fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     let Some(shared) = SHARED_FOLDER.get() else {
+        // No shared folder: everything stays in the app's files, but what the phone can no
+        // longer use (the fetched jars, Java's preparation files) still goes.
+        move_heavy_dirs(private, private, notes);
+        free_dead_space(private, private, notes);
         return private.to_path_buf();
     };
     let earlier = shared.with_file_name("Horizon");
@@ -455,6 +459,7 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     }
     let _ = std::fs::remove_dir_all(private.join("native"));
     move_heavy_dirs(private, shared, notes);
+    free_dead_space(private, shared, notes);
     for name in NO_MEDIA {
         let dir = shared.join(name);
         if std::fs::create_dir_all(&dir).is_ok() && !dir.join(".nomedia").exists() {
@@ -465,37 +470,196 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
 }
 
 /// The big folders that only take space: the fetched Minecraft files and the resources prepared
-/// from them. They are copied to shared storage and the private copy is removed once the copy is
-/// whole, so a phone's app storage gets the space back.
+/// from them. The resources go to shared storage (the game reads them there) and the private copy
+/// is removed once the copy is whole, so a phone's app storage gets the space back.
 fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
-    for name in ["minecraft", "resources"] {
-        let from = private.join(name);
-        let to = shared.join(name);
-        if !from.is_dir() || to.exists() {
-            continue;
-        }
-        let partial = shared.join(format!("{name}.partial"));
-        let _ = std::fs::remove_dir_all(&partial);
-        match copy_tree(&from, &partial).and_then(|()| std::fs::rename(&partial, &to)) {
-            Ok(()) => match std::fs::remove_dir_all(&from) {
+    // The official jars and assets were only read by the preparation the phone no longer runs
+    // (Java is gone): they are dead weight in both folders.
+    for base in [private, shared] {
+        let minecraft = base.join("minecraft");
+        if minecraft.is_dir() {
+            let freed = tree_size(&minecraft);
+            match std::fs::remove_dir_all(&minecraft) {
                 Ok(()) => notes.push(format!(
-                    "TML: moved {name} to {} and freed the private copy",
-                    to.display()
+                    "TML: removed {} ({} MB of fetched game files the phone cannot prepare)",
+                    minecraft.display(),
+                    mib(freed)
                 )),
                 Err(e) => notes.push(format!(
-                    "TML: moved {name} to {}; the private copy could not be removed: {e}",
-                    to.display()
+                    "TML: could not remove {}: {e}",
+                    minecraft.display()
                 )),
-            },
-            Err(e) => {
-                let _ = std::fs::remove_dir_all(&partial);
-                notes.push(format!(
-                    "TML: could not move {name} to {}: {e}",
-                    to.display()
-                ));
             }
         }
     }
+    let from = private.join("resources");
+    if !from.is_dir() {
+        return;
+    }
+    // A preparation cut short left no manifest: nothing to keep.
+    if !from.join("horizon-resources.json").is_file() {
+        let freed = tree_size(&from);
+        match std::fs::remove_dir_all(&from) {
+            Ok(()) => notes.push(format!(
+                "TML: removed an incomplete private resources copy ({} MB)",
+                mib(freed)
+            )),
+            Err(e) => notes.push(format!("TML: could not remove {}: {e}", from.display())),
+        }
+        return;
+    }
+    if private == shared {
+        return;
+    }
+    let to = shared.join("resources");
+    // Both there: the newer manifest is the one to keep. A private copy that is not newer is
+    // only the space the player asked back.
+    if to.join("horizon-resources.json").is_file()
+        && !modified_after(&from.join("horizon-resources.json"), &to.join("horizon-resources.json"))
+    {
+        let freed = tree_size(&from);
+        if std::fs::remove_dir_all(&from).is_ok() {
+            notes.push(format!(
+                "TML: removed a redundant private resources copy ({} MB)",
+                mib(freed)
+            ));
+        }
+        return;
+    }
+    let partial = shared.join("resources.partial");
+    let _ = std::fs::remove_dir_all(&partial);
+    match copy_tree(&from, &partial) {
+        Ok(()) => {
+            // Replace the shared copy: the private one is the one the game read until now.
+            let old = shared.join("resources.old");
+            let _ = std::fs::remove_dir_all(&old);
+            if to.exists() && std::fs::rename(&to, &old).is_err() {
+                let _ = std::fs::remove_dir_all(&partial);
+                notes.push(format!("TML: could not replace {}", to.display()));
+                return;
+            }
+            if let Err(e) = std::fs::rename(&partial, &to) {
+                let _ = std::fs::remove_dir_all(&partial);
+                let _ = std::fs::rename(&old, &to);
+                notes.push(format!("TML: could not move resources to {}: {e}", to.display()));
+                return;
+            }
+            let _ = std::fs::remove_dir_all(&old);
+            match std::fs::remove_dir_all(&from) {
+                Ok(()) => notes.push(format!(
+                    "TML: moved resources to {} and freed the private copy",
+                    to.display()
+                )),
+                Err(e) => notes.push(format!(
+                    "TML: moved resources to {}; the private copy could not be removed: {e}",
+                    to.display()
+                )),
+            }
+        }
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&partial);
+            notes.push(format!(
+                "TML: could not copy resources to {}: {e}",
+                to.display()
+            ));
+        }
+    }
+}
+
+/// Space the app no longer needs: the Java-era preparation files, an APK kept from an update,
+/// and interrupted imports. The sizes go to the log, so a full app folder can be accounted for.
+fn free_dead_space(private: &Path, shared: &Path, notes: &mut Vec<String>) {
+    let preparer = private.join("preparer");
+    for name in ["jre25", "kit", "tmp", "exporters"] {
+        let path = preparer.join(name);
+        if path.exists() {
+            let freed = tree_size(&path);
+            match std::fs::remove_dir_all(&path) {
+                Ok(()) => notes.push(format!(
+                    "TML: removed the Java preparation's {} ({} MB)",
+                    path.display(),
+                    mib(freed)
+                )),
+                Err(e) => notes.push(format!("TML: could not remove {}: {e}", path.display())),
+            }
+        }
+    }
+    let updates = private.join("updates");
+    if updates.is_dir() {
+        let freed = tree_size(&updates);
+        if std::fs::remove_dir_all(&updates).is_ok() {
+            notes.push(format!(
+                "TML: removed downloaded update files ({} MB)",
+                mib(freed)
+            ));
+        }
+    }
+    let inbox = private.join("import-inbox");
+    if let Ok(entries) = std::fs::read_dir(&inbox) {
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().ends_with(".part") {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
+    // What the app folder holds now, folder by folder: the log then says what takes its space.
+    let mut parts: Vec<(u64, String)> = std::fs::read_dir(private)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .map(|e| (tree_size(&e.path()), e.file_name().to_string_lossy().into_owned()))
+        .filter(|(size, _)| *size > 0)
+        .collect();
+    parts.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+    if !parts.is_empty() {
+        let shown: Vec<String> = parts
+            .iter()
+            .take(8)
+            .map(|(size, name)| format!("{name} {} MB", mib(*size)))
+            .collect();
+        notes.push(format!(
+            "TML storage: {} MB in the app's own files ({})",
+            mib(parts.iter().map(|(s, _)| *s).sum()),
+            shown.join(", ")
+        ));
+    }
+    if private != shared {
+        notes.push(format!(
+            "TML: the game folder is {} (shared storage)",
+            shared.display()
+        ));
+    }
+}
+
+/// Whether `a` was written after `b` (either missing: `a` wins).
+fn modified_after(a: &Path, b: &Path) -> bool {
+    let time = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    match (time(a), time(b)) {
+        (Some(a), Some(b)) => a > b,
+        _ => true,
+    }
+}
+
+/// Bytes under `path`, folders and files (a folder that cannot be read counts as nothing).
+fn tree_size(path: &Path) -> u64 {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return 0;
+    };
+    if meta.is_file() {
+        return meta.len();
+    }
+    if !meta.is_dir() {
+        return 0;
+    }
+    std::fs::read_dir(path)
+        .map(|entries| entries.flatten().map(|e| tree_size(&e.path())).sum())
+        .unwrap_or(0)
+}
+
+/// Whole mebibytes, as a phone's storage shows them.
+fn mib(bytes: u64) -> u64 {
+    bytes / (1024 * 1024)
 }
 
 /// Copy the player's files to shared storage, then set the private copies aside.
@@ -981,13 +1145,27 @@ pub fn args() -> Vec<String> {
     ARGS.get().cloned().unwrap_or_default()
 }
 
+/// Where the game's prepared files are: the shared game folder's `resources`, or the app's own
+/// when the move to shared storage did not finish (the game still has to find them).
+fn resources_dir(home: &Path, private: &Path) -> PathBuf {
+    let shared = home.join("resources");
+    if home == private || shared.join("horizon-resources.json").is_file() {
+        return shared;
+    }
+    let own = private.join("resources");
+    if own.join("horizon-resources.json").is_file() {
+        return own;
+    }
+    shared
+}
+
 /// The game's command line and environment: `--resources` in the game folder, then
 /// `horizon-args.txt` there (written over adb for tests), which may override it: one argument per
 /// line, or `NAME=value` for an environment variable (`HORIZON_GPU_CULL=0`, `WGPU_BACKEND=...`).
-fn command_line(home: &Path) -> (Vec<String>, Vec<(String, String)>) {
+fn command_line(home: &Path, resources: &Path) -> (Vec<String>, Vec<(String, String)>) {
     let mut args = vec![
         "--resources".to_owned(),
-        home.join("resources").display().to_string(),
+        resources.display().to_string(),
     ];
     let mut env = Vec::new();
     let text = std::fs::read_to_string(home.join("horizon-args.txt")).unwrap_or_default();
@@ -1285,7 +1463,8 @@ pub fn main(app: AndroidApp) {
     let _ = std::fs::create_dir_all(&private);
     let mut notes = Vec::new();
     let home = game_folder(&private, &mut notes);
-    let (args, env) = command_line(&private);
+    let resources = resources_dir(&home, &private);
+    let (args, env) = command_line(&home, &resources);
     // SAFETY: no other thread of ours runs yet; the game reads these from its threads afterwards.
     unsafe {
         std::env::set_var("HORIZON_HOME", &home);
@@ -1400,7 +1579,8 @@ pub fn recovery_report(
     game: &Path,
     export: bool,
 ) -> Result<String, String> {
-    let (args, _) = command_line(private);
+    let resources = resources_dir(game, private);
+    let (args, _) = command_line(game, &resources);
     let value = |flag: &str| {
         args.windows(2).find(|pair| pair[0] == flag).map(|pair| {
             let path = PathBuf::from(&pair[1]);

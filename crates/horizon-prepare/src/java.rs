@@ -14,22 +14,6 @@ pub struct Jdk {
 
 const TIMEOUT: Duration = Duration::from_secs(3600);
 
-/// A Java runtime the program running the preparer supplies (Starling on Android, where no Java
-/// is installed and programs run only from the app's own library folder): its `java` and
-/// `javac`, tried before any other, and the environment every Java command gets.
-pub struct Supplied {
-    pub java: PathBuf,
-    pub javac: PathBuf,
-    pub env: Vec<(String, String)>,
-}
-
-static SUPPLIED: std::sync::OnceLock<Supplied> = std::sync::OnceLock::new();
-
-/// Prepare with `runtime` in this process; false when one was supplied already.
-pub fn supply(runtime: Supplied) -> bool {
-    SUPPLIED.set(runtime).is_ok()
-}
-
 /// Options for every JVM preparing starts (the exporters, the data generator, javac with `-J`).
 /// They are short batch jobs that run side by side: the C2 compiler's background work costs
 /// more CPU than it wins back, and the serial collector keeps their heaps small. Measured on the
@@ -102,9 +86,6 @@ pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
-    }
-    if let Some(supplied) = SUPPLIED.get() {
-        command.envs(supplied.env.iter().map(|(k, v)| (k, v)));
     }
     command
 }
@@ -316,13 +297,6 @@ fn find_tools(major: i64, more: &[PathBuf], compiler: bool) -> Result<Jdk, Strin
          Install it, or set JAVA_HOME to it, and try again."
     );
     let mut candidates = Vec::new();
-    if let Some(supplied) = SUPPLIED.get() {
-        candidates.push((
-            supplied.javac.clone(),
-            supplied.java.clone(),
-            "the supplied Java",
-        ));
-    }
     if let Some(home) = std::env::var_os("JAVA_HOME").filter(|h| !h.is_empty()) {
         let bin = Path::new(&home).join("bin");
         candidates.push((

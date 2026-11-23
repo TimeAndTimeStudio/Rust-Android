@@ -958,7 +958,38 @@ pub fn resource_root(vanilla: &Path, packs: &[Pack], cache: &Path) -> io::Result
     });
     let out = cache.join(format!("{hash:016x}"));
     build_overlay(vanilla, packs, &out)?;
+    #[cfg(target_os = "android")]
+    prune_overlays(cache, &out);
     Ok(out)
+}
+
+/// Keeps only the overlay the game now runs with: the app's own files would otherwise hold a
+/// full copy of the resources for every pack combination ever chosen. An overlay written in the
+/// last ten minutes is left alone: another load may still be reading it.
+#[cfg(target_os = "android")]
+fn prune_overlays(cache: &Path, keep: &Path) {
+    let Ok(entries) = fs::read_dir(cache) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == keep || !path.is_dir() {
+            continue;
+        }
+        let fresh = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age.as_secs() < 600);
+        if fresh {
+            continue;
+        }
+        let _ = fs::remove_dir_all(&path);
+        let marker = cache::marker_path(&path);
+        let _ = fs::remove_file(&marker);
+        let _ = fs::remove_file(marker.with_extension("lock"));
+    }
 }
 
 /// `Pack.Position`: where a pack goes when it is added to a list.

@@ -1,18 +1,19 @@
 //! Android: setting the game up on the phone when its resources are not there (or did not
 //! load), in place of the loading failure. Sign in with the Microsoft account that owns the game
-//! (accounts.rs) or play offline, the official files fetched, then prepared on the phone
-//! (preparer.rs); or the resources prepared on a computer, picked as before. Drawn with the
-//! embedded Horizon font: the game's own is part of what is missing. While it waits, water to fish in (fishing.rs), and the
-//! game's settings, drawn in the low-budget skin the app carries (packaging/lowbudget).
+//! (accounts.rs) or play offline, then import the resources prepared on a computer (the zip
+//! horizon-prepare made; import.rs). The phone cannot prepare them itself: that needs Java.
+//! Drawn with the embedded Horizon font: the game's own is part of what is missing. While it
+//! waits, water to fish in (fishing.rs), and the game's settings, drawn in the low-budget skin
+//! the app carries (packaging/lowbudget).
 mod account_form;
 pub(super) mod fishing;
 use account_form::{Form, Kind};
 
 use super::{Audio, Loading, UiResources};
 use horizon_client::{
-    accounts::{self, Files, State},
+    accounts::{self, State},
     hud::HudBatch,
-    preparer::{self, Stage},
+    preparer,
     ui_theme::{Face, Ui, color},
 };
 use std::cell::Cell;
@@ -43,17 +44,8 @@ enum Step {
         code: String,
         link: String,
     },
-    /// The official files on their way: files and bytes so far, and in all.
-    Download([u64; 4]),
-    /// Java on its way: bytes so far, and in all.
-    Java(u64, u64),
-    Unpacking,
-    /// horizon-prepare's last line.
-    Preparing(String),
     /// Prepared: the game loads.
     Done,
-    /// The last attempt failed, and why.
-    Failed(String),
     /// The sign-in failed (an account without the game, say): playing offline is offered too.
     SignInFailed(String),
 }
@@ -121,11 +113,7 @@ pub(super) struct Setup {
     provider: Option<Kind>,
     dismiss_signin_error: bool,
     cancelled: bool,
-    offline_saved: bool,
     held: std::collections::HashSet<winit::keyboard::KeyCode>,
-    /// Prepared once already: what it made did not load either (the failure says why), so it is
-    /// not prepared again unasked.
-    prepared: bool,
     /// Prepared and loading: the setup stays up until the menu's font is there (the loading
     /// screen without it draws every letter as an empty box).
     pub(super) starting: bool,
@@ -150,36 +138,12 @@ impl Setup {
 
 /// Whether the step is a wait worth passing (the water shows).
 fn waiting(step: &Step) -> bool {
-    matches!(
-        step,
-        Step::Download(_) | Step::Java(..) | Step::Unpacking | Step::Preparing(_)
-    )
+    matches!(step, Step::Talking(_) | Step::Code { .. })
 }
 
-fn step(setup: &Setup, failure: &str) -> Step {
+fn step(setup: &Setup, _failure: &str) -> Step {
     if setup.starting {
         return Step::Done;
-    }
-    if setup.prepared && preparer::stage() == Stage::Idle {
-        return Step::Failed(format!("The prepared game files did not load: {failure}"));
-    }
-    match preparer::stage() {
-        Stage::Java(done, total) => return Step::Java(done, total),
-        Stage::Unpacking => return Step::Unpacking,
-        Stage::Preparing(line) => return Step::Preparing(line),
-        Stage::Done => return Step::Done,
-        Stage::Failed(e) => return Step::Failed(e),
-        Stage::Idle => {}
-    }
-    match accounts::files() {
-        Files::Checking => return Step::Download([0; 4]),
-        Files::Downloading(p) => {
-            return Step::Download([p.files as u64, p.files_total as u64, p.bytes, p.bytes_total]);
-        }
-        Files::Failed(e) => return Step::Failed(e),
-        // Ready: the preparing starts by itself (poll_setup).
-        Files::Ready => return Step::Java(0, 0),
-        Files::Missing => {}
     }
     if setup.form.is_some() {
         return Step::AccountForm;
@@ -223,7 +187,8 @@ fn account_step(setup: &Setup, state: State) -> Step {
             "requesting_code"
         })),
         State::Progress(stage) => Step::Talking(horizon_client::lang::get(stage.key())),
-        State::SignedIn(_) => Step::Talking(tr("setup.preparing")),
+        // Signed in: the game files still come from the computer's prepared folder.
+        State::SignedIn(_) => Step::Start,
         State::Code { code, link } => Step::Code { code, link },
         State::Failed(e) => Step::SignInFailed(if e.starts_with("starling.account.") {
             horizon_client::lang::get(&e)
@@ -277,10 +242,6 @@ fn horizon_offer(setup: &Setup) -> bool {
     })
 }
 
-fn mb(bytes: u64) -> String {
-    format!("{:.0}", bytes as f64 / 1_000_000.0)
-}
-
 /// What the step says: title, body, and the line under it.
 fn texts(step: &Step) -> (&'static str, String, Option<String>) {
     match step {
@@ -306,7 +267,14 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        Step::Start => ("Set up TML", tr("setup.intro"), None),
+        Step::Start => (
+            "Set up TML",
+            "The game files are prepared on a computer: Horizon's launcher (or `horizon-prepare`) \
+             turns your own Minecraft: Java Edition into a `resources` folder. Zip that folder, \
+             then tap Import and choose the zip. Sign in to play on servers, or play offline."
+                .into(),
+            None,
+        ),
         Step::Offline => (
             "Are you sure?",
             "You will not be able to play on most servers! We highly recommend signing in with \
@@ -321,46 +289,12 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
             format!("On {link}, enter this code:"),
             Some(tr("waiting_browser")),
         ),
-        Step::Download([files, files_total, bytes, bytes_total]) => (
-            "Downloading the game",
-            "From Mojang's servers, checked file by file.".into(),
-            Some(if *bytes_total > 0 {
-                format!(
-                    "{files} of {files_total} files, {} of {} MB",
-                    mb(*bytes),
-                    mb(*bytes_total)
-                )
-            } else {
-                "Checking the files".into()
-            }),
-        ),
-        Step::Java(done, total) => (
-            "Preparing the game",
-            "Downloading Java, which prepares the game files.".into(),
-            (*total > 0).then(|| format!("{} of {} MB", mb(*done), mb(*total))),
-        ),
-        Step::Unpacking => ("Preparing the game", "Unpacking Java.".into(), None),
-        Step::Preparing(line) => (
-            "Preparing the game",
-            "This takes a few minutes. Keep TML open.".into(),
-            Some(line.clone()),
-        ),
         Step::Done => (
             "Starting TML",
             "The game files are ready.".into(),
             None,
         ),
-        Step::Failed(e) | Step::SignInFailed(e) => ("Something went wrong", e.clone(), None),
-    }
-}
-
-/// The fraction done, for the bar.
-fn fraction(step: &Step) -> Option<f32> {
-    match step {
-        Step::Download([_, _, bytes, total]) | Step::Java(bytes, total) if *total > 0 => {
-            Some((*bytes as f64 / *total as f64) as f32)
-        }
-        _ => None,
+        Step::SignInFailed(e) => ("Something went wrong", e.clone(), None),
     }
 }
 
@@ -387,6 +321,7 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             literal("Pick the folder again", Action::Horizon),
         ],
         Step::Start => vec![
+            literal("Import game files", Action::Pick),
             (tr("setup.microsoft"), Action::SignIn),
             (tr("setup.offline_title"), Action::Offline),
         ],
@@ -400,9 +335,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             (tr("cancel"), Action::CancelSignIn),
         ],
         Step::Talking(_) => vec![(tr("cancel"), Action::CancelSignIn)],
-        Step::Failed(_) => vec![
-            literal("Try again", Action::Retry),
-        ],
         Step::SignInFailed(_) => vec![
             literal("Try again", Action::Retry),
             (tr("back"), Action::AccountBack),
@@ -452,16 +384,12 @@ fn wrap(ui: &Ui<'_>, size: f32, text: &str, max: f32) -> Vec<String> {
 }
 
 impl Loading {
-    /// Every frame on the setup: a saved sign-in renewed, the download after a sign-in, the
-    /// preparing once the files are there, and the game loaded once they are prepared.
+    /// Every frame on the setup: a saved sign-in renewed, the player's own choices, and the
+    /// game loaded again once its prepared files were imported.
     pub(super) fn poll_setup(&mut self) {
         self.setup.fishing.update(Instant::now());
         if self.setup.form.as_mut().is_some_and(Form::poll) {
             self.setup_action(Action::SubmitForm);
-        }
-        if self.setup.offline_saved && matches!(accounts::state(), State::OfflineProfile(_)) {
-            self.setup.offline_saved = false;
-            accounts::download_files();
         }
         // The fishing's sounds, on an output of its own: the game's sounds are not there yet.
         if self.audio.is_none() && self.setup.pond.get().is_some() {
@@ -487,31 +415,6 @@ impl Loading {
                     Err(e) => log::warn!("Horizon: the setup's skin did not load: {e}"),
                 }
             }
-        }
-        if preparer::stage() == Stage::Done {
-            self.setup.prepared = true;
-            preparer::clear();
-            // The game opens its sound output with the sounds just prepared.
-            self.audio = None;
-            match self.retry() {
-                Ok(()) => self.setup.starting = false,
-                Err(e) => self.failure = Some(e.to_string()),
-            }
-            return;
-        }
-        if preparer::running() {
-            return;
-        }
-        match (accounts::files(), accounts::state()) {
-            (Files::Ready, _) if preparer::stage() == Stage::Idle && !self.setup.prepared => {
-                preparer::start(self.vanilla_root.clone());
-            }
-            (Files::Missing, State::SignedIn(_))
-                if !self.setup.cancelled && self.setup.form.is_none() =>
-            {
-                accounts::download_files()
-            }
-            _ => {}
         }
     }
 
@@ -584,14 +487,10 @@ impl Loading {
             Step::Code { code, .. } => Some(code.clone()),
             _ => None,
         };
-        let bar = fraction(&step);
         let button_h = 40.0;
         let mut card_h = pad + 26.0 + 12.0 + lines.len() as f32 * 21.0;
         if code.is_some() {
             card_h += 52.0;
-        }
-        if bar.is_some() {
-            card_h += 22.0;
         }
         if let Some(note) = &note {
             card_h += 8.0 + note.len() as f32 * 18.0;
@@ -632,19 +531,6 @@ impl Loading {
                 code,
             );
             ty += 52.0;
-        }
-        if let Some(done) = bar {
-            ty += 6.0;
-            ui.rounded(x + pad, ty, inner, 8.0, 4.0, color::RAISED);
-            ui.rounded(
-                x + pad,
-                ty,
-                inner * done.clamp(0.0, 1.0),
-                8.0,
-                4.0,
-                color::ACCENT,
-            );
-            ty += 16.0;
         }
         if let Some(note) = &note {
             ty += 8.0;
@@ -860,7 +746,6 @@ impl Loading {
                         self.setup.dismiss_signin_error = false;
                         self.setup.cancelled = false;
                         self.setup.provider = Some(kind);
-                        self.setup.offline_saved = kind == Kind::Offline;
                     }
                 }
             }
@@ -963,13 +848,9 @@ impl Loading {
                 #[cfg(not(target_os = "android"))]
                 self.open_menu_options(horizon_client::options_ui::Page::Diagnostics);
             }
-            Action::Retry => match (preparer::stage(), accounts::files()) {
-                (Stage::Failed(_) | Stage::Idle, Files::Ready) => {
-                    preparer::start(self.vanilla_root.clone())
-                }
-                (_, Files::Failed(_)) => accounts::download_files(),
-                _ if self.setup.provider == Some(Kind::Ely) => self.setup_action(Action::Ely),
-                _ if self.setup.provider == Some(Kind::Offline) => {
+            Action::Retry => match self.setup.provider {
+                Some(Kind::Ely) => self.setup_action(Action::Ely),
+                Some(Kind::Offline) => {
                     self.setup.form = Some(Form::new(Kind::Offline));
                 }
                 _ => self.setup_action(Action::SignIn),
@@ -984,9 +865,10 @@ mod account_tests {
     #[test]
     fn first_start_offers_both_providers_offline_and_import_without_losing_diagnostics_slot() {
         let actions: Vec<_> = buttons(&Step::Start).into_iter().map(|(_, a)| a).collect();
+        assert!(actions.contains(&Action::Pick));
         assert!(actions.contains(&Action::SignIn));
         assert!(actions.contains(&Action::Offline));
-        assert_eq!(actions.len(), 2);
+        assert_eq!(actions.len(), 3);
     }
     #[test]
     fn cancelled_setup_does_not_trap_a_saved_profile_in_talking() {

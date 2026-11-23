@@ -95,26 +95,29 @@ float cloudDensity(vec2 p, float t) {
     return base + (detail - 0.5) * 0.16;
 }
 
-// The cloud colour and how much of the sky it covers along `dir`, at the vanilla cloud
-// layer's height. Zero below the horizon, underwater, or with the option at 0.
-vec4 cloudLayer(vec3 dir, vec3 s) {
-    if (CLOUDS_AMOUNT <= 0.0 || isEyeInWater != 0 || dir.y < 0.01) {
+// The cloud colour and how much of the sky it covers along `dir`, at `height`. `maxDistance`
+// is how far the ray reaches before something else (the world) is in front of it; `scale` and
+// `speed` let a second, higher band move as its own sheet.
+vec4 cloudLayer(vec3 dir, vec3 s, float height, float maxDistance,
+                float scale, float speed, float opacity) {
+    if (CLOUDS_AMOUNT <= 0.0 || opacity <= 0.0 || isEyeInWater != 0 || dir.y <= 0.0) {
         return vec4(0.0);
     }
-    float t = (192.33 - cameraPosition.y) / dir.y;
-    if (t <= 0.0) {
+    float t = (height - cameraPosition.y) / dir.y;
+    if (t <= 0.0 || t >= maxDistance) {
         return vec4(0.0);
     }
-    vec2 q = (cameraPosition.xz + dir.xz * t) * 0.0045;
+    vec2 q = (cameraPosition.xz + dir.xz * t) * 0.0045 * scale;
     q += vec2(frameTimeCounter * CLOUD_SPEED * 0.8,
-              frameTimeCounter * CLOUD_SPEED * 0.18);
+              frameTimeCounter * CLOUD_SPEED * 0.18) * speed;
     float n = cloudDensity(q, frameTimeCounter);
     // More coverage lowers the threshold: the same sky, more or fewer clouds.
-    float threshold = mix(0.70, 0.40, CLOUD_COVERAGE);
-    float cover = smoothstep(threshold, threshold + 0.17, n) * CLOUDS_AMOUNT;
-    // Keep a soft edge at the horizon and fade into the haze at the world's edge.
-    cover *= smoothstep(0.01, 0.10, dir.y);
-    cover *= 1.0 - smoothstep(far * 0.85, far * 2.2, t);
+    float threshold = mix(0.68, 0.34, CLOUD_COVERAGE);
+    float cover = smoothstep(threshold, threshold + 0.15, n) * CLOUDS_AMOUNT * opacity;
+    // Show the layer down to the horizon, and fade only a very long ray: the layer is above the
+    // world, so the render distance must not cut it to a patch overhead.
+    cover *= smoothstep(0.0, 0.055, dir.y);
+    cover *= 1.0 - smoothstep(3000.0, 9000.0, t);
     if (cover <= 0.0) {
         return vec4(0.0);
     }
@@ -137,6 +140,14 @@ vec4 cloudLayer(vec3 dir, vec3 s) {
     return vec4(color, cover);
 }
 
+// The two sheets the default look draws: the vanilla layer's height and a higher, thinner one
+// whose slower drift makes the sky read as depth rather than a single flat band.
+vec4 cloudsAlong(vec3 dir, vec3 s, float maxDistance) {
+    vec4 low = cloudLayer(dir, s, 192.33, maxDistance, 1.0, 1.0, 1.0);
+    vec4 high = cloudLayer(dir, s, 258.0, maxDistance, 1.55, 0.55, 0.62);
+    return vec4(mix(low.rgb, high.rgb, high.a), low.a + high.a * (1.0 - low.a));
+}
+
 void main() {
     vec3 color = texture2D(colortex0, texcoord).rgb;
     float depth = texture2D(depthtex0, texcoord).r;
@@ -149,7 +160,7 @@ void main() {
         // A round sun, soft at its rim (the bloom makes its glow), and the moon and stars.
         float disk = smoothstep(0.99895, 0.99935, dot(dir, s)) * (1.0 - rainStrength);
         color = skyRadiance(dir, s) + sunlight(s) * disk * 8.0 + texture2D(colortex2, texcoord).rgb;
-        vec4 clouds = cloudLayer(dir, s);
+        vec4 clouds = cloudsAlong(dir, s, 1.0e30);
         color = mix(color, clouds.rgb, clouds.a);
         if (isEyeInWater == 1) color = vec3(0.02, 0.11, 0.15) * (0.15 + 0.85 * daylight(s));
     } else {
@@ -171,6 +182,12 @@ void main() {
             float edge = smoothstep(far * 0.7, far, length(rel.xz));
             color = mix(color, skyRadiance(dir, s), edge);
             sky = edge * edge;
+        }
+        // The sheets are above the world: where the ray meets one before the ground it is in
+        // front of what is drawn, so it shows over terrain and trees too, not only in the sky.
+        if (isEyeInWater == 0 && dir.y > 0.0) {
+            vec4 clouds = cloudsAlong(dir, s, dist);
+            color = mix(color, clouds.rgb, clouds.a);
         }
     }
 

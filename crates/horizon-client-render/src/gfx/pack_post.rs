@@ -3703,6 +3703,11 @@ impl PackPost {
             && (self.shadow_terrain.is_some() || self.shadow_water.is_some())
     }
 
+    /// Whether the pack asked for a shadow pass, whatever its programs did.
+    pub fn declares_shadow(&self) -> bool {
+        self.shadow_targets.is_some()
+    }
+
     /// Whether the pack draws the sky (disc, sunset, stars, void) itself.
     /// What the world's background is when the pack draws the sky: colortex0's clear colour
     /// (`None`: the fog colour, its default).
@@ -3755,7 +3760,15 @@ impl PackPost {
     /// The programs that run and the notes of loading them.
     pub fn report(&self) -> (Vec<String>, Vec<String>) {
         let programs = self.programs().into_iter().map(str::to_owned).collect();
-        (programs, self.notes.clone())
+        let mut notes = self.notes.clone();
+        if self.declares_shadow() && !self.has_shadow() {
+            notes.push(
+                "its shadow pass was declared but none of its shadow programs loaded: it draws no \
+                 shadows"
+                    .into(),
+            );
+        }
+        (programs, notes)
     }
 
     /// Drops every pass's cached bind groups, compute stages included: they name views that
