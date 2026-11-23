@@ -62,3 +62,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - `f43817376a` — upload staging ring is bucketed and trims when idle (-13 to -25 MB RSS).
 - `6d40db2be5` — shadowtex0/1 read through a plain sampler filter linearly as Iris does, which
   removes the striped shadows on distant ground; a pack's `shadowtexNNearest` keeps nearest.
+- `d652ec2f1b` — classic packs' terrain is drawn from the camera rounded to 1/65536 block, as
+  Iris does, so shadow-map texel ties no longer flip and stripe the ground.

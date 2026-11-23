@@ -223,7 +223,7 @@ pub struct Visible {
 }
 
 /// The camera-relative origin of the section at `key`.
-fn origin(key: SectionKey, min_y: i32, camera: DVec3) -> DVec3 {
+pub(super) fn origin(key: SectionKey, min_y: i32, camera: DVec3) -> DVec3 {
     DVec3::new(
         f64::from(key.0 * 16),
         f64::from(min_y + key.1 * 16),

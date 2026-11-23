@@ -363,6 +363,16 @@ fn world_pass_after_culling<'e>(
         ..Default::default()
     })
 }
+/// The point a `shaders/` pack's terrain is drawn relative to: the camera with the fraction of
+/// each coordinate rounded to the nearest 1/65536 block, as Iris 1.11.7 does. Off by up to
+/// 2^-17 blocks, a fragment on a texel boundary of the shadow map reads the other texel, which
+/// shows up as stripes where the sun is low; `cameraPosition` and the matrices keep the exact
+/// camera.
+fn pack_terrain_camera(camera: DVec3) -> DVec3 {
+    let whole = camera.floor();
+    whole + ((camera - whole) * 65536.0).round() / 65536.0
+}
+
 /// A section's instance: its camera-relative origin and its UV step, negated
 /// past its fade code while it fades in over far terrain (`lod::instance`).
 fn section_instance(origin: [f32; 3], fade: u32, visibility: f32) -> [f32; 4] {
@@ -7030,6 +7040,22 @@ impl Renderer {
                 let height = |s: &resident::Visible| glam::Vec3::from(s.origin).dot(light);
                 height(b).total_cmp(&height(a))
             });
+        }
+        // A `shaders/` pack that draws the terrain, or its shadow, sees it as Iris does: from
+        // the camera rounded to 1/65536 of a block.
+        let shaders_pack = !frame.title
+            && self
+                .pack_post
+                .as_ref()
+                .and_then(|p| p.1.as_ref())
+                .is_some_and(|p| p.has_terrain() || p.has_shadow());
+        if shaders_pack {
+            let from = pack_terrain_camera(camera);
+            for v in visible.iter_mut().chain(shadow_visible.iter_mut()) {
+                v.origin = resident::origin(v.key, self.layout.min_y(), from)
+                    .as_vec3()
+                    .to_array();
+            }
         }
         if self.animated_textures {
             self.active_animated_layers.fill(0);
