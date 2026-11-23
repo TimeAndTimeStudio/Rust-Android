@@ -1807,8 +1807,6 @@ enum Act {
     /// The next profile of the chosen pack, on the Shader Packs page.
     PackProfile,
     OpenShaderPackFolder,
-    /// The next of the resolutions the Shader Packs page offers.
-    ShaderResolution,
     /// The next of the frame limits the Shader Packs page offers.
     ShaderFpsLimit,
     /// The Custom Buttons page, a new button there, one to change or take away, a control or a
@@ -6069,14 +6067,6 @@ impl OptionsUi {
                         Act::OpenModFolder => events.push(Event::OpenModFolder),
                         Act::OpenCatalog(shelf) => events.push(Event::OpenCatalog(shelf)),
                         Act::OpenShaderPackFolder => events.push(Event::OpenShaderPackFolder),
-                        Act::ShaderResolution => {
-                            const STEPS: [u32; 6] = [100, 75, 50, 40, 30, 25];
-                            let now = s.horizon.resolution_scale;
-                            let next = STEPS.iter().position(|&v| v == now).map_or(2, |i| i + 1);
-                            s.horizon.resolution_scale = STEPS[next % STEPS.len()];
-                            events.push(Event::ShaderPack);
-                            events.push(Event::Changed);
-                        }
                         Act::ShaderFpsLimit => {
                             const STEPS: [u32; 4] = [30, 40, 60, 260];
                             let next = STEPS
@@ -7379,7 +7369,6 @@ impl OptionsUi {
                         Act::ExportRepro => events.push(Event::ExportRepro),
                         // Starling's pages answer taps only.
                         Act::PackProfile
-                        | Act::ShaderResolution
                         | Act::ShaderFpsLimit
                         | Act::CustomButtons
                         | Act::CustomAdd

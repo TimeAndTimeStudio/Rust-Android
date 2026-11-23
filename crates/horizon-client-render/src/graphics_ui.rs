@@ -502,11 +502,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                     "Settings",
                     vec![
                         h(
-                            H::ResolutionScale,
-                            High,
-                            "World pixels per screen pixel. Lower is faster on the GPU.",
-                        ),
-                        h(
                             H::ShadowCache,
                             Saves,
                             "Reuses the pack shadow map when sun, view and world match. Saves up to 50% GPU load on mobile.",

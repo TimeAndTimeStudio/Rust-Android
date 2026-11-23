@@ -43,8 +43,6 @@ pub struct TouchUi {
     pub pointer_size_dragging: bool,
     /// The virtual-mouse-speed slider of the Aiming tab is being dragged.
     pub mouse_speed_dragging: bool,
-    /// The real-time 3D resolution scale slider of the Recommended tab is being dragged.
-    pub resolution_scale_dragging: bool,
     /// The gyroscope sensitivity slider of the Aiming tab is being dragged.
     pub gyro_sensitivity_dragging: bool,
     /// The global button scale slider of the Buttons tab is being dragged.
@@ -104,7 +102,6 @@ impl Default for TouchUi {
             sensitivity_dragging: false,
             pointer_size_dragging: false,
             mouse_speed_dragging: false,
-            resolution_scale_dragging: false,
             gyro_sensitivity_dragging: false,
             button_scale_dragging: false,
             zoom_factor_dragging: false,
@@ -190,8 +187,6 @@ pub enum InGameMenuAction {
     OpenLogs,
     /// The naming field of a preset dialog was tapped: show the system keyboard.
     EditPresetField(bool),
-    /// Adjust real-time 3D world resolution scale percentage (25%..=100%) without recreating UI surface.
-    SetResolutionScale(u32),
     /// Toggle in-game animations (animated textures, view bobbing, chunk fade, UI transitions).
     ToggleGameAnimations,
     /// Send a custom keyboard key, mouse button/scroll, or gameplay action token immediately.
@@ -693,7 +688,6 @@ impl TouchUi {
         self.sensitivity_dragging = false;
         self.pointer_size_dragging = false;
         self.mouse_speed_dragging = false;
-        self.resolution_scale_dragging = false;
         self.custom_kb_drag = None;
         self.hub_scroll_drag = None;
     }
@@ -1792,7 +1786,6 @@ impl TouchUi {
                     self.sensitivity_dragging = false;
                     self.pointer_size_dragging = false;
                     self.mouse_speed_dragging = false;
-                    self.resolution_scale_dragging = false;
                     self.gyro_sensitivity_dragging = false;
                     self.button_scale_dragging = false;
                     self.zoom_factor_dragging = false;
@@ -1806,7 +1799,6 @@ impl TouchUi {
                     self.sensitivity_dragging = false;
                     self.pointer_size_dragging = false;
                     self.mouse_speed_dragging = false;
-                    self.resolution_scale_dragging = false;
                     self.gyro_sensitivity_dragging = false;
                     self.button_scale_dragging = false;
                     self.zoom_factor_dragging = false;
@@ -1817,24 +1809,6 @@ impl TouchUi {
                     });
                 }
                 _ => return Some(InGameMenuAction::Close),
-            }
-        }
-
-        // Handle ongoing real-time 3D resolution scale slider drag on Tab 0 (Recommended)
-        if self.resolution_scale_dragging {
-            match phase {
-                TouchPhase::Moved => {
-                    let sl_x = cx + 14.0;
-                    let sl_w = (cw - 28.0).max(40.0);
-                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
-                    let pct = (((25.0 + t * 75.0) / 5.0).round() as u32 * 5).clamp(25, 100);
-                    return Some(InGameMenuAction::SetResolutionScale(pct));
-                }
-                TouchPhase::Ended | TouchPhase::Cancelled => {
-                    self.resolution_scale_dragging = false;
-                    return None;
-                }
-                _ => {}
             }
         }
 
@@ -2224,7 +2198,6 @@ impl TouchUi {
         if phase == TouchPhase::Started {
             if !inside([dx, dy, dw, dh]) || inside([dx + dw - 76.0, dy + 10.0, 64.0, 30.0]) {
                 self.floating_menu = false;
-                self.resolution_scale_dragging = false;
                 self.sensitivity_dragging = false;
                 self.pointer_size_dragging = false;
                 self.mouse_speed_dragging = false;
@@ -2255,25 +2228,6 @@ impl TouchUi {
             // Check if touch started on sliders or quick chips in Tab 0 (Recommended)
             if self.hub_tab == 0 && inside(content_pane) {
                 let body_y = body_top - self.hub_scroll;
-                let res_card_y = body_y + 18.0;
-                let chip_y = res_card_y + 48.0;
-                let chip_gap = 6.0;
-                let chip_w = (cw - 28.0 - chip_gap * 4.0) / 5.0;
-                for (ci, pct) in [50u32, 65, 75, 85, 100].into_iter().enumerate() {
-                    let rx = cx + 14.0 + ci as f32 * (chip_w + chip_gap);
-                    if inside([rx, chip_y, chip_w, 26.0]) {
-                        return Some(InGameMenuAction::SetResolutionScale(pct));
-                    }
-                }
-                if inside([cx, res_card_y, cw, 47.0]) {
-                    self.resolution_scale_dragging = true;
-                    let sl_x = cx + 14.0;
-                    let sl_w = (cw - 28.0).max(40.0);
-                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
-                    let pct = (((25.0 + t * 75.0) / 5.0).round() as u32 * 5).clamp(25, 100);
-                    self.slider_gesture = Some((id, p, InGameMenuAction::SetResolutionScale(pct)));
-                    return Some(InGameMenuAction::Close);
-                }
                 let sens_card_y = body_y + 118.0;
                 if inside([cx, sens_card_y, cw, 50.0]) {
                     self.sensitivity_dragging = true;
@@ -2391,23 +2345,6 @@ impl TouchUi {
         match self.hub_tab {
             0 => {
                 // Tab 0: Recommended (Real-Time Resolution, Fast Sensitivity, Virtual Mouse, Quick Controls & Animations)
-                let res_y = body_y + 18.0;
-                let chip_y = res_y + 48.0;
-                let chip_gap = 6.0;
-                let chip_w = (cw - 28.0 - chip_gap * 4.0) / 5.0;
-                for (ci, pct) in [50u32, 65, 75, 85, 100].into_iter().enumerate() {
-                    let rx = cx + 14.0 + ci as f32 * (chip_w + chip_gap);
-                    if inside([rx, chip_y, chip_w, 24.0]) {
-                        return Some(InGameMenuAction::SetResolutionScale(pct));
-                    }
-                }
-                if inside([cx, res_y, cw, 46.0]) {
-                    let sl_x = cx + 14.0;
-                    let sl_w = (cw - 28.0).max(40.0);
-                    let t = ((p[0] - sl_x) / sl_w).clamp(0.0, 1.0);
-                    let pct = (25.0 + t * 75.0).round() as u32;
-                    return Some(InGameMenuAction::SetResolutionScale(pct.clamp(25, 100)));
-                }
                 let sens_y = body_y + 118.0;
                 if inside([cx, sens_y, cw, 50.0]) {
                     let sl_x = cx + 10.0;
@@ -2887,7 +2824,7 @@ impl TouchUi {
                     cx + 14.0,
                     res_y + 6.0,
                     text_c,
-                    "Real-Time 3D Resolution Scale (Zero-Lag)",
+                    "3D Resolution Scale",
                 );
                 let res_pct = settings.resolution_scale_percent.clamp(25, 100);
                 let res_txt = format!("{res_pct}%");
@@ -2915,40 +2852,14 @@ impl TouchUi {
                     accent_hi,
                     &res_txt,
                 );
-                let r_sl_x = cx + 14.0;
-                let r_sl_w = (cw - 28.0).max(40.0);
-                let r_sl_y = res_y + 32.0;
-                let r_frac = ((res_pct as f32 - 25.0) / 75.0).clamp(0.0, 1.0);
-                ui.rounded(r_sl_x, r_sl_y, r_sl_w, 6.0, 3.0, sidebar_bg);
-                ui.rounded(r_sl_x, r_sl_y, (r_sl_w * r_frac).max(6.0), 6.0, 3.0, accent);
-                let r_thumb_x = r_sl_x + r_sl_w * r_frac;
-                ui.rounded(r_thumb_x - 7.0, r_sl_y - 4.0, 14.0, 14.0, 7.0, accent_hi);
-
-                let chip_y = res_y + 48.0;
-                let chip_gap = 6.0;
-                let chip_w = (cw - 28.0 - chip_gap * 4.0) / 5.0;
-                for (ci, pct) in [50u32, 65, 75, 85, 100].into_iter().enumerate() {
-                    let rx = cx + 14.0 + ci as f32 * (chip_w + chip_gap);
-                    let on = (res_pct as i32 - pct as i32).abs() <= 2;
-                    ui.rounded(
-                        rx,
-                        chip_y,
-                        chip_w,
-                        22.0,
-                        7.0,
-                        if on { accent } else { sidebar_bg },
-                    );
-                    if !on {
-                        ui.border(rx, chip_y, chip_w, 22.0, 7.0, border_c);
-                    }
-                    ui.centered_fit(
-                        Face::SemiBold,
-                        9.2,
-                        [rx + 2.0, chip_y, chip_w - 4.0, 22.0],
-                        if on { accent_fg } else { text_c },
-                        &format!("{pct}%"),
-                    );
-                }
+                ui.text(
+                    Face::Regular,
+                    9.2,
+                    cx + 14.0,
+                    res_y + 34.0,
+                    muted_c,
+                    "Adjust in Video Settings > Quality",
+                );
 
                 ui.text(
                     Face::SemiBold,

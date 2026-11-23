@@ -1547,25 +1547,6 @@ impl Game<'_> {
                         });
                     }
                 }
-                InGameMenuAction::SetResolutionScale(pct) => {
-                    let clamped = pct.clamp(25, 100);
-                    let changed = self.mobile.controls.settings.resolution_scale_percent != clamped
-                        || self.settings.horizon.resolution_scale != clamped;
-                    self.mobile.controls.settings.resolution_scale_percent = clamped;
-                    self.settings.horizon.resolution_scale = clamped;
-                    if let Some(r) = self.renderer.as_mut() {
-                        r.set_world_post(
-                            clamped as f32 / 100.0,
-                            self.settings.horizon.fxaa,
-                            self.settings.horizon.taa,
-                            self.settings.horizon.upscaling.ratio(),
-                        );
-                    }
-                    if changed {
-                        let _ = self.mobile.controls.settings.save();
-                        self.settings.save(&Self::options_path());
-                    }
-                }
                 InGameMenuAction::ToggleGameAnimations => {
                     let next = !self.mobile.controls.settings.disable_game_animations;
                     self.mobile.controls.settings.disable_game_animations = next;
