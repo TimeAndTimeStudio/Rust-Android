@@ -8521,7 +8521,7 @@ impl Renderer {
             if late_sky.is_none()
                 && (frame.title || (sky_visible && (frame.skybox || frame.end_sky)))
             {
-                if !frame.title && frame.skybox && !pack_draws_sky && !native_sky_pass {
+                if !frame.title && frame.skybox && !native_sky_pass {
                     match self
                         .native
                         .as_ref()
@@ -8567,11 +8567,11 @@ impl Renderer {
                     .native
                     .as_ref()
                     .is_some_and(|n| n.sky.is_some() && !n.vanilla_stars);
-                if !frame.title && frame.stars.is_some() && !pack_draws_sky && !own_stars {
+                if !frame.title && frame.stars.is_some() && !own_stars {
                     self.stars.draw(&mut pass);
                     pass.set_bind_group(0, &self.group, &[]);
                 }
-                if !frame.title && frame.dark_disc && !pack_draws_sky {
+                if !frame.title && frame.dark_disc {
                     pass.set_pipeline(&self.dark_disc);
                     pass.draw(0..3, 0..1);
                 }

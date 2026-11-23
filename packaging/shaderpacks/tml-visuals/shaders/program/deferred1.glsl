@@ -74,6 +74,10 @@ void main() {
 			skyAmount = mix(skyAmount, 1.0, float(depth == 1.0));
 			fogDistance = mix(fogDistance, 1.0, float(depth == 1.0));
 		#endif
+		if (depth >= 1.0) {
+			skyAmount = 1.0;
+			fogDistance = 1.0;
+		}
 		#if FOG_BUG_RECREATION == 1
 			skyAmount *= 1.0 - 0.0001 * float(depth < 1.0);
 		#endif

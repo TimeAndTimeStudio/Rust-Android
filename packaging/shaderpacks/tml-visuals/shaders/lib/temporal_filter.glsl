@@ -55,6 +55,17 @@ void doTemporalFilter(inout vec3 color, float depth, vec2 prevCoord) {
 	) return;
 	
 	vec3 prevColor = textureCatmullRom(PREV_TEXTURE, prevCoord).rgb * 2.0;
+
+	vec2 velocity = (texcoord - prevCoord.xy) * viewSize;
+	float velocityAmount = dot(velocity, velocity) * 8.0;
+
+	if (depth >= 1.0) {
+		// When rendering the sky, blend smoothly with the previous frame's reprojected sky color.
+		// If current sky frame is delayed or incomplete, this uses the previous frame to prevent flickering.
+		float skyBlend = clamp(0.85 * exp(-velocityAmount * 0.05), 0.5, 0.90);
+		color = mix(color, prevColor, skyBlend);
+		return;
+	}
 	
 	doNeighborClamping(color, prevColor, prevCoord);
 	

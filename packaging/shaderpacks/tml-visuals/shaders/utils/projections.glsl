@@ -36,7 +36,7 @@
 	vec2 reproject(vec3 screenPos, vec3 cameraOffset) {
 		vec3 viewPos = screenToView(screenPos);
 		vec3 playerPos = transform(gbufferModelViewInverse, viewPos);
-		vec3 prevPlayerPos = playerPos + cameraOffset;
+		vec3 prevPlayerPos = playerPos + (screenPos.z >= 0.999 ? vec3(0.0) : cameraOffset);
 		vec3 prevViewPos = transform(gbufferPreviousModelView, prevPlayerPos);
 		vec4 prevCoord = gbufferPreviousProjection * vec4(prevViewPos, 1.0);
 		return prevCoord.xy / prevCoord.w * 0.5 + 0.5;
@@ -133,7 +133,7 @@
 	vec2 reproject(vec3 screenPos, vec3 cameraOffset) {
 		vec3 viewPos = screenToView(screenPos);
 		vec3 playerPos = transform(gbufferModelViewInverse, viewPos);
-		vec3 prevPlayerPos = playerPos + cameraOffset;
+		vec3 prevPlayerPos = playerPos + (screenPos.z >= 0.999 ? vec3(0.0) : cameraOffset);
 		vec3 prevViewPos = transform(gbufferPreviousModelView, prevPlayerPos);
 		vec4 prevCoord = gbufferPreviousProjection * vec4(prevViewPos, 1.0);
 		return prevCoord.xy / prevCoord.w * 0.5 + 0.5;
