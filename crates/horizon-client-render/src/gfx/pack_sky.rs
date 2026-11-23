@@ -141,26 +141,24 @@ pub(super) struct Part {
 fn horizon(out: &mut Vec<Vertex>) {
     const TOP: f32 = 16.0;
     const BOTTOM: f32 = -16.0;
-    /// Iris's radius is the render distance; 256 keeps the prism's top (3.6 degrees) over the
-    /// disc's rim whatever the distance.
-    const RADIUS: f32 = 256.0;
+    const RADIUS: f32 = 512.0;
     let v = |x: f32, y: f32, z: f32| Vertex {
         pos: [x, y, z],
         kind: SKY,
     };
-    let corner = |i: i32| {
-        let a = (22.5 + 45.0 * i as f32).to_radians();
+    let corner = |i: usize| {
+        let a = i as f32 * std::f32::consts::TAU / 32.0;
         [RADIUS * a.cos(), RADIUS * a.sin()]
     };
-    for i in 0..8 {
+    for i in 0..32 {
         let ([x1, z1], [x2, z2]) = (corner(i), corner(i + 1));
         let (a, b) = (v(x1, BOTTOM, z1), v(x1, TOP, z1));
         let (c, d) = (v(x2, TOP, z2), v(x2, BOTTOM, z2));
         out.extend([a, b, c, a, c, d]);
     }
-    // The plane below, in tiles of 64 out to 384, as Iris's.
-    for x in (-384..384).step_by(64) {
-        for z in (-384..384).step_by(64) {
+    // The plane below, in tiles of 64 out to 512, covering the horizon floor.
+    for x in (-512..512).step_by(64) {
+        for z in (-512..512).step_by(64) {
             let (x, z) = (x as f32, z as f32);
             let (a, b) = (v(x, BOTTOM, z), v(x + 64.0, BOTTOM, z));
             let (c, d) = (v(x + 64.0, BOTTOM, z + 64.0), v(x, BOTTOM, z + 64.0));
@@ -183,8 +181,8 @@ fn disc(y: f32, kind: u32, out: &mut Vec<Vertex>) {
         pos: [0.0, y, 0.0],
         kind,
     };
-    for i in (-180..180).step_by(45) {
-        out.extend([centre, rim(i), rim(i + 45)]);
+    for i in (-180..180).step_by(10) {
+        out.extend([centre, rim(i), rim(i + 10)]);
     }
 }
 

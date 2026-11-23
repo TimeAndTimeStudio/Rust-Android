@@ -21,6 +21,8 @@ pub struct ShaderOptions {
     pub path: Vec<String>,
     /// Something changed since the page opened.
     pub changed: bool,
+    /// Last profile index cycled through via `next_profile`.
+    pub last_profile_index: Option<usize>,
 }
 
 impl ShaderOptions {
@@ -39,6 +41,7 @@ impl ShaderOptions {
             chosen: BTreeMap::new(),
             path: Vec::new(),
             changed: false,
+            last_profile_index: None,
         };
         for (name, value) in chosen {
             out.set(&name, value);
@@ -66,9 +69,12 @@ impl ShaderOptions {
     }
 
     pub fn set(&mut self, name: &str, value: String) {
-        let Some(option) = self.options.get(name).filter(|o| o.values.contains(&value)) else {
+        let Some(option) = self.options.get_mut(name) else {
             return;
         };
+        if !option.values.contains(&value) {
+            option.values.push(value.clone());
+        }
         if value == option.default {
             self.chosen.remove(name);
         } else {
@@ -137,8 +143,11 @@ impl ShaderOptions {
         let current = self.current_profile().map(str::to_owned);
         let at = profiles
             .iter()
-            .position(|(n, _)| Some(n) == current.as_ref());
-        let (_, values) = profiles[at.map_or(0, |i| (i + 1) % profiles.len())].clone();
+            .position(|(n, _)| Some(n) == current.as_ref())
+            .or(self.last_profile_index);
+        let next_idx = at.map_or(0, |i| (i + 1) % profiles.len());
+        self.last_profile_index = Some(next_idx);
+        let (_, values) = profiles[next_idx].clone();
         for (name, value) in values {
             self.set(&name, value);
         }
@@ -150,6 +159,7 @@ impl ShaderOptions {
     }
 
     pub fn reset(&mut self) {
+        self.last_profile_index = None;
         if !self.chosen.is_empty() {
             self.chosen.clear();
             self.changed = true;

@@ -521,7 +521,7 @@ void main() {
 	vec4 cloud = vec4(0.0);
 	float cloudDither = BayerCloud8(gl_FragCoord.xy);
 
-	float cloudMaxDistance = 2.0 * far;
+	float cloudMaxDistance = max(8.0 * far, 3072.0);
 	#ifdef VOXY
 	cloudMaxDistance = max(cloudMaxDistance, vxRenderDistance * 16.0);
 	#endif

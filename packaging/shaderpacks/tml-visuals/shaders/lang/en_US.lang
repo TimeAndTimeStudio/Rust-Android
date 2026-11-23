@@ -105,7 +105,9 @@ value.shadowMapResolution.8192=Ultra High (8K)
 
 option.shadowDistance=Shadow Distance
 option.shadowDistance.comment=Adjusts shadow distance.
+value.shadowDistance.96=6 chunks
 value.shadowDistance.128=8 chunks
+value.shadowDistance.160=10 chunks
 value.shadowDistance.192=12 chunks
 value.shadowDistance.256=16 chunks
 value.shadowDistance.384=24 chunks

@@ -346,7 +346,7 @@ vec4 DrawCloudVolumetric(vec3 viewPos, vec3 cameraPos, float z, float dither, ve
 
 	float maxcloudViewLength = cloudViewLength;
 
-	if (abs(nWorldPos.y) < 0.005 || furthestPlane < 0.0 || nearestPlane > maxcloudViewLength) return vec4(0.0);
+	if (abs(nWorldPos.y) < 0.002 || furthestPlane < 0.0 || nearestPlane > maxcloudViewLength) return vec4(0.0);
 
 	float planeDifference = furthestPlane - nearestPlane;
 
@@ -396,8 +396,8 @@ vec4 DrawCloudVolumetric(vec3 viewPos, vec3 cameraPos, float z, float dither, ve
 	float viewLengthSoftMax = viewLength + sampleLength * 0.5;
 
 	float distanceFade = 1.0;
-	float fadeStart = 32.0 / max(fogDensity, 0.5);
-	float fadeEnd = (fadeFaster ? 80.0 : 240.0) / max(fogDensity, 0.5);
+	float fadeStart = (fadeFaster ? 160.0 : 450.0) / max(fogDensity, 0.5);
+	float fadeEnd = (fadeFaster ? 320.0 : 800.0) / max(fogDensity, 0.5);
 
 	float xzNormalizeFactor = 10.0 / max(abs(float(CLOUD_HEIGHT) - 72.0), 56.0);
 
@@ -415,9 +415,9 @@ vec4 DrawCloudVolumetric(vec3 viewPos, vec3 cameraPos, float z, float dither, ve
 		float sampleLighting = pow(cloudGradient, 1.125 * halfVoLSqr + 0.875) * 0.8 + 0.2;
 		sampleLighting *= 1.0 - pow(noise, noiseLightFactor);
 
-		float sampleFade = InvLerp(xzNormalizedDistance, fadeEnd, fadeStart);
+		float sampleFade = clamp((fadeEnd - xzNormalizedDistance) / max(fadeEnd - fadeStart, 0.001), 0.0, 1.0);
 		distanceFade *= mix(1.0, sampleFade, noise * (1.0 - cloud));
-		noise *= step(xzNormalizedDistance, fadeEnd);
+		noise *= sampleFade;
 
 		cloudLighting = mix(cloudLighting, sampleLighting, noise * (1.0 - cloud * cloud));
 

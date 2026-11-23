@@ -2490,27 +2490,45 @@ fn native_pack_option_rows(s: &Settings, i: usize, at: u8) -> Vec<Row> {
     rows
 }
 
-/// The open screen of the picked pack: its title, then its items, one to a row on a phone, where
-/// long names fit and a finger finds them, else as the pack lays them out.
+/// The open screen of the picked pack: Iris-style 2-column layout with pinned profile header,
+/// clean category tiles and sliders.
 fn shader_option_rows(s: &Settings) -> Vec<Row> {
     let Some(options) = &s.shader_options else {
         return vec![Row::Header("horizon.shader_options.loading")];
     };
-    let columns = if cfg!(target_os = "android") {
-        1
+    use horizon_shaders::ScreenItem;
+    let is_root = options.screen().is_empty();
+    let mut rows = Vec::new();
+
+    if is_root {
+        rows.push(Row::Note(format!("Shader Pack: {}", options.pack)));
+        if !options.screens.profiles.is_empty() {
+            rows.push(Row::Buttons(
+                button(0.0, 0.0, 310.0, options.profile_label(), Act::ShaderProfile),
+                None,
+            ));
+        }
     } else {
-        options
-            .screens
-            .screen(options.screen())
-            .map_or(2, |(_, c)| c)
-    };
-    let blank = || blank_slot(150.0);
-    let width = if columns == 1 { 310.0 } else { 150.0 };
-    let widget = |item: &horizon_shaders::ScreenItem| -> Option<Widget> {
-        use horizon_shaders::ScreenItem;
-        Some(match item {
-            ScreenItem::Empty if columns > 2 || cfg!(target_os = "android") => return None,
-            ScreenItem::Empty => blank(),
+        rows.push(Row::Note(format!(
+            "{} > {}",
+            options.pack,
+            options.title().strip_legacy().plain()
+        )));
+    }
+
+    let items: Vec<&ScreenItem> = options
+        .items()
+        .iter()
+        .filter(|item| match item {
+            ScreenItem::Empty => false,
+            ScreenItem::Profile if is_root => false,
+            _ => true,
+        })
+        .collect();
+
+    let make_widget = |item: &ScreenItem, width: f32| -> Widget {
+        match item {
+            ScreenItem::Empty => blank_slot(width),
             ScreenItem::Profile => {
                 button(0.0, 0.0, width, options.profile_label(), Act::ShaderProfile)
             }
@@ -2543,18 +2561,21 @@ fn shader_option_rows(s: &Settings) -> Vec<Row> {
                     Act::ShaderOption(name.clone()),
                 ),
             },
-        })
+        }
     };
-    let widgets: Vec<Widget> = options.items().iter().filter_map(widget).collect();
-    let mut rows = vec![Row::Note(options.title().strip_legacy().plain())];
-    if columns == 1 {
-        rows.extend(widgets.into_iter().map(|w| Row::Buttons(w, None)));
-        return rows;
+
+    let mut iter = items.into_iter();
+    while let Some(first) = iter.next() {
+        if let Some(second) = iter.next() {
+            rows.push(Row::Buttons(
+                make_widget(first, 150.0),
+                Some(make_widget(second, 150.0)),
+            ));
+        } else {
+            rows.push(Row::Buttons(make_widget(first, 310.0), None));
+        }
     }
-    let mut widgets = widgets.into_iter();
-    while let Some(a) = widgets.next() {
-        rows.push(Row::Buttons(a, widgets.next()));
-    }
+
     rows
 }
 

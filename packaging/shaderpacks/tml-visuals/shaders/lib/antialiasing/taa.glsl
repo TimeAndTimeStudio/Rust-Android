@@ -52,7 +52,7 @@ vec2 Reprojection(vec3 pos, mat4 projectionInverse, mat4 previousProjection, boo
 	viewPosPrev = gbufferModelViewInverse * viewPosPrev;
 
 	vec3 cameraOffset = cameraPosition - previousCameraPosition;
-	cameraOffset *= float(pos.z > 0.56 || !useHand);
+	cameraOffset *= float((pos.z > 0.56 || !useHand) && pos.z < 0.999);
 
 	vec4 previousPosition = viewPosPrev + vec4(cameraOffset, 0.0);
 	previousPosition = gbufferPreviousModelView * previousPosition;

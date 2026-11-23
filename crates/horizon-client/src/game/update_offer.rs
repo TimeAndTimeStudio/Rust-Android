@@ -120,6 +120,20 @@ fn download(
         ));
     }
     let dir = updates();
+    let target = dir.join(&release.name);
+    if target.exists() {
+        if let Ok(data) = std::fs::read(&target) {
+            let mut hash = Sha256::new();
+            hash.update(&data);
+            let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+            if release.sha256.as_ref().map_or(data.len() as u64 == release.size, |want| want == &got) {
+                log::info!("TML update: existing APK matches hash, skipping re-download");
+                shared.lock().unwrap_or_else(PoisonError::into_inner).done = data.len() as u64;
+                shared.lock().unwrap_or_else(PoisonError::into_inner).total = data.len() as u64;
+                return Ok(release.name.clone());
+            }
+        }
+    }
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let part = dir.join(format!("{}.part", release.name));

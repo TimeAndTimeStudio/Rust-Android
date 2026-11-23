@@ -30,7 +30,7 @@ Please don't edit anything from Undefine section and onwards.
 //Lighting//
   #define SHADOW
   const int shadowMapResolution = 1024; //[512 1024 1536 2048 3072 4096 8192]
-  const float shadowDistance = 128.0; //[128.0 192.0 256.0 384.0 512.0 768.0 1024.0]
+  const float shadowDistance = 128.0; //[96.0 128.0 160.0 192.0 256.0 384.0 512.0 768.0 1024.0]
   const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
   #define SHADOW_FILTER
   #define SHADOW_COLOR
