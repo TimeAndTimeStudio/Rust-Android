@@ -63,8 +63,12 @@ pub struct Post {
     /// Whether the vanilla world goes up with `sharp` (`upscales_sharply`). A shader pack's always does.
     sharp_world: bool,
     format: wgpu::TextureFormat,
-    /// World resolution relative to the window (0.5..=2.0).
+    /// World resolution relative to the window (0.25..=2.0), as the player set it.
     pub scale: f32,
+    /// What is left of `scale` after this device ran out of video memory once: only a
+    /// temporary way to keep drawing, never a setting. `set_world_post` puts it back to 1 so
+    /// the player's resolution is tried again after a change.
+    fallback: f32,
     pub antialias: bool,
     pub taa: bool,
     /// Output pixels per rendered pixel while TAA is on (1: native): the world renders
@@ -254,6 +258,7 @@ impl Post {
             sampler,
             format,
             scale: 1.0,
+            fallback: 1.0,
             antialias: false,
             taa: false,
             upscale: 1.0,
@@ -271,9 +276,25 @@ impl Post {
         self.taa_resources.is_some()
     }
 
+    /// The scale the world is drawn at now: the player's, reduced only while this device is
+    /// out of memory (never saved and never a new setting).
+    pub fn effective_scale(&self) -> f32 {
+        (self.scale * self.fallback).clamp(MIN_SCALE, 2.0)
+    }
+
+    /// The player's new resolution scale: a change tries full size again, so an out-of-memory
+    /// fallback taken at the old scale never sticks.
+    pub fn set_scale(&mut self, scale: f32) {
+        let scale = scale.clamp(MIN_SCALE, 2.0);
+        if (scale - self.scale).abs() > f32::EPSILON {
+            self.fallback = 1.0;
+        }
+        self.scale = scale;
+    }
+
     /// The world's rendered size and the size it is shown at (TAA's history).
     fn sizes(&self, window: [u32; 2]) -> ([u32; 2], [u32; 2]) {
-        let output = window.map(|v| ((v as f32 * self.scale).round() as u32).clamp(1, 8192));
+        let output = window.map(|v| ((v as f32 * self.effective_scale()).round() as u32).clamp(1, 8192));
         let upscale = if self.taa_on { self.upscale } else { 1.0 };
         (
             output.map(|v| ((v as f32 / upscale).round() as u32).max(1)),
@@ -333,7 +354,7 @@ impl Post {
         window: [u32; 2],
         always: bool,
     ) -> Option<(wgpu::TextureView, wgpu::TextureView)> {
-        if self.scale == 1.0 && !self.antialias && !self.taa_on && !always {
+        if self.effective_scale() == 1.0 && !self.antialias && !self.taa_on && !always {
             self.target = None;
             return None;
         }
@@ -363,23 +384,23 @@ impl Post {
                 break;
             }
             drop(target);
-            if self.scale <= MIN_SCALE {
+            let scale = self.effective_scale();
+            if scale <= MIN_SCALE {
                 log::warn!(
                     "Horizon renderer: no video memory for the scaled world at {size:?} ({}); drawing at the window's size",
                     error.map_or_else(String::new, |e| e.to_string())
                 );
-                self.scale = 1.0;
                 self.target = None;
                 return None;
             }
-            let reduced = (self.scale * 0.75).max(MIN_SCALE);
+            let reduced = (scale * 0.75).max(MIN_SCALE);
             log::warn!(
-                "Horizon renderer: out of video memory for the scaled world at {size:?}; resolution scale {:.2} -> {reduced:.2} ({})",
-                self.scale,
+                "Horizon renderer: out of video memory for the scaled world at {size:?}; resolution scale {scale:.2} -> {reduced:.2} ({})",
                 error.map_or_else(String::new, |e| e.to_string())
             );
-            self.scale = reduced;
-            if self.scale == 1.0 && !self.antialias && !self.taa_on && !always {
+            // Remember the reduction for this target only; the setting itself is untouched.
+            self.fallback = (reduced / self.scale.max(MIN_SCALE)).clamp(MIN_SCALE, 1.0);
+            if self.effective_scale() == 1.0 && !self.antialias && !self.taa_on && !always {
                 return None;
             }
         }
@@ -547,7 +568,7 @@ impl Post {
 
     /// A shader pack's `final` goes into the world's target, to go up with [`Self::finish_pack`].
     pub fn upscales_pack(&self) -> bool {
-        self.sharp.is_some() && self.scale < 1.0
+        self.sharp.is_some() && self.effective_scale() < 1.0
     }
 
     /// Draw a shader pack's `final`, made in the world's target, onto `screen`.
@@ -575,7 +596,7 @@ impl Post {
         } else {
             self.sharp
                 .as_ref()
-                .filter(|_| self.scale < 1.0 && self.sharp_world)
+                .filter(|_| self.effective_scale() < 1.0 && self.sharp_world)
                 .unwrap_or(&self.copy)
         };
         self.draw(encoder, screen, group, pipeline, timing);

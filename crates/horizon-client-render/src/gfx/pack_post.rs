@@ -690,7 +690,7 @@ fn source(name: &str, shadow_space: bool, shadow_pass: bool, watershadow: bool) 
         "depthtex1" => Source::Depth1,
         "depthtex2" => Source::Depth2,
         "noisetex" => Source::Noise,
-        "texture" | "gtexture" | "tex" => Source::Atlas,
+        "texture" | "gtexture" | "tex" | "MAIN_TEXTURE" => Source::Atlas,
         "lightmap" => Source::Lightmap,
         "normals" => Source::Normals,
         "specular" => Source::Specular,
@@ -1177,7 +1177,10 @@ fn bindings(
             }
             None => {
                 let mut src = source(&s.name, group.shadow(), shadow.is_some(), watershadow);
-                if (s.name == "tex" || s.name == "texture") && geometry.is_none() && !group.shadow() {
+                if matches!(s.name.as_str(), "tex" | "texture" | "MAIN_TEXTURE")
+                    && geometry.is_none()
+                    && !group.shadow()
+                {
                     src = Source::Color(0);
                 }
                 let blank = match src {

@@ -272,48 +272,73 @@ pub fn skin() -> Option<PathBuf> {
     }
 }
 
-/// TML Visuals, the shader pack the app carries (packaging/shaderpacks/tml-visuals, the
-/// APK's `assets/TMLVisuals.zip`), put in `shaderpacks/` of the game folder.
+/// The shader packs the app carries, put in `shaderpacks/` of the game folder:
+/// `TMLVisualsLite.zip` (packaging/shaderpacks/tml-visuals-lite, the phone-first pack the
+/// app starts with) and `TMLVisuals.zip` (the fuller Iris pack, still selectable). The
+/// default is Lite, and an untouched old default (`TMLVisuals.zip`) moves to it once.
 pub fn put_shader_pack(game_folder: &Path) {
-    let Some(bytes) = crate::platform::asset("TMLVisuals.zip") else {
+    let lite = put_asset_pack(game_folder, "TMLVisualsLite.zip", ".tml-visuals-lite");
+    let _full = put_asset_pack(game_folder, "TMLVisuals.zip", ".tml-visuals");
+    if !lite {
         return;
+    }
+
+    // One migration only: a player who later picks the full pack (or any other) keeps it.
+    let marker = crate::logging::private_home().join(".tml-visuals-default");
+    if marker.exists() {
+        return;
+    }
+    let graphics_file = game_folder.join("horizon-graphics.txt");
+    let content = std::fs::read_to_string(&graphics_file).unwrap_or_default();
+    let chosen = content
+        .lines()
+        .find_map(|line| line.strip_prefix("pickedShaderPack:").map(str::trim))
+        .unwrap_or("");
+    if lite && (chosen.is_empty() || chosen == "TMLVisuals.zip") {
+        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+        let picked = "pickedShaderPack:TMLVisualsLite.zip".to_string();
+        match lines
+            .iter_mut()
+            .find(|line| line.starts_with("pickedShaderPack:"))
+        {
+            Some(line) => *line = picked,
+            None => lines.push(picked),
+        }
+        if let Err(e) = std::fs::write(&graphics_file, lines.join("\n") + "\n") {
+            log::warn!(
+                "TML: the default shader pack was not saved in {}: {e}",
+                graphics_file.display()
+            );
+            return;
+        }
+    }
+    let _ = std::fs::write(marker, "TML Visuals Lite is the default\n");
+}
+
+/// One bundled shader pack: `asset` from the APK's assets, written as `name` in
+/// `shaderpacks/` when it changed. Returns whether it is there.
+fn put_asset_pack(game_folder: &Path, name: &str, marker_name: &str) -> bool {
+    let Some(bytes) = crate::platform::asset(name) else {
+        return false;
     };
     let dir = game_folder.join("shaderpacks");
-    let target = dir.join("TMLVisuals.zip");
+    let target = dir.join(name);
     let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
-    let marker = crate::logging::private_home().join(".tml-visuals");
+    let marker = crate::logging::private_home().join(marker_name);
     if target.exists() && std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
-        return;
+        return true;
     }
     match std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(&target, &bytes))
         .and_then(|()| std::fs::write(&marker, &stamp))
     {
-        Ok(()) => log::info!("TML: TML Visuals put in {}", dir.display()),
-        Err(e) => log::warn!(
-            "TML: TML Visuals could not be put in {}: {e}",
-            dir.display()
-        ),
-    }
-
-    // Activate TML Visuals by default in horizon-graphics.txt if not yet set
-    let graphics_file = game_folder.join("horizon-graphics.txt");
-    if let Ok(content) = std::fs::read_to_string(&graphics_file) {
-        if !content.contains("pickedShaderPack:") || content.contains("pickedShaderPack:\n") {
-            let mut new_lines = Vec::new();
-            let mut found = false;
-            for line in content.lines() {
-                if line.starts_with("pickedShaderPack:") {
-                    found = true;
-                    new_lines.push("pickedShaderPack:TMLVisuals.zip".to_string());
-                } else {
-                    new_lines.push(line.to_string());
-                }
-            }
-            if !found {
-                new_lines.push("pickedShaderPack:TMLVisuals.zip".to_string());
-            }
-            let _ = std::fs::write(&graphics_file, new_lines.join("\n") + "\n");
+        Ok(()) => {
+            log::info!("TML: {name} put in {}", dir.display());
+            true
+        }
+        Err(e) => {
+            log::warn!("TML: {name} could not be put in {}: {e}", dir.display());
+            false
         }
     }
 }

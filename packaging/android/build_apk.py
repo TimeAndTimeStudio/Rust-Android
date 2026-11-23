@@ -42,8 +42,8 @@ LABEL = "TML"
 # CI builds, signed with that repository's test key: the release key stays out of it.
 DEV_SUFFIX = ".dev"
 VARIANTS = {"dev": (DEV_SUFFIX, " Dev"), "preview": (".preview", " Preview")}
-VERSION_NAME = "1.0.11"
-VERSION_CODE = 26
+VERSION_NAME = "1.0.12"
+VERSION_CODE = 27
 MIN_SDK = 26  # AAudio (cpal)
 TARGET_SDK = 35
 PLATFORM = 36
@@ -161,8 +161,8 @@ def zip_folder(folder, archive):
 def assets(out):
     """The APK's assets/: prepare-kit.zip (PREPARE_KIT, with the paths horizon-prepare reads),
     lowbudget.zip, the skin the setup draws the menus with (packaging/lowbudget/pack, made by its
-    make.py), and StarlingVisuals.zip, the shader pack the app puts in shaderpacks/ (also left in
-    `out` for the release page)."""
+    make.py), and TMLVisualsLite.zip / TMLVisuals.zip, the shader packs the app puts in
+    shaderpacks/ (also left in `out` for the release page)."""
     run(sys.executable, ROOT / "tools/build_android_exporters.py")
     folder = out / "assets"
     shutil.rmtree(folder, ignore_errors=True)
@@ -182,6 +182,8 @@ def assets(out):
         for name in ["manifest.json", *sorted(manifest["classes"])]:
             kit.write(bundle / name, "exporters/" + name)
     zip_folder(HERE.parent / "lowbudget" / "pack", folder / "lowbudget.zip")
+    zip_folder(HERE.parent / "shaderpacks" / "tml-visuals-lite", folder / "TMLVisualsLite.zip")
+    shutil.copyfile(folder / "TMLVisualsLite.zip", out / "TMLVisualsLite.zip")
     zip_folder(HERE.parent / "shaderpacks" / "tml-visuals", folder / "TMLVisuals.zip")
     shutil.copyfile(folder / "TMLVisuals.zip", out / "TMLVisuals.zip")
     rp_dir = HERE.parent / "resourcepacks"

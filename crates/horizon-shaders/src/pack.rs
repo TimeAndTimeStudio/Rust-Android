@@ -2,7 +2,8 @@
 //! the root (licences, readmes, decoy folders) is ignored (spec 1.1). Every path a pack uses is
 //! relative to that `shaders` folder, written with `/`.
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fs;
 use std::io::{self, Cursor, Read};
@@ -22,6 +23,11 @@ pub struct Pack {
     /// The option values picked (`set_values`: a profile, `HORIZON_SHADER_OPTIONS`), applied
     /// after `chosen`.
     values: crate::Values,
+    /// Source text read so far, by its path inside `shaders`. A zip is decompressed once per
+    /// file rather than once per program that includes it, which is most of a pack's load when
+    /// its programs share a header (`basics/common.glsl` and the like). Text only: textures and
+    /// other binary files are not kept here.
+    cache: RefCell<HashMap<String, Option<Vec<u8>>>>,
 }
 
 enum Files {
@@ -80,6 +86,7 @@ impl Pack {
             files,
             chosen: BTreeMap::new(),
             values: Default::default(),
+            cache: RefCell::default(),
         })
     }
 
@@ -91,6 +98,7 @@ impl Pack {
             files,
             chosen: BTreeMap::new(),
             values: Default::default(),
+            cache: RefCell::default(),
         })
     }
 
@@ -139,7 +147,10 @@ impl Pack {
     /// doesn't exist or the path leaves the folder.
     pub fn read(&self, path: &str) -> Option<Vec<u8>> {
         let path = normalize(path)?;
-        match &self.files {
+        if let Some(cached) = self.cache.borrow().get(&path) {
+            return cached.clone();
+        }
+        let bytes = match &self.files {
             Files::Folder(root) => fs::read(root.join(&path)).ok(),
             Files::Zip { archive, entries } => {
                 // A clone shares the bytes and the central directory; reading needs `&mut`.
@@ -149,7 +160,11 @@ impl Pack {
                 entry.read_to_end(&mut out).ok()?;
                 Some(out)
             }
+        };
+        if is_text(&path) {
+            self.cache.borrow_mut().insert(path, bytes.clone());
         }
+        bytes
     }
 
     /// A text file, decoded as UTF-8 (invalid bytes replaced) without its byte-order mark, with
@@ -250,6 +265,17 @@ impl Pack {
         names.sort();
         names
     }
+}
+
+/// Whether `path` is source or property text whose decompressed bytes are worth keeping
+/// between programs. Textures and other binary files are read once and not cached.
+fn is_text(path: &str) -> bool {
+    [
+        ".glsl", ".vsh", ".fsh", ".gsh", ".csh", ".properties", ".lang", ".txt", ".json",
+        ".toml", ".mcmeta",
+    ]
+    .iter()
+    .any(|ext| path.ends_with(ext))
 }
 
 /// `a/./b/../c` → `a/c`; `None` for a path that climbs out of `shaders`.

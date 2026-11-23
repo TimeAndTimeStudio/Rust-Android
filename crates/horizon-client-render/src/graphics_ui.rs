@@ -105,7 +105,7 @@ pub enum H {
     ShaderPacks,
     /// Direct tick-box selection for Off (disable shaders).
     ShaderPackOff,
-    /// Direct tick-box selection for bundled TML Visuals (BSL).
+    /// Direct tick-box selection for the bundled phone-first pack, TML Visuals Lite.
     ShaderPackTml,
     /// Direct tick-box selection for custom shader packs.
     ShaderPackCustom0,
@@ -464,7 +464,7 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                         h(
                             H::ShaderPackTml,
                             High,
-                            "Bundled BSL Shaders: realistic lighting, water, clouds, and atmosphere.",
+                            "Bundled phone-first shaders: light sky and shadows, water and bloom at a steady frame rate.",
                         ),
                         h(
                             H::ShaderPackCustom0,
@@ -821,7 +821,7 @@ impl H {
             }
             H::ShaderOptions => Text::literal(lang::get("Pack Settings...")),
             H::ShaderPackOff => Text::literal("Off"),
-            H::ShaderPackTml => Text::literal("TML Visuals (BSL)"),
+            H::ShaderPackTml => Text::literal("TML Visuals Lite"),
             H::ShaderPackCustom0 => Text::literal(
                 s.shader_packs
                     .get(0)
@@ -1216,14 +1216,10 @@ impl H {
                 g.shader_pack.clear();
             }
             H::ShaderPackTml => {
-                if !g.shader_pack.is_empty()
-                    && (g.shader_pack.contains("TML")
-                        || g.shader_pack.contains("tml")
-                        || g.shader_pack == "TMLVisuals.zip")
-                {
+                if g.shader_pack == "TMLVisualsLite.zip" {
                     g.shader_pack.clear();
                 } else {
-                    g.shader_pack = "TMLVisuals.zip".to_string();
+                    g.shader_pack = "TMLVisualsLite.zip".to_string();
                 }
             }
             H::ShaderPackCustom0 => {
@@ -1263,7 +1259,11 @@ impl H {
                 }
             }
             H::ActiveShaderPack => {
-                let mut packs = vec!["".to_string(), "TMLVisuals.zip".to_string()];
+                let mut packs = vec![
+                    "".to_string(),
+                    "TMLVisualsLite.zip".to_string(),
+                    "TMLVisuals.zip".to_string(),
+                ];
                 for p in &s.shader_packs {
                     if !packs.contains(&p.file) {
                         packs.push(p.file.clone());
@@ -1362,12 +1362,7 @@ impl Item {
         let g = &s.horizon;
         Some(match self {
             Item::Horizon(H::ShaderPackOff) => g.shader_pack.is_empty(),
-            Item::Horizon(H::ShaderPackTml) => {
-                !g.shader_pack.is_empty()
-                    && (g.shader_pack.contains("TML")
-                        || g.shader_pack.contains("tml")
-                        || g.shader_pack == "TMLVisuals.zip")
-            }
+            Item::Horizon(H::ShaderPackTml) => g.shader_pack == "TMLVisualsLite.zip",
             Item::Horizon(H::ShaderPackCustom0) => {
                 s.shader_packs.get(0).is_some_and(|p| p.file == g.shader_pack)
             }

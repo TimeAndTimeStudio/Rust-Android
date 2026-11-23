@@ -100,6 +100,27 @@ pub(super) fn picked_pack_draws_flat(settings: &horizon_client::settings::Settin
     !picked.is_empty() && pack_draws_flat(&Game::shader_packs_dir().join(picked))
 }
 
+/// A pack to use when the picked one is gone: the bundled Lite pack first, then a player's own
+/// pack, then the fuller bundled pack. A stale pick then falls back to something that draws a
+/// world instead of leaving the game unshaded until the player opens the menu.
+fn fallback_shader_pack(missing: &str) -> Option<String> {
+    let dir = Game::shader_packs_dir();
+    let mut usable: Vec<String> = horizon_client::shader_pack_list::scan(&dir)
+        .into_iter()
+        .map(|entry| entry.file)
+        .filter(|file| file != missing && dir.join(file).exists())
+        .collect();
+    let lite_at = usable
+        .iter()
+        .position(|file| file == "TMLVisualsLite.zip");
+    let lite = lite_at.map(|at| usable.remove(at));
+    let own_at = usable
+        .iter()
+        .position(|file| !file.to_ascii_lowercase().contains("tml"));
+    let own = own_at.map(|at| usable.remove(at));
+    lite.or(own).or_else(|| usable.into_iter().next())
+}
+
 /// Whether the pack at `path` has passes that draw the terrain flat where the device can,
 /// reading translucent quads beside their section's solid ones: a `shaders/` pack, taken to
 /// draw terrain, or one of Horizon's own with a `[shadow]` pass.
@@ -165,40 +186,36 @@ pub(super) struct Making {
     started: std::time::Instant,
 }
 
-/// What the Auto profile does to a pack on this device. Packs written for a PC spend most of a
-/// phone's frame on their pixels, water and shadow map, so it takes one of the pack's own light
-/// profiles (Complementary on a Snapdragon 8 Gen 2 at distance 10: 46 ms of GPU on LOW, 28 ms on
-/// VERYLOW), limits the shadow and the resolution, and has terrain draw its depth first. Which
-/// profile is lightest is read from what the profiles set (`Values::profiles_by_cost`), not from
-/// their names, so any pack that has profiles works.
+/// What the Auto profile does to a pack on this device: it takes one of the pack's own
+/// profiles, chosen by cost rather than by name, and leaves every option it sets alone.
+///
+/// It deliberately does not cap the shadow map, the shadow distance or the resolution scale.
+/// Those are the player's calls: a stronger phone gets a profile near the middle of the pack's
+/// range instead of the lightest one, so Auto never silently makes a pack look worse than the
+/// profile it picked.
 struct AutoProfile {
-    /// Place among the pack's profiles, lightest first. A strong phone skips the very lightest
-    /// when the pack has three or more (a profile that turns everything off looks like none).
-    rank: usize,
-    shadow_resolution: f64,
-    shadow_distance: f64,
+    /// Where in the pack's profiles to aim, from the lightest (0) to the heaviest (1). Phones
+    /// sit below the middle because a phone's frame is led by its pixels, not its CPU.
+    quality: f32,
 }
 
 impl AutoProfile {
     fn here() -> Self {
         use horizon_client::system_stats::Tier;
         match Tier::here().unwrap_or(Tier::High) {
-            Tier::High => Self {
-                rank: 1,
-                shadow_resolution: 1024.0,
-                shadow_distance: 64.0,
-            },
-            Tier::Mid => Self {
-                rank: 0,
-                shadow_resolution: 1024.0,
-                shadow_distance: 64.0,
-            },
-            Tier::Low => Self {
-                rank: 0,
-                shadow_resolution: 512.0,
-                shadow_distance: 64.0,
-            },
+            Tier::High => Self { quality: 0.6 },
+            Tier::Mid => Self { quality: 0.4 },
+            Tier::Low => Self { quality: 0.2 },
         }
+    }
+
+    /// The profile to pick out of `count`, lightest first: the middle of the pack's range for
+    /// a strong phone, lighter for slower ones. One profile is always the one to pick.
+    fn rank(&self, count: usize) -> usize {
+        if count < 2 {
+            return 0;
+        }
+        ((count - 1) as f32 * self.quality).round() as usize
     }
 }
 
@@ -216,8 +233,7 @@ fn picked_values(
     if profile == AUTO_PROFILE {
         let auto = AutoProfile::here();
         let ranked = horizon_shaders::Values::profiles_by_cost(properties, options);
-        let at = if ranked.len() > 2 { auto.rank } else { 0 };
-        match ranked.get(at) {
+        match ranked.get(auto.rank(ranked.len())) {
             Some((found, cost)) => {
                 log::info!(
                     "shader pack {name}: Auto picks profile `{found}` (cost {cost:.1}) of {}",
@@ -230,14 +246,6 @@ fn picked_values(
                 values = horizon_shaders::Values::profile(properties, found).unwrap_or_default();
             }
             None => log::info!("shader pack {name}: Auto finds no profile to start from"),
-        }
-        for (option, limit) in [
-            ("shadowMapResolution", auto.shadow_resolution),
-            ("shadowDistance", auto.shadow_distance),
-        ] {
-            if !chosen.contains_key(option) {
-                values.cap(option, limit);
-            }
         }
     } else if !profile.is_empty() {
         match horizon_shaders::Values::profile(properties, profile) {
@@ -298,7 +306,7 @@ impl Game<'_> {
                 renderer.set_world_post(scale, antialias, taa, upscale);
             }
         }
-        let Some((name, profile)) = self.shader_choice.clone() else {
+        let Some((mut name, profile)) = self.shader_choice.clone() else {
             return PackInputs::default();
         };
         let dimension = match self.dim {
@@ -306,9 +314,21 @@ impl Game<'_> {
             Dim::Nether => -1,
             Dim::End => 1,
         };
-        let path = Self::shader_packs_dir().join(&name);
-        if !path.exists() && (name == "TMLVisuals.zip" || name.contains("TML") || name.contains("tml")) {
+        let mut path = Self::shader_packs_dir().join(&name);
+        if !path.exists() && (name.contains("TML") || name.contains("tml")) {
             crate::preparer::put_shader_pack(&Self::game_dir());
+        }
+        // A pack the player removed (or one this install never had) must not leave the world
+        // unshaded: fall back to another pack once, and save that choice so it sticks.
+        if !path.exists()
+            && std::env::var("HORIZON_SHADER_PACK").is_err()
+            && let Some(fallback) = fallback_shader_pack(&name)
+        {
+            log::warn!("shader pack {name}: missing; using {fallback}");
+            name = fallback;
+            path = Self::shader_packs_dir().join(&name);
+            self.settings.horizon.shader_pack = name.clone();
+            self.settings.save(&Self::options_path());
         }
         if horizon_shader_api::package::is_pack(&path) {
             // One of Horizon's own packs (game/native_shaders.rs).
@@ -609,22 +629,11 @@ impl Game<'_> {
         }
     }
 
-    /// The world's resolution, of the screen's: the player's, and no more than Auto's while it
-    /// runs a pack that isn't a light one.
+    /// The world's resolution, of the screen's: exactly what the player chose. A shader pack
+    /// never changes it on its own, so the Resolution Scale slider means the same thing with
+    /// or without a pack and never loses sharpness behind the player's back.
     pub(super) fn world_scale(&self) -> f32 {
-        let chosen = self.settings.horizon.resolution_scale as f32 / 100.0;
-        match &self.shader_choice {
-            Some((name, profile))
-                if profile == AUTO_PROFILE
-                    && !light_shader_pack(name)
-                    && !horizon_shader_api::package::is_pack(
-                        &Self::shader_packs_dir().join(name),
-                    ) =>
-            {
-                chosen.min(horizon_client::graphics::auto_shader_scale())
-            }
-            _ => chosen,
-        }
+        self.settings.horizon.resolution_scale as f32 / 100.0
     }
 
     /// The Shader Options page opened: the picked pack's options, screens and names.
@@ -1040,6 +1049,26 @@ mod emission_tests {
             terrain_table(&[10, -1, 20, 1], &[14, 0]),
             [10, -1, 14, 20, 1, 0]
         );
+    }
+}
+
+#[cfg(test)]
+mod auto_profile_tests {
+    use super::AutoProfile;
+
+    /// The phone tiers climb the pack's profiles without landing on the lightest one for a
+    /// strong device, and always stay inside the list.
+    #[test]
+    fn auto_picks_a_middle_profile_per_tier() {
+        let high = AutoProfile { quality: 0.6 };
+        let mid = AutoProfile { quality: 0.4 };
+        let low = AutoProfile { quality: 0.2 };
+        assert_eq!(high.rank(6), 3);
+        assert_eq!(mid.rank(6), 2);
+        assert_eq!(low.rank(6), 1);
+        assert_eq!(high.rank(1), 0);
+        assert_eq!(low.rank(0), 0);
+        assert!(high.rank(3) < 3);
     }
 }
 

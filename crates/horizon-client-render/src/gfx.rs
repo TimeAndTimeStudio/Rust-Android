@@ -5883,7 +5883,9 @@ impl Renderer {
     /// `upscale`: output pixels per rendered pixel, for TAA to rebuild (1: native).
     pub fn set_world_post(&mut self, scale: f32, antialias: bool, taa: bool, upscale: f32) {
         let taa = taa && self.world_post.supports_taa();
-        self.world_post.scale = scale.clamp(0.25, 2.0);
+        // A new choice is tried at full size: a picture the device could not hold at another
+        // setting must not keep the old setting's memory fallback.
+        self.world_post.set_scale(scale);
         self.world_post.antialias = antialias && !taa;
         self.world_post.taa = taa;
         self.world_post.upscale = if taa { upscale.clamp(1.0, 4.0) } else { 1.0 };
@@ -5910,6 +5912,9 @@ impl Renderer {
         self.pack_post = Some((dimension, post));
         if self.pack_post.as_ref().is_some_and(|p| p.1.is_some()) {
             self.native = None;
+            // A pack set on this thread made its pipelines just now: keep what the driver
+            // compiled with the next start (`save_pipeline_cache`).
+            self.save_pipeline_cache();
         }
         report
     }
@@ -5922,6 +5927,15 @@ impl Renderer {
         post: impl FnOnce() -> horizon_shaders::Post + Send + 'static,
         block_ids: Vec<i32>,
     ) {
+        // A dimension change one frame after another must not spawn a second build: the
+        // first one would be dropped unseen, and both would compile the same programs at once.
+        if self
+            .pack_loading
+            .as_ref()
+            .is_some_and(|(loading, _)| *loading == dimension)
+        {
+            return;
+        }
         let world = self.pack_world();
         let (device, queue) = (self.device.clone(), self.queue.clone());
         let (send, receive) = std::sync::mpsc::channel();
@@ -5945,7 +5959,8 @@ impl Renderer {
             self.pack_post = Some((dimension, None));
             return;
         }
-        self.pack_post = None;
+        // The pack that was drawing (the last dimension's, on a dimension change) keeps
+        // drawing until the new one is made: no unshaded frames and no flash between worlds.
         self.pack_loading = Some((dimension, receive));
     }
     /// The pack `start_shader_pack` makes, once made: the programs that run and the notes of
@@ -5969,6 +5984,11 @@ impl Renderer {
             }
         };
         self.pack_loading = None;
+        // The pack's pipelines were just made: keep what the driver compiled now, so a
+        // process killed in the background (or the next start) does not compile them again.
+        if result.is_ok() {
+            self.save_pipeline_cache();
+        }
         Some(result)
     }
     /// What a pack's programs are built against, owned so that another thread can build them.
@@ -6423,7 +6443,7 @@ impl Renderer {
         let limits = self.device.limits();
         let factor = scaled_screenshot_factor(
             window,
-            self.world_post.scale,
+            self.world_post.effective_scale(),
             self.screenshot_quality,
             limits.max_texture_dimension_2d,
             limits.max_buffer_size,
