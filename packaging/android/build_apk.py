@@ -42,8 +42,8 @@ LABEL = "TML"
 # CI builds, signed with that repository's test key: the release key stays out of it.
 DEV_SUFFIX = ".dev"
 VARIANTS = {"dev": (DEV_SUFFIX, " Dev"), "preview": (".preview", " Preview")}
-VERSION_NAME = "1.0.3"
-VERSION_CODE = 18
+VERSION_NAME = "1.0.4"
+VERSION_CODE = 19
 MIN_SDK = 26  # AAudio (cpal)
 TARGET_SDK = 35
 PLATFORM = 36
@@ -278,17 +278,27 @@ def add_code(base, libraries, dex, unsigned, abi=ABI):
 
 def sign(build_tools, aligned, apk, out):
     keystore = os.environ.get("HORIZON_ANDROID_KEYSTORE")
-    alias = os.environ.get("HORIZON_ANDROID_KEY_ALIAS", "horizon-debug")
+    alias = os.environ.get("HORIZON_ANDROID_KEY_ALIAS")
     env = dict(os.environ)
     if not keystore:
-        keystore = out / "debug.keystore"
-        env["HORIZON_ANDROID_STORE_PASSWORD"] = env["HORIZON_ANDROID_KEY_PASSWORD"] = "android"
-        if not keystore.exists():
-            run(
-                "keytool", "-genkeypair", "-keystore", keystore, "-storepass", "android",
-                "-keypass", "android", "-alias", alias, "-keyalg", "RSA", "-keysize", "2048",
-                "-validity", "10000", "-dname", "CN=Horizon Android debug",
-            )
+        repo_keystore = HERE / "release.keystore"
+        if repo_keystore.exists():
+            keystore = str(repo_keystore)
+            alias = alias or "tml-release"
+            env["HORIZON_ANDROID_STORE_PASSWORD"] = env.get("HORIZON_ANDROID_STORE_PASSWORD", "tmlclient")
+            env["HORIZON_ANDROID_KEY_PASSWORD"] = env.get("HORIZON_ANDROID_KEY_PASSWORD", "tmlclient")
+        else:
+            keystore = str(out / "debug.keystore")
+            alias = alias or "horizon-debug"
+            env["HORIZON_ANDROID_STORE_PASSWORD"] = env["HORIZON_ANDROID_KEY_PASSWORD"] = "android"
+            if not Path(keystore).exists():
+                run(
+                    "keytool", "-genkeypair", "-keystore", keystore, "-storepass", "android",
+                    "-keypass", "android", "-alias", alias, "-keyalg", "RSA", "-keysize", "2048",
+                    "-validity", "10000", "-dname", "CN=Horizon Android debug",
+                )
+    else:
+        alias = alias or "horizon-debug"
     apksigner = tool(build_tools, "apksigner")
     run(
         apksigner, "sign", "--ks", keystore, "--ks-key-alias", alias,
@@ -366,7 +376,7 @@ def main():
     add_code(out / "base.apk", libraries, dex, out / "unsigned.apk", args.abi)
     aligned = out / "aligned.apk"
     run(tool(build_tools, "zipalign"), "-P", "16", "-f", "4", out / "unsigned.apk", aligned)
-    apk = out / f"tml-shaders{'-' + variant if variant else ''}-{VERSION_NAME}-{args.abi}.apk"
+    apk = out / f"tml{'-' + variant if variant else ''}-{VERSION_NAME}-{args.abi}.apk"
     sign(build_tools, aligned, apk, out)
     print(apk)
     if args.zip:
