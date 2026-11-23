@@ -33,7 +33,7 @@ pub const OPTIONS: &[LaunchOption] = &[
     option(
         "--game-dir",
         Some("DIR"),
-        "The game folder: `saves/`, `options.txt`, `resourcepacks/`, `horizon-mods/`, `screenshots/`. Created when missing. Default: the working directory. `--gameDir` is the same.",
+        "The game folder: `saves/`, `options.txt`, `resourcepacks/`, `screenshots/`. Created when missing. Default: the working directory. `--gameDir` is the same.",
     ),
     option(
         "--home",

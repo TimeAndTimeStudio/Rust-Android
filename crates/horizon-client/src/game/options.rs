@@ -467,9 +467,8 @@ impl Game<'_> {
                     self.reload_packs();
                 }
                 Event::OpenPackFolder => self.open_game_folder(&super::packs::packs_dir()),
-                Event::OpenModFolder => {
-                    self.open_game_folder(&Self::game_dir().join(horizon_client::mod_list::DIR))
-                }
+                // TML has no mod folder: the Mods page no longer opens one.
+                Event::OpenModFolder => {}
                 #[cfg(target_os = "android")]
                 Event::OpenCatalog(_) => {},
                 #[cfg(not(target_os = "android"))]

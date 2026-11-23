@@ -5,7 +5,6 @@
 //! only the native mods whose line is `true`.
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
     path::Path,
 };
 
@@ -94,10 +93,9 @@ pub struct NativePage {
 }
 
 impl ModList {
-    pub fn load(dir: &Path) -> Self {
-        fs::read_to_string(dir.join(FILE))
-            .map(|t| Self::parse(&t))
-            .unwrap_or_default()
+    pub fn load(_dir: &Path) -> Self {
+        // TML has no mod system: no list, no file.
+        Self::default()
     }
     pub fn parse(text: &str) -> Self {
         let ids = |value: &str| -> BTreeSet<String> {
@@ -143,16 +141,8 @@ impl ModList {
             k.iter().map(|(n, k)| (n.as_str(), k.as_str())).collect()
         })
     }
-    pub fn save(&self, dir: &Path) {
-        let path = dir.join(FILE);
-        if self.enabled.is_empty()
-            && self.disabled.is_empty()
-            && self.keys.is_empty()
-            && !path.exists()
-        {
-            return;
-        }
-        let _ = fs::write(path, self.serialize());
+    pub fn save(&self, _dir: &Path) {
+        // TML has no mod system: nothing is written.
     }
     pub fn is_on(&self, i: usize) -> bool {
         self.installed.get(i).is_some_and(|m| {

@@ -199,26 +199,8 @@ pub fn install(path: &Path, name: &str, places: &Places) -> Result<Installed, St
                 .map_err(fail)?;
             format!("World \"{title}\" added to Singleplayer")
         }
-        Kind::Mod => {
-            let dir = places.game.join("horizon-mods");
-            fs::create_dir_all(&dir).map_err(fail)?;
-            if prefix.is_empty() {
-                copy_file(path, &unique(&dir, &title, ".hmod")).map_err(fail)?;
-            } else {
-                extract_into(path, &prefix, &unique(&dir, &title, ""), &[]).map_err(fail)?;
-            }
-            format!(
-                "Mod \"{title}\" added: turn it on in Options > Mods, or, if it adds blocks or items, pick it for a new world in Create New World > More > Mods & Data Packs"
-            )
-        }
-        Kind::NativeMod => {
-            let bundle = horizon_mods::index::native::Bundle::read(path)
-                .map_err(|e| format!("{name} can't be added: {e}"))?;
-            let id = bundle.manifest.id;
-            let dir = places.game.join("horizon-native-mods");
-            fs::create_dir_all(&dir).map_err(fail)?;
-            copy_file(path, &dir.join(format!("{id}.hnmod"))).map_err(fail)?;
-            format!("Native mod \"{id}\" added: compile it in Options > Mods")
+        Kind::Mod | Kind::NativeMod => {
+            return Err(format!("{name} is a mod; TML does not run mods"));
         }
         Kind::Resources => {
             install_resources(path, &prefix, &places.resources)?;

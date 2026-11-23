@@ -46,7 +46,7 @@ fn phone_drop_info(data: bool, folder: Option<&std::path::Path>) -> String {
     let shown = folder.strip_prefix("/storage/emulated/0").unwrap_or(folder);
     let shown = shown.display();
     if data {
-        format!("Put data packs in {shown}/datapacks, mods in {shown}/horizon-mods")
+        format!("Put data packs in {shown}/datapacks")
     } else {
         format!("Put packs in {shown}/resourcepacks")
     }
@@ -1512,7 +1512,7 @@ mod catalog_button_tests {
         );
         assert_eq!(
             info(true, "/storage/emulated/0/StarlingPreview"),
-            "Put data packs in StarlingPreview/datapacks, mods in StarlingPreview/horizon-mods"
+            "Put data packs in StarlingPreview/datapacks"
         );
         // Another user's storage: the whole path, the root isn't what a file manager opens on.
         assert_eq!(

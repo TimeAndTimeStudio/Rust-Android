@@ -164,7 +164,7 @@ public final class GameFolderChecks {
         }
         List<String> top = folder.children("starling");
         check(top.contains("starling/options.txt") && top.contains("starling/saves"), "listed");
-        for (String made : new String[] {"resourcepacks", "shaderpacks", "horizon-mods"}) {
+        for (String made : new String[] {"resourcepacks", "shaderpacks"}) {
             check(top.contains("starling/" + made), made + " is made to copy into");
         }
         check(!top.contains("starling/accounts") && !top.contains("starling/native")

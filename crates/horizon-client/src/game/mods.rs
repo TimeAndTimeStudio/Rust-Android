@@ -19,7 +19,11 @@ pub(super) struct ModsState {
 /// Freeze native component IDs before reading content or opening a connection.
 /// With no mod registering any, nothing is installed, which every reader
 /// treats as no custom components, and `registries.json` isn't read.
+#[allow(unreachable_code)]
 pub(super) fn register_components(root: &std::path::Path) -> horizon_client::Result<()> {
+    let _ = root;
+    // TML has no native mod system: no mod registers a component.
+    return Ok(());
     let mut names = Vec::new();
     Game::native_component_types(&mut names);
     if names.is_empty() {
@@ -48,16 +52,14 @@ fn native_declared() -> &'static (
         Vec<horizon_mods::content::Block>,
         Vec<horizon_mods::content::Item>,
     )> = std::sync::OnceLock::new();
-    DECLARED.get_or_init(|| {
-        let (mut blocks, mut items) = (Vec::new(), Vec::new());
-        Game::native_blocks(&mut blocks);
-        Game::native_items(&mut items);
-        (blocks, items)
-    })
+    DECLARED.get_or_init(|| (Vec::new(), Vec::new()))
 }
 /// The native mods' standalone models (`native_standalone_models`), set once
 /// before the resources first load.
+#[allow(unreachable_code)]
 pub(super) fn register_standalone_models() {
+    // TML has no native mods.
+    return;
     let mut names = Vec::new();
     Game::native_standalone_models(&mut names);
     horizon_client::models::register_standalone(names);
@@ -103,6 +105,7 @@ impl ContentNote<'_> {
 /// ones loaded are what worlds compare theirs with. `on_note` hears a mod's assets coming from
 /// Modrinth (mod_assets.rs) the first time it is on, and the mods' names before their root is
 /// built (none when it is reused).
+#[allow(unreachable_code)]
 pub(super) fn content_root(
     root: &std::path::Path,
     enabled: &std::collections::BTreeSet<String>,
@@ -110,6 +113,9 @@ pub(super) fn content_root(
     registries: Option<&std::collections::BTreeSet<String>>,
     on_note: &mut dyn FnMut(ContentNote),
 ) -> std::path::PathBuf {
+    let _ = (enabled, dev, registries, on_note);
+    // TML runs no mods: the resources are the game's own, unchanged.
+    return root.to_path_buf();
     use horizon_client::mod_content::{self, ContentMod};
     use horizon_mods::{Capability, Content, Package};
     let here = std::env::current_dir().unwrap_or_default();
@@ -476,44 +482,37 @@ impl Game<'_> {
     /// The Mods page opened: native mods copied into the folder since the game started (the Files
     /// app, a computer) get their rows, as the catalog's do. Only a phone compiles them.
     #[cfg(target_os = "android")]
-    pub(super) fn list_copied_native_mods(&mut self) {
-        self.list_new_native_mods();
-    }
+    pub(super) fn list_copied_native_mods(&mut self) {}
     #[cfg(not(target_os = "android"))]
     pub(super) fn list_copied_native_mods(&mut self) {}
 
     /// Installed mod `i` was turned on or off on the Mods page: a native one changes which build
     /// the next start runs (`native_builds.rs`). Only a phone has builds.
     #[cfg(target_os = "android")]
-    pub(super) fn mod_toggled(&mut self, i: usize) {
-        self.native_mod_toggled(i);
-    }
+    pub(super) fn mod_toggled(&mut self, _i: usize) {}
     #[cfg(not(target_os = "android"))]
     pub(super) fn mod_toggled(&mut self, _i: usize) {}
 
     /// A button of the Mods page's game with native mods (`native_builds.rs`).
     #[cfg(target_os = "android")]
-    pub(super) fn native_game_button(&mut self, act: mod_list::NativeGameAct) {
-        self.native_game_act(act);
-    }
+    pub(super) fn native_game_button(&mut self, _act: mod_list::NativeGameAct) {}
     #[cfg(not(target_os = "android"))]
     pub(super) fn native_game_button(&mut self, _act: mod_list::NativeGameAct) {}
 
     /// A native mod the catalog just put in the folder: its row on the Mods page, with Compile.
     #[cfg(target_os = "android")]
-    pub(super) fn list_new_native_mods(&mut self) {
-        let built = super::native_builds::running_build_info().unwrap_or_default();
-        let native_dir = Self::game_dir().join(mod_list::NATIVE_DIR);
-        let unbuilt = not_built(&native_dir, &built, &self.settings.mods.installed);
-        self.settings.mods.installed.extend(unbuilt);
-        self.offer_compile();
-    }
+    pub(super) fn list_new_native_mods(&mut self) {}
 
     /// Lists the installed mods on the Mods page. Content mods load with the resources
     /// (`content_root`); native ones are built into the game (`native_hooks.rs`). WebAssembly code
     /// mods don't run any more: their rows say so, and the player hears it once in the chat
     /// (`tell_native_now`).
+    #[allow(unreachable_code)]
     pub(super) fn start_mods(&mut self) {
+        self.settings.mods.installed.clear();
+        self.mods.stopped.clear();
+        // TML has no mod system: nothing is listed, read or built.
+        return;
         let dir = Self::game_dir().join(mod_list::DIR);
         let mut paths = horizon_mods::find(&dir);
         paths.retain(|p| !self.mods.dev.contains(p));
@@ -601,7 +600,10 @@ impl Game<'_> {
             .collect();
     }
     /// Once, in the first world after the update: which WebAssembly mods stopped.
+    #[allow(unreachable_code)]
     pub(super) fn tell_native_now(&mut self) {
+        // No mods remain to warn about.
+        return;
         if self.mods.stopped.is_empty() || self.player.is_none() {
             return;
         }

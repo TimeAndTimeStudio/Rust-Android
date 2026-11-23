@@ -377,10 +377,8 @@ const PLAYER_FILES: &[&str] = &[
     "resourcepacks",
     "datapacks",
     "shaderpacks",
-    "horizon-mods",
     "screenshots",
     "servers.dat",
-    "horizon-mods.txt",
     "horizon-graphics.txt",
     "horizon-extras.txt",
     "horizon-controller.txt",
@@ -398,7 +396,6 @@ const NO_MEDIA: &[&str] = &[
     "resourcepacks",
     "datapacks",
     "shaderpacks",
-    "horizon-mods",
     "assets",
     "minecraft",
     "resources",
@@ -435,9 +432,8 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     if !shared.join("options.txt").exists() && private.join("options.txt").exists() {
         match move_player_files(private, shared) {
             Ok(n) => notes.push(format!(
-                "Horizon: moved {n} files and folders to {} (the old copies are in {})",
-                shared.display(),
-                private.join("moved-to-shared").display()
+                "Horizon: moved {n} files and folders to {} and freed the old copies",
+                shared.display()
             )),
             Err(e) => {
                 notes.push(format!(
@@ -449,6 +445,15 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
             }
         }
     }
+    // TML ships without mods, and keeps no old copies of a folder it moved: both are only
+    // space the player asked to get back.
+    let _ = std::fs::remove_dir_all(private.join("moved-to-shared"));
+    for base in [private, shared] {
+        for name in ["horizon-mods", "horizon-native-mods"] {
+            let _ = std::fs::remove_dir_all(base.join(name));
+        }
+    }
+    let _ = std::fs::remove_dir_all(private.join("native"));
     move_heavy_dirs(private, shared, notes);
     for name in NO_MEDIA {
         let dir = shared.join(name);
@@ -461,8 +466,7 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
 
 /// The big folders that only take space: the fetched Minecraft files and the resources prepared
 /// from them. They are copied to shared storage and the private copy is removed once the copy is
-/// whole, so a phone's app storage gets the space back (the old copies of the player's own files
-/// stay in `moved-to-shared`).
+/// whole, so a phone's app storage gets the space back.
 fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
     for name in ["minecraft", "resources"] {
         let from = private.join(name);
@@ -504,10 +508,14 @@ fn move_player_files(private: &Path, shared: &Path) -> std::io::Result<usize> {
     for name in &present {
         copy_tree(&private.join(name), &shared.join(name))?;
     }
-    let aside = private.join("moved-to-shared");
-    std::fs::create_dir_all(&aside)?;
+    // The copy is whole (each file's size checked): the old copy goes, so the space comes back.
     for name in &present {
-        let _ = std::fs::rename(private.join(name), aside.join(name));
+        let path = private.join(name);
+        if path.is_dir() {
+            std::fs::remove_dir_all(&path)?;
+        } else {
+            std::fs::remove_file(&path)?;
+        }
     }
     Ok(present.len())
 }

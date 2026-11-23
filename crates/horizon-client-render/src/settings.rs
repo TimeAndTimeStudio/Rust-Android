@@ -717,7 +717,6 @@ impl Settings {
             self.controller.save(dir);
             let _ = self.keypad.save(&dir.join("horizon-keypad.json"));
             self.extras.save(dir);
-            self.mods.save(&crate::logging::shared_dir(dir));
         }
     }
     /// Volume of a sound source (master excluded).
