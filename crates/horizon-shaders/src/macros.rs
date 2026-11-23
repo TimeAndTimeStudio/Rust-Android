@@ -148,11 +148,21 @@ impl Macros {
         // Packs take Iris's extensions (compute programs, images, custom textures) where this
         // is defined.
         m.define("IS_IRIS", "");
-        // Iris 1.11.7's own, as it defines them on 26.3 (observed with a probe pack): its version
+        // Iris 1.11.7 / 26.3 own, as it defines them on 26.3: its version
         // (1.11.7 as 11107), and translucent terrain sorted back to front, as Horizon sorts it
         // (vanilla's `VertexSorting.byDistance`, `gfx/translucency.rs`).
         m.define("IRIS_VERSION", "11107");
         m.define("IRIS_HAS_TRANSLUCENCY_SORTING", "");
+        m.define("IRIS_REQUIRES_SEPARATE_ENTITY_DRAWS", "");
+        m.define("IRIS_INLINE_GLINT", "");
+        m.define("IRIS_TAG_SUPPORT", "2");
+        m.define("IRIS_HAS_CONNECTED_TEXTURES", "");
+        for (i, category) in crate::biomes::CATEGORIES.iter().enumerate() {
+            m.define(format!("CAT_{category}"), i.to_string());
+        }
+        m.define("PPT_NONE", "0");
+        m.define("PPT_RAIN", "1");
+        m.define("PPT_SNOW", "2");
         for (i, material) in DH_BLOCK_MATERIALS.iter().enumerate() {
             m.define(format!("DH_BLOCK_{material}"), i.to_string());
         }

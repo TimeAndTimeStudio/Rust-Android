@@ -189,6 +189,7 @@ vec4 DrawCloudSkybox(vec3 viewPos, float z, float dither, vec3 lightCol, vec3 am
 	dither = fract(dither + frameCounter * 0.5);
 	#endif
 	#endif
+	dither = mix(dither, 0.5, 0.35);
 
 	int samples = CLOUD_THICKNESS * 2;
 	
@@ -309,6 +310,7 @@ vec4 DrawCloudVolumetric(vec3 viewPos, vec3 cameraPos, float z, float dither, ve
 	dither = fract(dither + frameCounter * 0.5);
 	#endif
 	#endif
+	dither = mix(dither, 0.5, 0.35);
 
 	vec3 nViewPos = normalize(viewPos);
 	vec3 worldPos = (gbufferModelViewInverse * vec4(viewPos, 1.0)).xyz;
@@ -344,7 +346,7 @@ vec4 DrawCloudVolumetric(vec3 viewPos, vec3 cameraPos, float z, float dither, ve
 
 	float maxcloudViewLength = cloudViewLength;
 
-	if (furthestPlane < 0) return vec4(0.0);
+	if (abs(nWorldPos.y) < 0.005 || furthestPlane < 0.0 || nearestPlane > maxcloudViewLength) return vec4(0.0);
 
 	float planeDifference = furthestPlane - nearestPlane;
 
@@ -540,6 +542,7 @@ vec3 DrawAurora(vec3 viewPos, float dither, int samples) {
 	dither = fract(dither + frameCounter * 0.5);
 	#endif
 	#endif
+	dither = mix(dither, 0.5, 0.35);
 	
 	float sampleStep = 1.0 / samples;
 	float currentStep = dither * sampleStep;

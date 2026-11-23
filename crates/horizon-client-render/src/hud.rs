@@ -1719,15 +1719,19 @@ impl HudAtlas {
             } else {
                 image
             };
-            // The default texture's size, when a pack's differs from it.
-            let gui_size = default_textures
-                .as_ref()
-                .and_then(|d| png_size(&d.join(format!("{name}.png"))))
-                .map(|(dw, dh)| {
-                    let side = dw.min(dh);
-                    if frames { (side, side) } else { (dw, dh) }
-                })
-                .filter(|&size| size != (w, h));
+            // The default texture's size, when a pack's differs from it. Fonts use their own resolution.
+            let gui_size = if name.starts_with("font/") {
+                None
+            } else {
+                default_textures
+                    .as_ref()
+                    .and_then(|d| png_size(&d.join(format!("{name}.png"))))
+                    .map(|(dw, dh)| {
+                        let side = dw.min(dh);
+                        if frames { (side, side) } else { (dw, dh) }
+                    })
+                    .filter(|&size| size != (w, h))
+            };
             let flags = mcmeta.as_deref().and_then(TextureFlags::from_mcmeta);
             let animated = frames && animation.is_some();
             let (gw, gh) = gui_size.unwrap_or((w, h));

@@ -103,6 +103,15 @@ pub enum H {
     ShadowCache,
     /// Picks a shader pack and opens shader options.
     ShaderPacks,
+    /// Direct tick-box selection for Off (disable shaders).
+    ShaderPackOff,
+    /// Direct tick-box selection for bundled TML Visuals (BSL).
+    ShaderPackTml,
+    /// Direct tick-box selection for custom shader packs.
+    ShaderPackCustom0,
+    ShaderPackCustom1,
+    ShaderPackCustom2,
+    ShaderPackCustom3,
     /// Detailed pack settings screen (shaders.properties / [[pages]]).
     ShaderOptions,
     /// The active shader pack selected directly on the page.
@@ -448,9 +457,34 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                     "Shader packs",
                     vec![
                         h(
-                            H::ActiveShaderPack,
+                            H::ShaderPackOff,
                             High,
-                            "Active shader pack: Off, TML Visuals (BSL), or custom packs.",
+                            "Turn off shaders and use vanilla graphics.",
+                        ),
+                        h(
+                            H::ShaderPackTml,
+                            High,
+                            "Bundled BSL Shaders: realistic lighting, water, clouds, and atmosphere.",
+                        ),
+                        h(
+                            H::ShaderPackCustom0,
+                            High,
+                            "Use custom shader pack from shaderpacks folder.",
+                        ),
+                        h(
+                            H::ShaderPackCustom1,
+                            High,
+                            "Use custom shader pack from shaderpacks folder.",
+                        ),
+                        h(
+                            H::ShaderPackCustom2,
+                            High,
+                            "Use custom shader pack from shaderpacks folder.",
+                        ),
+                        h(
+                            H::ShaderPackCustom3,
+                            High,
+                            "Use custom shader pack from shaderpacks folder.",
                         ),
                         h(
                             H::ShaderOptions,
@@ -465,92 +499,12 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                     ],
                 ),
                 (
-                    "Built-in settings",
+                    "Settings",
                     vec![
-                        h(
-                            H::ShadowCache,
-                            Saves,
-                            "Reuses the pack shadow map when sun, view and world match. Saves up to 50% GPU load on mobile.",
-                        ),
                         h(
                             H::ResolutionScale,
                             High,
                             "World pixels per screen pixel. Lower is faster on the GPU.",
-                        ),
-                        h(
-                            H::ShaderProfile,
-                            Medium,
-                            "Shader quality profile (Auto, MINIMUM, LOW, MEDIUM, HIGH, ULTRA).",
-                        ),
-                        v(
-                            Opt::MaxFps,
-                            None,
-                            "Limits the frame rate to reduce heat and save battery on mobile.",
-                        ),
-                    ],
-                ),
-                (
-                    "Lighting & shadows",
-                    vec![
-                        h(
-                            H::ShaderShadows,
-                            High,
-                            "Real-time dynamic terrain and entity shadows.",
-                        ),
-                        h(
-                            H::ShaderDynamicLight,
-                            Medium,
-                            "Handheld torches and items dynamically cast light around you.",
-                        ),
-                        h(
-                            H::ShaderAo,
-                            Medium,
-                            "Ambient Occlusion: soft realistic contact shadows in corners.",
-                        ),
-                        h(
-                            H::ShaderLightShaft,
-                            High,
-                            "Sun rays and volumetric light shafts through trees and clouds.",
-                        ),
-                    ],
-                ),
-                (
-                    "Environment & effects",
-                    vec![
-                        h(
-                            H::ShaderClouds,
-                            Medium,
-                            "Volumetric multi-layer 3D shader clouds.",
-                        ),
-                        h(
-                            H::ShaderWaving,
-                            Medium,
-                            "Wind animation on leaves, grass, crops and water surfaces.",
-                        ),
-                        h(
-                            H::ShaderWater,
-                            High,
-                            "Water surface waves, caustics, transparency and refraction.",
-                        ),
-                        h(
-                            H::ShaderBloom,
-                            Low,
-                            "Soft glow and glare around emissive light sources and the sun.",
-                        ),
-                        h(
-                            H::ShaderMotionBlur,
-                            Low,
-                            "Smooth camera motion blur when turning quickly.",
-                        ),
-                        h(
-                            H::ShaderAntialiasing,
-                            Medium,
-                            "Temporal or Fast Approximate Anti-Aliasing (TAA / FXAA).",
-                        ),
-                        h(
-                            H::ShaderReset,
-                            None,
-                            "Resets all options of this shader pack back to its default values.",
                         ),
                     ],
                 ),
@@ -861,6 +815,28 @@ impl H {
                 }
             }
             H::ShaderOptions => Text::literal(lang::get("Pack Settings...")),
+            H::ShaderPackOff => Text::literal("Off"),
+            H::ShaderPackTml => Text::literal("TML Visuals (BSL)"),
+            H::ShaderPackCustom0 => Text::literal(
+                s.shader_packs
+                    .get(0)
+                    .map_or("Custom Pack 1", |p| p.title.as_str()),
+            ),
+            H::ShaderPackCustom1 => Text::literal(
+                s.shader_packs
+                    .get(1)
+                    .map_or("Custom Pack 2", |p| p.title.as_str()),
+            ),
+            H::ShaderPackCustom2 => Text::literal(
+                s.shader_packs
+                    .get(2)
+                    .map_or("Custom Pack 3", |p| p.title.as_str()),
+            ),
+            H::ShaderPackCustom3 => Text::literal(
+                s.shader_packs
+                    .get(3)
+                    .map_or("Custom Pack 4", |p| p.title.as_str()),
+            ),
             H::ActiveShaderPack => {
                 let pack = if s.horizon.shader_pack.is_empty() {
                     "Off"
@@ -1231,6 +1207,56 @@ impl H {
                     back,
                 )
             }
+            H::ShaderPackOff => {
+                g.shader_pack.clear();
+            }
+            H::ShaderPackTml => {
+                if !g.shader_pack.is_empty()
+                    && (g.shader_pack.contains("TML")
+                        || g.shader_pack.contains("tml")
+                        || g.shader_pack == "TMLVisuals.zip")
+                {
+                    g.shader_pack.clear();
+                } else {
+                    g.shader_pack = "TMLVisuals.zip".to_string();
+                }
+            }
+            H::ShaderPackCustom0 => {
+                if let Some(p) = s.shader_packs.get(0) {
+                    if g.shader_pack == p.file {
+                        g.shader_pack.clear();
+                    } else {
+                        g.shader_pack = p.file.clone();
+                    }
+                }
+            }
+            H::ShaderPackCustom1 => {
+                if let Some(p) = s.shader_packs.get(1) {
+                    if g.shader_pack == p.file {
+                        g.shader_pack.clear();
+                    } else {
+                        g.shader_pack = p.file.clone();
+                    }
+                }
+            }
+            H::ShaderPackCustom2 => {
+                if let Some(p) = s.shader_packs.get(2) {
+                    if g.shader_pack == p.file {
+                        g.shader_pack.clear();
+                    } else {
+                        g.shader_pack = p.file.clone();
+                    }
+                }
+            }
+            H::ShaderPackCustom3 => {
+                if let Some(p) = s.shader_packs.get(3) {
+                    if g.shader_pack == p.file {
+                        g.shader_pack.clear();
+                    } else {
+                        g.shader_pack = p.file.clone();
+                    }
+                }
+            }
             H::ActiveShaderPack => {
                 let mut packs = vec!["".to_string(), "TMLVisuals.zip".to_string()];
                 for p in &s.shader_packs {
@@ -1317,6 +1343,12 @@ impl Item {
                         | H::ShaderOptions
                         | H::ShaderFolder
                         | H::ShaderReset
+                        | H::ShaderPackOff
+                        | H::ShaderPackTml
+                        | H::ShaderPackCustom0
+                        | H::ShaderPackCustom1
+                        | H::ShaderPackCustom2
+                        | H::ShaderPackCustom3
                 )
             )
     }
@@ -1324,6 +1356,25 @@ impl Item {
     pub fn switch(self, s: &Settings) -> Option<bool> {
         let g = &s.horizon;
         Some(match self {
+            Item::Horizon(H::ShaderPackOff) => g.shader_pack.is_empty(),
+            Item::Horizon(H::ShaderPackTml) => {
+                !g.shader_pack.is_empty()
+                    && (g.shader_pack.contains("TML")
+                        || g.shader_pack.contains("tml")
+                        || g.shader_pack == "TMLVisuals.zip")
+            }
+            Item::Horizon(H::ShaderPackCustom0) => {
+                s.shader_packs.get(0).is_some_and(|p| p.file == g.shader_pack)
+            }
+            Item::Horizon(H::ShaderPackCustom1) => {
+                s.shader_packs.get(1).is_some_and(|p| p.file == g.shader_pack)
+            }
+            Item::Horizon(H::ShaderPackCustom2) => {
+                s.shader_packs.get(2).is_some_and(|p| p.file == g.shader_pack)
+            }
+            Item::Horizon(H::ShaderPackCustom3) => {
+                s.shader_packs.get(3).is_some_and(|p| p.file == g.shader_pack)
+            }
             Item::Horizon(H::BlueMapAutoDetect) => g.blue_map.auto_detect,
             Item::Horizon(H::CaveCulling) => g.cave_culling,
             Item::Horizon(H::CacheShulkerBoxes) => g.cache_shulker_boxes,
@@ -1652,20 +1703,19 @@ fn shown(item: Item, s: &Settings) -> bool {
     }
     let pack_active = !s.horizon.shader_pack.is_empty();
     match item {
-        Item::Horizon(
-            H::ShaderOptions
-            | H::ShaderShadows
-            | H::ShaderDynamicLight
-            | H::ShaderAo
-            | H::ShaderLightShaft
-            | H::ShaderClouds
-            | H::ShaderWaving
-            | H::ShaderWater
-            | H::ShaderBloom
-            | H::ShaderMotionBlur
-            | H::ShaderAntialiasing
-            | H::ShaderReset,
-        ) => pack_active,
+        Item::Horizon(H::ShaderPackCustom0) => {
+            !s.shader_packs.is_empty()
+                && !s.shader_packs[0].file.contains("TML")
+                && !s.shader_packs[0].file.contains("tml")
+        }
+        Item::Horizon(H::ShaderPackCustom1) => {
+            s.shader_packs.len() > 1
+                && !s.shader_packs[1].file.contains("TML")
+                && !s.shader_packs[1].file.contains("tml")
+        }
+        Item::Horizon(H::ShaderPackCustom2) => s.shader_packs.len() > 2,
+        Item::Horizon(H::ShaderPackCustom3) => s.shader_packs.len() > 3,
+        Item::Horizon(H::ShaderOptions) => pack_active,
         _ => true,
     }
 }
@@ -2412,7 +2462,15 @@ impl GraphicsUi {
                 item.cycle(s, back, framebuffer);
                 vec![Action::ButtonClick, Action::Changed, Action::SaveShaderOptions]
             }
-            Item::Horizon(H::ActiveShaderPack) => {
+            Item::Horizon(
+                H::ActiveShaderPack
+                    | H::ShaderPackOff
+                    | H::ShaderPackTml
+                    | H::ShaderPackCustom0
+                    | H::ShaderPackCustom1
+                    | H::ShaderPackCustom2
+                    | H::ShaderPackCustom3,
+            ) => {
                 self.can_change_value = false;
                 item.cycle(s, back, framebuffer);
                 vec![Action::ButtonClick, Action::Changed, Action::ShaderPackChanged]

@@ -361,7 +361,7 @@ pub fn put_resource_packs(game_folder: &Path) {
                             new_lines.push(format!("resourcePacks:[\"vanilla\",\"{tml_pack}\"]"));
                         } else if trimmed.ends_with(']') {
                             let without_closing = &trimmed[..trimmed.len() - 1];
-                            new_lines.push(format!("{without_closing},\"{tml_pack}\"]"));
+                            new_lines.push(format!("resourcePacks:{without_closing},\"{tml_pack}\"]"));
                         } else {
                             new_lines.push(line.to_string());
                         }

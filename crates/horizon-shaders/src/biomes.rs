@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 /// `CAT_*`, in the order of their values.
-pub const CATEGORIES: [&str; 17] = [
+pub const CATEGORIES: [&str; 19] = [
     "NONE",
     "TAIGA",
     "EXTREME_HILLS",
@@ -29,6 +29,8 @@ pub const CATEGORIES: [&str; 17] = [
     "SWAMP",
     "MUSHROOM",
     "NETHER",
+    "MOUNTAIN",
+    "UNDERGROUND",
 ];
 
 /// Old biome names and the biomes that replaced them.

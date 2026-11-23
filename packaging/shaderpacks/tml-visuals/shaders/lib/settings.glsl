@@ -29,8 +29,8 @@ Please don't edit anything from Undefine section and onwards.
 
 //Lighting//
   #define SHADOW
-  const int shadowMapResolution = 2048; //[512 1024 1536 2048 3072 4096 8192]
-  const float shadowDistance = 256.0; //[128.0 192.0 256.0 384.0 512.0 768.0 1024.0]
+  const int shadowMapResolution = 1024; //[512 1024 1536 2048 3072 4096 8192]
+  const float shadowDistance = 128.0; //[128.0 192.0 256.0 384.0 512.0 768.0 1024.0]
   const float shadowMapBias = 1.0 - 25.6 / shadowDistance;
   #define SHADOW_FILTER
   #define SHADOW_COLOR
@@ -84,7 +84,7 @@ Please don't edit anything from Undefine section and onwards.
 //#define SPECULAR_HIGHLIGHT_ROUGH
 //#define ALBEDO_METAL
 
-  #define PARALLAX
+//#define PARALLAX
   #define PARALLAX_DEPTH 0.25 //[0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50]
   #define PARALLAX_QUALITY 128 //[16 32 64 128 256 512]
   #define PARALLAX_DISTANCE 64 //[8 16 32 48 64 80 96 112 128]

@@ -267,6 +267,42 @@ pub const NAMES: &[&str] = &[
     "cloudTime",
     "isElytraFlying",
     "cloudHeight",
+    // Iris 26.3 & BSL/Complementary uniforms
+    "glintAlpha",
+    "vehicleInWater",
+    "vehicleId",
+    "vehicleLookVector",
+    "relativeVehiclePosition",
+    "heavyFog",
+    "seaLevel",
+    "currentSelectedBlockId",
+    "currentSelectedBlockPos",
+    "lightningBoltPosition",
+    "previousEndFlashIntensity",
+    "currentColorSpace",
+    "chunkFadeTimeInv",
+    "textureFilteringMode",
+    "timeAngle",
+    "timeBrightness",
+    "moonBrightness",
+    "shadowFade",
+    "rainStrengthS",
+    "rainStrengthShiningStars",
+    "rainStrengthS2",
+    "blindFactor",
+    "isDry",
+    "isRainy",
+    "isSnowy",
+    "isEyeInCave",
+    "velocity",
+    "starter",
+    "frameTimeSmooth",
+    "eyeBrightnessM",
+    "rainFactor",
+    "day",
+    "night",
+    "dawnDusk",
+    "shdFade",
 ];
 
 /// Values carried from frame to frame.
@@ -584,6 +620,40 @@ impl FrameUniforms {
                 "isElytraFlying" => Value::i(&[inputs.elytra_flying as i32]),
                 "cloudHeight" => Value::f(&[inputs.cloud_height]),
                 "cloudTime" => Value::f(&[inputs.cloud_time]),
+                // Iris 26.3 & BSL/Complementary uniforms
+                "glintAlpha" => Value::f(&[0.75]),
+                "vehicleInWater" => Value::i(&[0]),
+                "vehicleId" => Value::i(&[-1]),
+                "vehicleLookVector" | "relativeVehiclePosition" => v3(Vec3::ZERO),
+                "heavyFog" => Value::i(&[0]),
+                "seaLevel" => Value::i(&[63]),
+                "currentSelectedBlockId" => Value::i(&[-1]),
+                "currentSelectedBlockPos" => v3(Vec3::ZERO),
+                "lightningBoltPosition" => Value::f(&[0.0, 0.0, 0.0, 0.0]),
+                "previousEndFlashIntensity" => Value::f(&[inputs.end_flash]),
+                "currentColorSpace" => Value::i(&[0]),
+                "chunkFadeTimeInv" => Value::f(&[1.0]),
+                "textureFilteringMode" => Value::i(&[0]),
+                "timeAngle" => Value::f(&[sun_angle]),
+                "timeBrightness" => Value::f(&[if day { 1.0 } else { 0.0 }]),
+                "moonBrightness" => Value::f(&[if !day { 1.0 } else { 0.0 }]),
+                "shadowFade" => Value::f(&[1.0]),
+                "rainStrengthS" | "rainStrengthShiningStars" | "rainStrengthS2" | "rainFactor" => {
+                    Value::f(&[self.wetness])
+                }
+                "blindFactor" => Value::f(&[inputs.blindness]),
+                "isDry" => Value::f(&[if inputs.biome_precipitation == 0 { 1.0 } else { 0.0 }]),
+                "isRainy" => Value::f(&[if inputs.biome_precipitation == 1 { 1.0 } else { 0.0 }]),
+                "isSnowy" => Value::f(&[if inputs.biome_precipitation == 2 { 1.0 } else { 0.0 }]),
+                "isEyeInCave" => Value::f(&[if inputs.eye_light[1] < 4 { 1.0 } else { 0.0 }]),
+                "velocity" => Value::f(&[0.0]),
+                "starter" => Value::f(&[0.0]),
+                "frameTimeSmooth" => Value::f(&[dt]),
+                "eyeBrightnessM" => Value::f(&[(inputs.eye_light[0] as f32) / 15.0]),
+                "day" => Value::f(&[if day { 1.0 } else { 0.0 }]),
+                "night" => Value::f(&[if !day { 1.0 } else { 0.0 }]),
+                "dawnDusk" => Value::f(&[0.0]),
+                "shdFade" => Value::f(&[1.0]),
                 // renderStage is NONE outside gbuffers draws.
                 _ => status_value(name, inputs).unwrap_or(Value::i(&[0])),
             }
@@ -695,6 +765,9 @@ fn components(name: &str) -> usize {
         | "relativeEyePosition"
         | "playerLookVector"
         | "playerBodyVector"
+        | "vehicleLookVector"
+        | "relativeVehiclePosition"
+        | "currentSelectedBlockPos"
         | "upPosition"
         | "sunPosition"
         | "moonPosition"
@@ -702,6 +775,7 @@ fn components(name: &str) -> usize {
         | "fogColor"
         | "skyColor"
         | "endFlashPosition" => 3,
+        "lightningBoltPosition" => 4,
         "eyeBrightness" | "eyeBrightnessSmooth" | "atlasSize" => 2,
         n if n.starts_with("gbuffer") || n.starts_with("shadow") && n != "shadowAngle" => 16,
         _ => 1,
