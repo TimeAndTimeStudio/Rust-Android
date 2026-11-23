@@ -32,10 +32,9 @@ impl Prompt {
     /// (servers.dat `acceptTextures`; none is Prompt).
     pub fn for_server(accept_textures: Option<bool>) -> Self {
         match accept_textures {
+            Some(true) => Self::Allowed,
             Some(false) => Self::Declined,
-            // TML starts with the server's packs enabled: no confirmation screen on a
-            // server that never set a choice, and old `Prompt` saves read as Enabled.
-            Some(true) | None => Self::Allowed,
+            None => Self::Pending,
         }
     }
 }

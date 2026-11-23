@@ -104,8 +104,8 @@ pub enum Screen {
         name: String,
         address: String,
         focus: u8,
-        /// Server Resource Packs (`acceptTextures`): Enabled or Disabled. A save from older
-        /// versions with `None` reads as Enabled.
+        /// Server Resource Packs (`acceptTextures`): Enabled, Disabled, or
+        /// none for Prompt.
         packs: Option<bool>,
     },
     Direct {
@@ -424,8 +424,9 @@ fn entry_address(servers: &[ServerEntry], lan: &Scanner, index: usize) -> Option
 /// The Server Resource Packs button's label: `CommonComponents.optionNameValue`.
 fn pack_setting_label(packs: Option<bool>) -> String {
     let (key, fallback) = match packs {
+        Some(true) => ("manageServer.resourcePack.enabled", "Enabled"),
         Some(false) => ("manageServer.resourcePack.disabled", "Disabled"),
-        Some(true) | None => ("manageServer.resourcePack.enabled", "Enabled"),
+        None => ("manageServer.resourcePack.prompt", "Prompt"),
     };
     let name = crate::lang::get_or("manageServer.resourcePack", "Server Resource Packs");
     crate::lang::get_or("options.generic_value", "%s: %s")
@@ -933,7 +934,8 @@ impl Screen {
             Self::Edit { packs, .. } if id == 60 => {
                 let (key, fallback) = match packs {
                     Some(true) => ("manageServer.resourcePack.disabled", "Disabled"),
-                    Some(false) | None => ("manageServer.resourcePack.enabled", "Enabled"),
+                    Some(false) => ("manageServer.resourcePack.prompt", "Prompt"),
+                    None => ("manageServer.resourcePack.enabled", "Enabled"),
                 };
                 Narratable::cycle(label, crate::lang::get_or(key, fallback), rect, enabled)
             }
@@ -1455,7 +1457,7 @@ impl Screen {
                     name: crate::lang::get_or("selectServer.defaultName", "Minecraft Server"),
                     address: String::new(),
                     focus: 1,
-                    packs: Some(true),
+                    packs: None,
                 }
             }
             (
@@ -1589,12 +1591,12 @@ impl Screen {
                     *selected = Some(index);
                 }
             }
-            // CycleButton: Enabled and Disabled. There is no Prompt step in TML: a server's
-            // packs are accepted by default.
+            // CycleButton: Enabled, Disabled, Prompt, and round again.
             (Self::Edit { packs, .. }, Some(60)) => {
                 *packs = match *packs {
-                    Some(false) => Some(true),
-                    Some(true) | None => Some(false),
+                    Some(true) => Some(false),
+                    Some(false) => None,
+                    None => Some(true),
                 }
             }
             (
@@ -2586,9 +2588,9 @@ mod tests {
                 "Server Resource Packs: Disabled".into()
             ))
         );
-        // Disabled, Enabled: Cancel keeps what was saved.
+        // Disabled, Prompt, Enabled: Cancel keeps what was saved.
         screen.click(Some(60), 0.0, 0.0, size, &saves);
-        assert_eq!(cycle(&screen).unwrap().3, "Server Resource Packs: Enabled");
+        assert_eq!(cycle(&screen).unwrap().3, "Server Resource Packs: Prompt");
         screen.click(Some(51), 0.0, 0.0, size, &saves);
         assert_eq!(servers::load(&file)[0].accept_textures, Some(false));
         // Done saves it.
@@ -2597,12 +2599,13 @@ mod tests {
         }
         screen.click(Some(43), 0.0, 0.0, size, &saves);
         screen.click(Some(60), 0.0, 0.0, size, &saves);
+        screen.click(Some(60), 0.0, 0.0, size, &saves);
         assert_eq!(cycle(&screen).unwrap().3, "Server Resource Packs: Enabled");
         screen.click(Some(50), 0.0, 0.0, size, &saves);
         assert_eq!(servers::load(&file)[0].accept_textures, Some(true));
-        // A new server starts Enabled, with no Prompt step in TML.
+        // A new server asks.
         screen.click(Some(42), 0.0, 0.0, size, &saves);
-        assert_eq!(cycle(&screen).unwrap().3, "Server Resource Packs: Enabled");
+        assert_eq!(cycle(&screen).unwrap().3, "Server Resource Packs: Prompt");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
