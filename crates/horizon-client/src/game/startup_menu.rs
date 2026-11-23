@@ -953,6 +953,7 @@ impl Loading {
             Action::Language => self.open_menu_options(Page::Language),
             Action::Sounds => self.open_menu_options(Page::Sound),
             Action::Credits => self.open_menu_options(Page::Credits),
+            Action::CheckUpdate => {}
             Action::OpenUri(uri) => super::packs::open_uri(&uri),
             Action::CopyText(text) => {
                 use horizon_client::clipboard::Clipboard;

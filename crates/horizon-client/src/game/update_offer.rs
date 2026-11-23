@@ -26,6 +26,9 @@ const LATER: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Clone, PartialEq)]
 enum Stage {
+    Checking,
+    UpToDate(String),
+    CheckFailed(String),
     Ask,
     Downloading,
     /// The installer was shown; it may be shown again.
@@ -37,6 +40,7 @@ enum Stage {
 #[derive(Default)]
 struct Shared {
     release: Option<Release>,
+    check_result: Option<Result<Option<Release>, String>>,
     done: u64,
     total: u64,
     /// The APK's name in files/updates/ once downloaded, or why it is not.
@@ -167,53 +171,26 @@ fn density(w: f32, h: f32) -> f32 {
 }
 
 impl Game<'_> {
-    /// Once at start (the check, in the background), then the download while it runs.
+    /// Polls background download and manual check without auto-checking on startup.
     pub(super) fn poll_update_offer(&mut self) {
         let offer = &mut self.update_offer;
-        if !offer.started {
-            offer.started = true;
-            // An update installed, or one left: the APK goes.
-            let _ = std::fs::remove_dir_all(updates());
-            let test = std::env::var("STARLING_UPDATE_TEST")
-                .ok()
-                .filter(|v| !v.is_empty());
-            let current = match (crate::android::app_version(), test) {
-                (_, Some(pretend)) => pretend,
-                (Some((version, _)), None) => version,
-                _ => return,
-            };
-            let until = std::fs::read_to_string(later())
-                .ok()
-                .and_then(|t| t.trim().parse::<u64>().ok());
-            if until.is_some_and(|t| now() < t) {
-                return;
-            }
-            let shared = offer.shared.clone();
-            let _ = std::thread::Builder::new()
-                .name("update check".into())
-                .spawn(move || match check(&current) {
-                    Ok(release) => {
-                        if let Some(r) = &release {
-                            log::info!(
-                                "Horizon: Starling {} is out (this is {current})",
-                                r.version
-                            );
-                        }
-                        shared
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .release = release;
-                    }
-                    Err(e) => log::info!("Horizon: could not look for a newer Starling: {e}"),
-                });
-            return;
-        }
         let mut shared = offer.shared.lock().unwrap_or_else(PoisonError::into_inner);
-        if offer.stage.is_none()
-            && shared.release.is_some()
-            && !offer.cancel.load(Ordering::Relaxed)
-        {
-            offer.stage = Some(Stage::Ask);
+        if offer.stage == Some(Stage::Checking) {
+            if let Some(check_res) = shared.check_result.take() {
+                match check_res {
+                    Ok(Some(release)) => {
+                        shared.release = Some(release);
+                        offer.stage = Some(Stage::Ask);
+                    }
+                    Ok(None) => {
+                        let cur = crate::android::app_version().map_or("1.0.3".into(), |(v, _)| v);
+                        offer.stage = Some(Stage::UpToDate(cur));
+                    }
+                    Err(e) => {
+                        offer.stage = Some(Stage::CheckFailed(e));
+                    }
+                }
+            }
         }
         if offer.stage == Some(Stage::Downloading)
             && let Some(result) = shared.downloaded.take()
@@ -226,8 +203,43 @@ impl Game<'_> {
         }
     }
 
+    /// Triggered manually when user clicks "Update" on the Title Screen.
+    pub(super) fn trigger_manual_check(&mut self) {
+        let offer = &mut self.update_offer;
+        let _ = std::fs::remove_dir_all(updates());
+        let test = std::env::var("STARLING_UPDATE_TEST")
+            .ok()
+            .filter(|v| !v.is_empty());
+        let current = match (crate::android::app_version(), test) {
+            (_, Some(pretend)) => pretend,
+            (Some((version, _)), None) => version,
+            _ => "1.0.3".into(),
+        };
+        offer.stage = Some(Stage::Checking);
+        offer.cancel.store(false, Ordering::Relaxed);
+        let shared = offer.shared.clone();
+        let cancel = offer.cancel.clone();
+        {
+            let mut s = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            s.check_result = None;
+            s.done = 0;
+            s.downloaded = None;
+        }
+        let _ = std::thread::Builder::new()
+            .name("manual update check".into())
+            .spawn(move || {
+                let res = check(&current);
+                if !cancel.load(Ordering::Relaxed) {
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .check_result = Some(res);
+                }
+            });
+    }
+
     /// Over the title only, and not over the offer of the Starling folder.
-    fn update_offer_shown(&self) -> Option<Stage> {
+    pub(super) fn update_offer_shown(&self) -> Option<Stage> {
         if self.title.is_none() || self.files_offer_shown().is_some() {
             return None;
         }
@@ -248,9 +260,6 @@ impl Game<'_> {
         let Some(stage) = self.update_offer_shown() else {
             return;
         };
-        let Some(release) = self.release() else {
-            return;
-        };
         let mb = |bytes: u64| format!("{:.0}", bytes as f64 / 1_000_000.0);
         let (done, total) = {
             let shared = self
@@ -258,31 +267,64 @@ impl Game<'_> {
                 .shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            (shared.done, shared.total.max(release.size))
+            let rel_size = shared.release.as_ref().map_or(0, |r| r.size);
+            (shared.done, shared.total.max(rel_size))
         };
-        let version = &release.version;
         let (title, body, buttons): (String, String, &[&str]) = match &stage {
-            Stage::Ask => (
-                format!("TML Client {version} is out"),
-                format!(
-                    "Update now? TML Client downloads it ({} MB) and Android installs it over this \
-                     one: your worlds and settings stay.",
-                    mb(release.size)
-                ),
-                &["Update", "Tomorrow", "No"],
-            ),
-            Stage::Downloading => (
-                format!("Downloading TML Client {version}"),
-                format!("{} of {} MB", mb(done), mb(total)),
+            Stage::Checking => (
+                "Checking for updates...".into(),
+                "Connecting to GitHub to check for newer releases.".into(),
                 &["Cancel"],
             ),
-            Stage::Installing => (
-                format!("Install TML Client {version}"),
-                "Android asks to install the update (the first time, to allow installs from \
-                 TML Client). Once it is in, open TML Client again."
-                    .into(),
-                &["Install", "Later"],
+            Stage::UpToDate(v) => (
+                "TML Client is up to date".into(),
+                format!("You are running the latest version (v{v}). No update is needed."),
+                &["OK"],
             ),
+            Stage::CheckFailed(e) => (
+                "Could not check for updates".into(),
+                format!("Could not connect to GitHub releases: {e}"),
+                &["Close"],
+            ),
+            Stage::Ask => {
+                let Some(release) = self.release() else {
+                    return;
+                };
+                let version = &release.version;
+                (
+                    format!("TML Client {version} is out"),
+                    format!(
+                        "Update now? TML Client downloads it ({} MB) and Android installs it over this \
+                         one: your worlds and settings stay.",
+                        mb(release.size)
+                    ),
+                    &["Update", "Tomorrow", "No"],
+                )
+            }
+            Stage::Downloading => {
+                let Some(release) = self.release() else {
+                    return;
+                };
+                let version = &release.version;
+                (
+                    format!("Downloading TML Client {version}"),
+                    format!("{} of {} MB", mb(done), mb(total)),
+                    &["Cancel"],
+                )
+            }
+            Stage::Installing => {
+                let Some(release) = self.release() else {
+                    return;
+                };
+                let version = &release.version;
+                (
+                    format!("Install TML Client {version}"),
+                    "Android asks to install the update (the first time, to allow installs from \
+                     TML Client). Once it is in, open TML Client again."
+                        .into(),
+                    &["Install", "Later"],
+                )
+            }
             Stage::Failed(e) => (
                 "The update did not download".into(),
                 e.clone(),
@@ -374,32 +416,17 @@ impl Game<'_> {
         self.update_offer.buttons.set(drawn);
     }
 
-    /// While the card shows it takes every touch; a lifted finger on a button acts.
-    pub(super) fn update_offer_touch(&mut self, touch: &Touch) -> bool {
-        let Some(stage) = self.update_offer_shown() else {
-            return false;
-        };
-        if touch.phase != TouchPhase::Ended {
-            return true;
-        }
-        let [w, h] = self.touch_size();
-        let d = density(w as f32, h as f32);
-        let p = [touch.location.x as f32 / d, touch.location.y as f32 / d];
-        let inside = |r: [f32; 4]| {
-            p[0] >= r[0] && p[0] <= r[0] + r[2] && p[1] >= r[1] && p[1] <= r[1] + r[3]
-        };
-        let Some(button) = self
-            .update_offer
-            .buttons
-            .get()
-            .iter()
-            .position(|r| r.is_some_and(inside))
-        else {
-            return true;
-        };
-        let release = self.release();
+    fn handle_button_click(&mut self, stage: Stage, button: usize) {
         let offer = &mut self.update_offer;
+        let release = self.release();
         match (stage, button) {
+            (Stage::Checking, _) => {
+                offer.cancel.store(true, Ordering::Relaxed);
+                offer.stage = None;
+            }
+            (Stage::UpToDate(_) | Stage::CheckFailed(_), _) => {
+                offer.stage = None;
+            }
             (Stage::Ask | Stage::Failed(_), 0) => {
                 if let Some(release) = release {
                     offer.stage = Some(Stage::Downloading);
@@ -439,11 +466,56 @@ impl Game<'_> {
                     ));
                 }
             }
-            // Cancel, No, Later: asked again at the next start.
             _ => {
                 offer.cancel.store(true, Ordering::Relaxed);
                 offer.stage = None;
             }
+        }
+    }
+
+    /// While the card shows it takes every touch; a lifted finger on a button acts.
+    pub(super) fn update_offer_touch(&mut self, touch: &Touch) -> bool {
+        let Some(stage) = self.update_offer_shown() else {
+            return false;
+        };
+        if touch.phase != TouchPhase::Ended {
+            return true;
+        }
+        let [w, h] = self.touch_size();
+        let d = density(w as f32, h as f32);
+        let p = [touch.location.x as f32 / d, touch.location.y as f32 / d];
+        let inside = |r: [f32; 4]| {
+            p[0] >= r[0] && p[0] <= r[0] + r[2] && p[1] >= r[1] && p[1] <= r[1] + r[3]
+        };
+        let Some(button) = self
+            .update_offer
+            .buttons
+            .get()
+            .iter()
+            .position(|r| r.is_some_and(inside))
+        else {
+            return true;
+        };
+        self.handle_button_click(stage, button);
+        true
+    }
+
+    /// Mouse clicks on the update offer modal.
+    pub(super) fn update_offer_click(&mut self, p: (f32, f32)) -> bool {
+        let Some(stage) = self.update_offer_shown() else {
+            return false;
+        };
+        let inside = |r: [f32; 4]| {
+            p.0 >= r[0] && p.0 <= r[0] + r[2] && p.1 >= r[1] && p.1 <= r[1] + r[3]
+        };
+        if let Some(button) = self
+            .update_offer
+            .buttons
+            .get()
+            .iter()
+            .position(|r| r.is_some_and(inside))
+        {
+            self.handle_button_click(stage, button);
         }
         true
     }

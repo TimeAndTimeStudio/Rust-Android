@@ -369,6 +369,8 @@ pub enum Action {
     Options,
     Accessibility,
     Language,
+    /// Manual check for newer TML Client release on GitHub.
+    CheckUpdate,
     /// AccessibilityOnboardingScreen's Music & Sounds button.
     Sounds,
     /// The title's bottom text (`PlainTextButton`): `CreditsAndAttributionScreen`.
@@ -1774,6 +1776,9 @@ impl Title {
                 // clear of the logo, so vanilla's buttons stay as they are.
                 if crate::accounts::in_game() {
                     buttons.push(b(4.0, 4.0, 120.0, &account::main_label(), true, 8));
+                    buttons.push(b(128.0, 4.0, 80.0, "Update", true, 9));
+                } else {
+                    buttons.push(b(4.0, 4.0, 80.0, "Update", true, 9));
                 }
                 buttons
             }
@@ -3451,6 +3456,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                 self.mode = Mode::Account(account::Screen::default());
                 Action::None
             }
+            (Mode::Main, Some(9)) => Action::CheckUpdate,
             (Mode::Account(screen), Some(id)) => {
                 if screen.click(id, h) {
                     self.mode = Mode::Main;

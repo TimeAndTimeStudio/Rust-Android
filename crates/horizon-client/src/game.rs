@@ -11977,6 +11977,9 @@ impl Game<'_> {
             Action::Credits => {
                 self.open_options_at(true, horizon_client::options_ui::Page::Credits)
             }
+            Action::CheckUpdate => {
+                self.trigger_manual_check();
+            }
             Action::OpenUri(uri) => packs::open_uri(&uri),
             Action::CopyText(text) => {
                 use horizon_client::clipboard::Clipboard;
@@ -17955,6 +17958,10 @@ impl Game<'_> {
                     button: MouseButton::Left,
                     ..
                 } if self.title.is_some() && state == ElementState::Pressed => {
+                    if self.update_offer_shown().is_some() {
+                        self.update_offer_click((self.cursor.0, self.cursor.1));
+                        return Ok(());
+                    }
                     let size = self
                         .renderer
                         .as_ref()
