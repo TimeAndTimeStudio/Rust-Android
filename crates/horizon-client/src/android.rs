@@ -400,6 +400,7 @@ const NO_MEDIA: &[&str] = &[
     "shaderpacks",
     "horizon-mods",
     "assets",
+    "minecraft",
 ];
 
 /// The game folder: shared storage's once allowed (and what the player made in the app's own

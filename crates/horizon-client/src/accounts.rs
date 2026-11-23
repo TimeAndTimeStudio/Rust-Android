@@ -30,9 +30,20 @@ pub fn dir() -> PathBuf {
 }
 
 /// Where the official files go, in the official launcher's layout (`versions/`, `libraries/`,
-/// `assets/`): the private folder, never shared storage.
+/// `assets/`): stored in the game home (`~/TML/minecraft`), or private storage if shared is unavailable.
 pub fn files_root() -> PathBuf {
-    crate::logging::private_home().join("minecraft")
+    let home = crate::logging::game_home().join("minecraft");
+    if home.exists() {
+        return home;
+    }
+    let private = crate::logging::private_home().join("minecraft");
+    if private.exists() && private != home {
+        if std::fs::rename(&private, &home).is_ok() {
+            return home;
+        }
+        return private;
+    }
+    home
 }
 
 /// The server jar the last complete download fetched, for the preparer (preparer.rs).
