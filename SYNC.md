@@ -58,3 +58,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - `a95d0770af` — numeric promotion stays local to each shader-pack operation.
 - `ca9f24c304` — classic GLSL parsing/lowering depth is bounded (naga).
 - `8365a5f59e` — section arena pages grow by half, not double (less video memory).
+- `e349aeccea` — chunk lighting BFS reads the sky layer directly and packs its bits (-7.9% CPU).
+- `f43817376a` — upload staging ring is bucketed and trims when idle (-13 to -25 MB RSS).
