@@ -197,7 +197,8 @@ impl Game<'_> {
                         offer.stage = Some(Stage::Ask);
                     }
                     Ok(None) => {
-                        let cur = crate::android::app_version().map_or("1.0.6".into(), |(v, _)| v);
+                        let cur = crate::android::app_version().map_or("1.0.7".into(), |(v, _)| v);
+                        let _ = std::fs::remove_dir_all(updates());
                         offer.stage = Some(Stage::UpToDate(cur));
                     }
                     Err(e) => {
@@ -220,14 +221,13 @@ impl Game<'_> {
     /// Triggered manually when user clicks "Update" on the Title Screen.
     pub(super) fn trigger_manual_check(&mut self) {
         let offer = &mut self.update_offer;
-        let _ = std::fs::remove_dir_all(updates());
         let test = std::env::var("STARLING_UPDATE_TEST")
             .ok()
             .filter(|v| !v.is_empty());
         let current = match (crate::android::app_version(), test) {
             (_, Some(pretend)) => pretend,
             (Some((version, _)), None) => version,
-            _ => "1.0.6".into(),
+            _ => "1.0.7".into(),
         };
         offer.stage = Some(Stage::Checking);
         offer.cancel.store(false, Ordering::Relaxed);
