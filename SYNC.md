@@ -70,3 +70,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   leaves a white frame.
 - `8e0b8ff5a5` (part) — `LightmapKey`: the 256-texel lightmap recompute is skipped when its
   inputs did not change. The sprite tick cache and per-frame upload skip are still to port.
+- `8e0b8ff5a5` (part 2) — skip hand/crosshair global uploads when there is nothing to draw, and
+  skip the sunrise fan upload when the sky is not visible.
