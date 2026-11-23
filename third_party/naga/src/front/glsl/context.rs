@@ -8,7 +8,7 @@ use super::{
     },
     error::{Error, ErrorKind},
     types::{scalar_components, type_power},
-    Frontend, Result,
+    Frontend, Nesting, Result,
 };
 use crate::{
     front::Typifier, proc::Emitter, proc::Layouter, AddressSpace, Arena, BinaryOperator, Block,
@@ -77,6 +77,7 @@ pub(crate) struct Context<'a> {
     layouter: Layouter,
     emitter: Emitter,
     stmt_ctx: Option<StmtContext>,
+    nesting: Nesting,
     pub body: Block,
     pub module: &'a mut crate::Module,
     pub is_const: bool,
@@ -109,6 +110,7 @@ impl<'a> Context<'a> {
             layouter: Layouter::default(),
             emitter: Emitter::default(),
             stmt_ctx: Some(StmtContext::new()),
+            nesting: frontend.nesting,
             body: Block::new(),
             module,
             is_const: false,
@@ -424,7 +426,9 @@ impl<'a> Context<'a> {
         expr: Handle<HirExpr>,
         pos: ExprPos,
     ) -> Result<(Option<Handle<Expression>>, Span)> {
+        let previous = core::mem::replace(&mut self.nesting, frontend.nesting);
         let res = self.lower_inner(&stmt, frontend, expr, pos);
+        self.nesting = previous;
 
         stmt.hir_exprs.clear();
         self.stmt_ctx = Some(stmt);
@@ -439,17 +443,12 @@ impl<'a> Context<'a> {
     /// used again later.
     pub fn lower_expect(
         &mut self,
-        mut stmt: StmtContext,
+        stmt: StmtContext,
         frontend: &mut Frontend,
         expr: Handle<HirExpr>,
         pos: ExprPos,
     ) -> Result<(Handle<Expression>, Span)> {
-        let res = self.lower_expect_inner(&stmt, frontend, expr, pos);
-
-        stmt.hir_exprs.clear();
-        self.stmt_ctx = Some(stmt);
-
-        res
+        Self::expect_value(self.lower(stmt, frontend, expr, pos)?)
     }
 
     /// internal implementation of [`lower_expect`](Self::lower_expect)
@@ -464,8 +463,12 @@ impl<'a> Context<'a> {
         expr: Handle<HirExpr>,
         pos: ExprPos,
     ) -> Result<(Handle<Expression>, Span)> {
-        let (maybe_expr, meta) = self.lower_inner(stmt, frontend, expr, pos)?;
+        Self::expect_value(self.lower_inner(stmt, frontend, expr, pos)?)
+    }
 
+    fn expect_value(
+        (maybe_expr, meta): (Option<Handle<Expression>>, Span),
+    ) -> Result<(Handle<Expression>, Span)> {
         let expr = match maybe_expr {
             Some(e) => e,
             None => {
@@ -539,8 +542,85 @@ impl<'a> Context<'a> {
         Ok(())
     }
 
-    /// Internal implementation of [`lower`](Self::lower)
-    #[allow(clippy::large_stack_frames)] // TODO(https://github.com/gfx-rs/wgpu/issues/9456)
+    /// The type and member count of the struct or array `pointer` points to, when it is in a
+    /// buffer or `shared` and holds integers. An `atomic*()` call may turn those atomic once the
+    /// whole shader is parsed (`front::atomic_upgrade`), and a copy of the whole value must keep
+    /// its declared type, so it is loaded and stored member by member.
+    fn atomic_candidate(
+        &mut self,
+        pointer: Handle<Expression>,
+        meta: Span,
+    ) -> Result<Option<(Handle<Type>, u32)>> {
+        if self.is_const {
+            return Ok(None);
+        }
+        let TypeInner::Pointer { base, space } = *self.resolve_type(pointer, meta)? else {
+            return Ok(None);
+        };
+        if !matches!(
+            space,
+            AddressSpace::Storage { .. } | AddressSpace::WorkGroup
+        ) {
+            return Ok(None);
+        }
+        // shortcut: aggregates of more than 64 scalars stay whole copies (atomic members in them
+        // fail validation); split them too if a pack needs it.
+        // Count integer/scalar leaves and bound the depth before copying:
+        // aggregate loads and stores visit the children of an accepted type.
+        fn leaves(
+            types: &crate::UniqueArena<Type>,
+            ty: Handle<Type>,
+            nesting: Nesting,
+            meta: Span,
+        ) -> Result<Option<(bool, u64)>> {
+            let info = match types[ty].inner {
+                TypeInner::Scalar(s) => (matches!(s.kind, ScalarKind::Sint | ScalarKind::Uint), 1),
+                TypeInner::Vector { size, .. } => (false, size as u64),
+                TypeInner::Matrix { columns, rows, .. } => (false, columns as u64 * rows as u64),
+                TypeInner::Struct { ref members, .. } => {
+                    let nesting = nesting.descend(meta)?;
+                    let (mut any, mut sum) = (false, 0u64);
+                    for member in members {
+                        let Some((integer, count)) = leaves(types, member.ty, nesting, meta)?
+                        else {
+                            return Ok(None);
+                        };
+                        any |= integer;
+                        sum = sum.saturating_add(count);
+                    }
+                    (any, sum)
+                }
+                TypeInner::Array {
+                    base,
+                    size: crate::ArraySize::Constant(n),
+                    ..
+                } => {
+                    let nesting = nesting.descend(meta)?;
+                    let Some((integer, count)) = leaves(types, base, nesting, meta)? else {
+                        return Ok(None);
+                    };
+                    (integer, count.saturating_mul(n.get() as u64))
+                }
+                _ => return Ok(None),
+            };
+            Ok(Some(info))
+        }
+        let types = &self.module.types;
+        let count = match types[base].inner {
+            TypeInner::Struct { ref members, .. } => members.len() as u32,
+            TypeInner::Array {
+                size: crate::ArraySize::Constant(n),
+                ..
+            } => n.get(),
+            _ => return Ok(None),
+        };
+        let scalar_info = leaves(types, base, self.nesting, meta)?;
+        Ok(matches!(scalar_info, Some((true, n)) if n <= 64).then_some((base, count)))
+    }
+
+    /// HIR built by parser loops (e.g. binary and postfix chains) may be
+    /// deeper than the parser's call stack. Bound its recursive lowering too,
+    /// using the budget that remains at the point of lowering.
     fn lower_inner(
         &mut self,
         stmt: &StmtContext,
@@ -548,7 +628,24 @@ impl<'a> Context<'a> {
         expr: Handle<HirExpr>,
         pos: ExprPos,
     ) -> Result<(Option<Handle<Expression>>, Span)> {
-        let HirExpr { ref kind, meta } = stmt.hir_exprs[expr];
+        let hir = &stmt.hir_exprs[expr];
+        let previous = self.nesting;
+        self.nesting = previous.descend(hir.meta)?;
+        let result = self.lower_inner_impl(stmt, frontend, expr, hir, pos);
+        self.nesting = previous;
+        result
+    }
+
+    #[allow(clippy::large_stack_frames)] // TODO(https://github.com/gfx-rs/wgpu/issues/9456)
+    fn lower_inner_impl(
+        &mut self,
+        stmt: &StmtContext,
+        frontend: &mut Frontend,
+        expr: Handle<HirExpr>,
+        hir: &HirExpr,
+        pos: ExprPos,
+    ) -> Result<(Option<Handle<Expression>>, Span)> {
+        let HirExpr { ref kind, meta } = *hir;
 
         log::debug!("Lowering {expr:?} (kind {kind:?}, pos {pos:?})");
 
@@ -1382,8 +1479,7 @@ impl<'a> Context<'a> {
             _ => {
                 return Err(Error {
                     kind: ErrorKind::SemanticError(
-                        format!("{:?} cannot be in the left hand side", stmt.hir_exprs[expr])
-                            .into(),
+                        format!("{hir:?} cannot be in the left hand side").into(),
                     ),
                     meta,
                 })
