@@ -1031,7 +1031,7 @@ pub(super) fn set_prepass(on: bool) {
     PREPASS.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
-/// The Auto profile, or `HORIZON_SHADER_PACK_PREPASS=1`: solid terrain draws its depth first with
+/// A pack loaded on Android, or `HORIZON_SHADER_PACK_PREPASS=1`: solid terrain draws its depth first with
 /// the program's own vertex stage and only the atlas' alpha test, then the program shades with
 /// depth writes off, so a phone's GPU can drop what is hidden before running the pack's fragment
 /// stage (grass and leaves stacked in front of each other otherwise run it once per layer).

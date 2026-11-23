@@ -290,20 +290,14 @@ pub fn put_shader_pack(game_folder: &Path) {
     }
     let graphics_file = game_folder.join("horizon-graphics.txt");
     let content = std::fs::read_to_string(&graphics_file).unwrap_or_default();
-    let chosen = content
+    // Only a file with no choice at all gets the default. An empty `pickedShaderPack:` is the
+    // player's Off, and any other value is their pick: both stay, whatever the default is.
+    let has_choice = content
         .lines()
-        .find_map(|line| line.strip_prefix("pickedShaderPack:").map(str::trim))
-        .unwrap_or("");
-    if lite && (chosen.is_empty() || chosen == "TMLVisuals.zip") {
+        .any(|line| line.starts_with("pickedShaderPack:"));
+    if lite && !has_choice {
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let picked = "pickedShaderPack:TMLVisualsLite.zip".to_string();
-        match lines
-            .iter_mut()
-            .find(|line| line.starts_with("pickedShaderPack:"))
-        {
-            Some(line) => *line = picked,
-            None => lines.push(picked),
-        }
+        lines.push("pickedShaderPack:TMLVisualsLite.zip".to_string());
         if let Err(e) = std::fs::write(&graphics_file, lines.join("\n") + "\n") {
             log::warn!(
                 "TML: the default shader pack was not saved in {}: {e}",

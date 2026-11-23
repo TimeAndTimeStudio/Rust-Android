@@ -6,7 +6,7 @@
 
 use horizon_client::camera::CameraFluid;
 use horizon_client::gfx::pack_uniforms::{PackInputs, PlayerStatus};
-use horizon_client::graphics::{AUTO_PROFILE, light_shader_pack};
+use horizon_client::graphics::light_shader_pack;
 use horizon_client::shader_options::ShaderOptions;
 use horizon_client::text::Text;
 use horizon_shaders::{BlockIds, Macros, Pack, Properties, dimension_folder, load_post};
@@ -186,42 +186,10 @@ pub(super) struct Making {
     started: std::time::Instant,
 }
 
-/// What the Auto profile does to a pack on this device: it takes one of the pack's own
-/// profiles, chosen by cost rather than by name, and leaves every option it sets alone.
-///
-/// It deliberately does not cap the shadow map, the shadow distance or the resolution scale.
-/// Those are the player's calls: a stronger phone gets a profile near the middle of the pack's
-/// range instead of the lightest one, so Auto never silently makes a pack look worse than the
-/// profile it picked.
-struct AutoProfile {
-    /// Where in the pack's profiles to aim, from the lightest (0) to the heaviest (1). Phones
-    /// sit below the middle because a phone's frame is led by its pixels, not its CPU.
-    quality: f32,
-}
-
-impl AutoProfile {
-    fn here() -> Self {
-        use horizon_client::system_stats::Tier;
-        match Tier::here().unwrap_or(Tier::High) {
-            Tier::High => Self { quality: 0.6 },
-            Tier::Mid => Self { quality: 0.4 },
-            Tier::Low => Self { quality: 0.2 },
-        }
-    }
-
-    /// The profile to pick out of `count`, lightest first: the middle of the pack's range for
-    /// a strong phone, lighter for slower ones. One profile is always the one to pick.
-    fn rank(&self, count: usize) -> usize {
-        if count < 2 {
-            return 0;
-        }
-        ((count - 1) as f32 * self.quality).round() as usize
-    }
-}
-
-/// The pack's option values: the chosen `profile` (`LOW`), then what the player chose on the
-/// Shader Options page, which Auto's limits leave alone, then `HORIZON_SHADER_OPTIONS` lists
-/// values over it (`shadowDistance=64.0 SHADOW_QUALITY=0 !BLOOM`).
+/// The pack's option values: the profile the player chose (`LOW`; empty is the pack's own
+/// defaults), then what they chose on the Shader Options page, then `HORIZON_SHADER_OPTIONS`
+/// lists values over it (`shadowDistance=64.0 SHADOW_QUALITY=0 !BLOOM`). Nothing here picks a
+/// quality for the player.
 fn picked_values(
     properties: &Properties,
     options: &BTreeMap<String, horizon_shaders::PackOption>,
@@ -230,24 +198,7 @@ fn picked_values(
     chosen: &BTreeMap<String, String>,
 ) -> horizon_shaders::Values {
     let mut values = horizon_shaders::Values::default();
-    if profile == AUTO_PROFILE {
-        let auto = AutoProfile::here();
-        let ranked = horizon_shaders::Values::profiles_by_cost(properties, options);
-        match ranked.get(auto.rank(ranked.len())) {
-            Some((found, cost)) => {
-                log::info!(
-                    "shader pack {name}: Auto picks profile `{found}` (cost {cost:.1}) of {}",
-                    ranked
-                        .iter()
-                        .map(|(n, c)| format!("{n} {c:.1}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                values = horizon_shaders::Values::profile(properties, found).unwrap_or_default();
-            }
-            None => log::info!("shader pack {name}: Auto finds no profile to start from"),
-        }
-    } else if !profile.is_empty() {
+    if !profile.is_empty() {
         match horizon_shaders::Values::profile(properties, profile) {
             Some(p) => values = p,
             None => log::warn!("shader pack {name}: no profile `{profile}`"),
@@ -385,8 +336,7 @@ impl Game<'_> {
                         // On a phone whatever the profile: it pays for itself even on a pack's
                         // highest settings, and the player picks a profile for how it looks.
                         renderer.set_pack_prepass(
-                            (cfg!(target_os = "android") || profile == AUTO_PROFILE)
-                                && !light_shader_pack(name),
+                            cfg!(target_os = "android") && !light_shader_pack(name),
                         );
                         let inputs = renderer.pack_inputs();
                         let biomes: Vec<String> = world_biomes!(self)
@@ -1049,26 +999,6 @@ mod emission_tests {
             terrain_table(&[10, -1, 20, 1], &[14, 0]),
             [10, -1, 14, 20, 1, 0]
         );
-    }
-}
-
-#[cfg(test)]
-mod auto_profile_tests {
-    use super::AutoProfile;
-
-    /// The phone tiers climb the pack's profiles without landing on the lightest one for a
-    /// strong device, and always stay inside the list.
-    #[test]
-    fn auto_picks_a_middle_profile_per_tier() {
-        let high = AutoProfile { quality: 0.6 };
-        let mid = AutoProfile { quality: 0.4 };
-        let low = AutoProfile { quality: 0.2 };
-        assert_eq!(high.rank(6), 3);
-        assert_eq!(mid.rank(6), 2);
-        assert_eq!(low.rank(6), 1);
-        assert_eq!(high.rank(1), 0);
-        assert_eq!(low.rank(0), 0);
-        assert!(high.rank(3) < 3);
     }
 }
 

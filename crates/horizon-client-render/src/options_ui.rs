@@ -4309,10 +4309,6 @@ impl OptionsUi {
             .unwrap_or_default()
             .join(crate::shader_pack_list::DIR);
         self.shader_profiles = vec![String::new()];
-        if cfg!(target_os = "android") {
-            self.shader_profiles
-                .insert(0, crate::graphics::AUTO_PROFILE.to_owned());
-        }
         if let Some((pack, _)) = s.horizon.shader_choice()
             && let Ok(pack) = horizon_shaders::Pack::open(&dir.join(pack))
         {
@@ -5988,11 +5984,10 @@ impl OptionsUi {
                             let list = &self.shader_profiles;
                             let at = list.iter().position(|p| *p == now).unwrap_or(0);
                             if let Some(next) = list.get((at + 1) % list.len().max(1)) {
-                                // Empty would fall back to the variable's: the pack's own
-                                // defaults are `default`, and empty is what means Auto.
+                                // Empty is the pack's own defaults; choosing it is what used
+                                // to be called Auto, and it is the player's call too.
                                 s.horizon.shader_profile = match next.as_str() {
                                     "" => "default".into(),
-                                    crate::graphics::AUTO_PROFILE => String::new(),
                                     next => next.to_owned(),
                                 };
                             }
