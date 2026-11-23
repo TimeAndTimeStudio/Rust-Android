@@ -417,8 +417,8 @@ impl Game<'_> {
     }
 
     fn handle_button_click(&mut self, stage: Stage, button: usize) {
-        let offer = &mut self.update_offer;
         let release = self.release();
+        let offer = &mut self.update_offer;
         match (stage, button) {
             (Stage::Checking, _) => {
                 offer.cancel.store(true, Ordering::Relaxed);
