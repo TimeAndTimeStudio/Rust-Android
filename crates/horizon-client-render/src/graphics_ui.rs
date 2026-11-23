@@ -506,6 +506,11 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                             High,
                             "World pixels per screen pixel. Lower is faster on the GPU.",
                         ),
+                        h(
+                            H::ShadowCache,
+                            Saves,
+                            "Reuses the pack shadow map when sun, view and world match. Saves up to 50% GPU load on mobile.",
+                        ),
                     ],
                 ),
             ],
@@ -806,7 +811,7 @@ impl H {
                 Text::translate("Shortcut: %s", &[crate::keybinds::display_name(&g.hdr_key)])
             }
             H::BatteryMode => labelled("Battery Mode", on_off(g.battery)),
-            H::ShadowCache => labelled("Shadow Cache", on_off(g.shadow_cache)),
+            H::ShadowCache => labelled("Shader Cache", on_off(g.shadow_cache)),
             H::ShaderPacks => {
                 if s.horizon.shader_pack.is_empty() {
                     Text::literal(lang::get("Manage Packs..."))

@@ -183,7 +183,7 @@ impl Game<'_> {
                         offer.stage = Some(Stage::Ask);
                     }
                     Ok(None) => {
-                        let cur = crate::android::app_version().map_or("1.0.3".into(), |(v, _)| v);
+                        let cur = crate::android::app_version().map_or("1.0.6".into(), |(v, _)| v);
                         offer.stage = Some(Stage::UpToDate(cur));
                     }
                     Err(e) => {
@@ -213,7 +213,7 @@ impl Game<'_> {
         let current = match (crate::android::app_version(), test) {
             (_, Some(pretend)) => pretend,
             (Some((version, _)), None) => version,
-            _ => "1.0.3".into(),
+            _ => "1.0.6".into(),
         };
         offer.stage = Some(Stage::Checking);
         offer.cancel.store(false, Ordering::Relaxed);

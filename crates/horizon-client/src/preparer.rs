@@ -278,14 +278,15 @@ pub fn put_shader_pack(game_folder: &Path) {
     let Some(bytes) = crate::platform::asset("TMLVisuals.zip") else {
         return;
     };
+    let dir = game_folder.join("shaderpacks");
+    let target = dir.join("TMLVisuals.zip");
     let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
     let marker = crate::logging::private_home().join(".tml-visuals");
-    if std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
+    if target.exists() && std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
         return;
     }
-    let dir = game_folder.join("shaderpacks");
     match std::fs::create_dir_all(&dir)
-        .and_then(|()| std::fs::write(dir.join("TMLVisuals.zip"), &bytes))
+        .and_then(|()| std::fs::write(&target, &bytes))
         .and_then(|()| std::fs::write(&marker, &stamp))
     {
         Ok(()) => log::info!("TML: TML Visuals put in {}", dir.display()),
@@ -330,12 +331,13 @@ pub fn put_resource_packs(game_folder: &Path) {
             continue;
         };
         let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
+        let target = dir.join(pack_name);
         let marker = crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
-        if std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
+        if target.exists() && std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
             continue;
         }
         match std::fs::create_dir_all(&dir)
-            .and_then(|()| std::fs::write(dir.join(pack_name), &bytes))
+            .and_then(|()| std::fs::write(&target, &bytes))
             .and_then(|()| std::fs::write(&marker, &stamp))
         {
             Ok(()) => log::info!("TML: {pack_name} put in {}", dir.display()),

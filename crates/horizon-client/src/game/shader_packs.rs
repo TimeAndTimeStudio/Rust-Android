@@ -32,6 +32,10 @@ pub(super) fn read_shader_options(
     language: &str,
     macros: &Macros,
 ) -> Option<ShaderOptions> {
+    let target = Game::shader_packs_dir().join(name);
+    if !target.exists() && (name == "TMLVisuals.zip" || name.contains("TML") || name.contains("tml")) {
+        crate::preparer::put_shader_pack(&Game::game_dir());
+    }
     let pack = match Pack::open(&Game::shader_packs_dir().join(name)) {
         Ok(pack) => pack,
         Err(e) => {
@@ -303,6 +307,9 @@ impl Game<'_> {
             Dim::End => 1,
         };
         let path = Self::shader_packs_dir().join(&name);
+        if !path.exists() && (name == "TMLVisuals.zip" || name.contains("TML") || name.contains("tml")) {
+            crate::preparer::put_shader_pack(&Self::game_dir());
+        }
         if horizon_shader_api::package::is_pack(&path) {
             // One of Horizon's own packs (game/native_shaders.rs).
             self.tick_native_shader_pack(&path);

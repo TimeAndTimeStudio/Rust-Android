@@ -21,15 +21,31 @@ pub fn native_builds_url(repository: &str) -> String {
     format!("https://api.github.com/repos/{repository}/releases/tags/native-builds")
 }
 
-/// Whether version `latest` (a tag: `v0.1.2`) comes after `current` (`0.1.1`), number by number.
+/// Whether version `latest` (a tag: `v0.1.2` or `v1.0.5-92`) comes after `current` (`1.0.5`), number by number.
 pub fn newer(latest: &str, current: &str) -> bool {
-    let numbers = |v: &str| -> Vec<u64> {
+    let parse_parts = |v: &str| -> Vec<u64> {
         v.trim_start_matches('v')
             .split(['.', '-', '+'])
-            .map(|part| part.parse().unwrap_or(0))
+            .filter_map(|part| part.parse().ok())
             .collect()
     };
-    numbers(latest) > numbers(current)
+    let l = parse_parts(latest);
+    let c = parse_parts(current);
+    if l.is_empty() || c.is_empty() {
+        return false;
+    }
+    // Compare major, minor, patch
+    let l_main: Vec<_> = l.iter().take(3).copied().collect();
+    let c_main: Vec<_> = c.iter().take(3).copied().collect();
+    if l_main != c_main {
+        return l_main > c_main;
+    }
+    // If major.minor.patch are equal, but both have build numbers:
+    if l.len() >= 4 && c.len() >= 4 {
+        return l[3] > c[3];
+    }
+    // If current does not have a build number, same major.minor.patch means same release!
+    false
 }
 
 /// A Starling release's APK.

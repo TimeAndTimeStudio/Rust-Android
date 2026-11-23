@@ -166,9 +166,9 @@ impl Game<'_> {
         }
         horizon_client::logging::player_dir().join("options.txt")
     }
-    /// The game folder (the working directory): what its players share, saves, packs, mods.
+    /// The game folder: what its players share, saves, packs, mods.
     pub(super) fn game_dir() -> std::path::PathBuf {
-        std::env::current_dir().unwrap_or_default()
+        crate::logging::game_home()
     }
     /// `shaderpacks/` in the game folder.
     pub(super) fn shader_packs_dir() -> std::path::PathBuf {
@@ -207,6 +207,8 @@ impl Game<'_> {
         ui.minecart_improvements = minecart_improvements;
         let root = self.options.resources.clone();
         ui.languages = lang::available(&[&root]);
+        self.settings.shader_packs =
+            horizon_client::shader_pack_list::scan(&Self::shader_packs_dir());
         self.refresh_pack_lists();
     }
     /// While the resource pack screen is open, `resourcepacks/` is looked at once a second
