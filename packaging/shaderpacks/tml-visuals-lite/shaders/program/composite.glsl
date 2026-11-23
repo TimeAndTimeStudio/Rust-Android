@@ -80,7 +80,7 @@ float cloudNoise(vec2 p) {
 float cloudFbm(vec2 p) {
     float sum = 0.0;
     float amp = 0.5;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         sum += amp * cloudNoise(p);
         p = p * 2.03 + vec2(17.1, 9.2);
         amp *= 0.5;
@@ -103,7 +103,7 @@ vec4 cloudLayer(vec3 dir, vec3 s) {
     float n = cloudFbm(p * 0.006);
     float cover = smoothstep(0.50, 0.68, n) * CLOUDS_AMOUNT;
     // Fade into the haze at the world's edge.
-    cover *= 1.0 - smoothstep(far * 0.55, far * 1.25, t);
+    cover *= 1.0 - smoothstep(far * 0.7, far * 1.6, t);
     if (cover <= 0.0) {
         return vec4(0.0);
     }

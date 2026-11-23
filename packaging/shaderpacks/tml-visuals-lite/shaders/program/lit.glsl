@@ -87,7 +87,11 @@ void main() {
         // Off the surface a little, along its normal (toward the light for plants, whose normals
         // point anywhere), so that it doesn't shadow itself; further with distance, where the
         // map's texels are bigger.
-        vec3 off = mix(n, keyLightDir(), wrap) * (0.03 + length(at) * 0.004);
+        // Grazing sun on a flat surface needs more: the shadow map's texel is wider than the
+        // surface's own slope there, and its depth would otherwise dot the ground with stripes.
+        float slope = 1.0 - clamp(dot(n, keyLightDir()), 0.0, 1.0);
+        vec3 off = mix(n, keyLightDir(), wrap)
+            * (0.04 + length(at) * 0.005) * (1.0 + 3.0 * slope);
         shadowClip = (shadowProjection * (shadowModelView * vec4(at + off, 1.0))).xyz;
     #endif
     #ifdef WATER
@@ -150,7 +154,7 @@ float sunReaches() {
         float reach = max(abs(shadowClip.x), abs(shadowClip.y));
         if (reach < 1.0) {
             vec3 at = vec3(distortShadow(shadowClip.xy), shadowClip.z) * 0.5 + 0.5;
-            at.z -= 0.0002;
+            at.z -= 0.0008;
             #if SHADOW_FILTER == 4
                 // SHADOW_SOFTNESS texels out, on a grid turned by about 18 degrees.
                 float radius = SHADOW_SOFTNESS / float(shadowMapResolution);

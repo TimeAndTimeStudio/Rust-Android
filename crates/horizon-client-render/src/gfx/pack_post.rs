@@ -1645,7 +1645,17 @@ fn build_pass(
                 depth_write_enabled: Some(g.depth_write && prepass.is_none()),
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: Default::default(),
-                bias: if p.name == "gbuffers_damagedblock" {
+                // The shadow pass sits a little farther from the light than the surface it
+                // casts from: a polygon offset, as Iris and OptiFine give shadow passes, so
+                // grazing light on a large flat surface (snow, sand) does not draw its own
+                // depth as thin stripes.
+                bias: if p.group == Group::Shadow {
+                    wgpu::DepthBiasState {
+                        constant: 4,
+                        slope_scale: 3.0,
+                        clamp: 0.0,
+                    }
+                } else if p.name == "gbuffers_damagedblock" {
                     wgpu::DepthBiasState {
                         constant: -10,
                         slope_scale: -1.0,
