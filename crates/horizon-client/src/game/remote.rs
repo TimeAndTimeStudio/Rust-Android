@@ -5582,10 +5582,7 @@ impl Game<'_> {
             &r.skin_textures,
             &mut r.level_player_textures,
         );
-        let (online_mode, names): (bool, Vec<(u128, String)>) = (
-            r.online_mode,
-            r.players.iter().map(|(u, n)| (*u, n.clone())).collect(),
-        );
+        let online_mode = r.online_mode;
         let own = match &r.own_profile {
             OwnProfile::Done(Some(t)) => Some(t.clone()),
             _ => None,
@@ -5609,30 +5606,9 @@ impl Game<'_> {
                 entries.push((local, own));
             }
         }
-        // Skin Customization's Ely.by Skins: on a server that sends no skin for a player (offline
-        // mode), the one their name has on Ely.by, as offline launchers show it.
-        let mut from_elyby = std::collections::HashSet::new();
-        // An Ely.by account's own skin where the server sent none: Ely.by's, as Mojang's profile
-        // is a Microsoft account's (`own_profile` asks Mojang nothing for it).
-        if !entries.iter().any(|(u, t)| *u == local && t.skin.is_some())
-            && let Some(textures) = self.own_elyby_textures()
-        {
-            entries.retain(|(u, _)| *u != local);
-            entries.push((local, textures));
-            from_elyby.insert(local);
-        }
-        if !online_mode {
-            for (uuid, name) in names {
-                if entries.iter().any(|(u, t)| *u == uuid && t.skin.is_some()) {
-                    continue;
-                }
-                if let Some(textures) = self.elyby_textures(&name) {
-                    entries.retain(|(u, _)| *u != uuid);
-                    entries.push((uuid, textures));
-                    from_elyby.insert(uuid);
-                }
-            }
-        }
+        // TimeSMP skins are local-only: the server sends the PNG it has in
+        // `config/timesmp/skins/`, and this client never fills a missing skin
+        // from an outside service.
         let mut resolved: Vec<(u128, String)> = Vec::new();
         // PlayerSkin.model of each resolved skin: the textures' `slim`.
         let mut slim = std::collections::HashSet::new();
@@ -5642,7 +5618,7 @@ impl Game<'_> {
             // In offline-mode servers (online=false), SkinsRestorer and offline servers
             // send skins that may not be signed by Mojang or have local player skins.
             // When offline (online_mode is false), allow unsigned skins so SkinsRestorer works.
-            let secure = online_mode && uuid != local && !from_elyby.contains(&uuid);
+            let secure = online_mode && uuid != local;
             let skin = {
                 let mut downloads = self.skin_downloads.borrow_mut();
                 horizon_client::skins::lookup(&textures, secure, |kind, url| {
