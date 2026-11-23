@@ -1774,13 +1774,12 @@ impl Title {
                 }
                 // Starling's account, where the game signs in itself: in the top left corner,
                 // clear of the logo, so vanilla's buttons stay as they are.
-                let app_version = crate::platform::app_version().unwrap_or("1.0.6");
-                let update_label = format!("Update (v{})", app_version);
+                let update_label = "Update";
                 if crate::accounts::in_game() {
                     buttons.push(b(4.0, 4.0, 120.0, &account::main_label(), true, 8));
-                    buttons.push(b(128.0, 4.0, 96.0, &update_label, true, 9));
+                    buttons.push(b(128.0, 4.0, 64.0, update_label, true, 9));
                 } else {
-                    buttons.push(b(4.0, 4.0, 96.0, &update_label, true, 9));
+                    buttons.push(b(4.0, 4.0, 64.0, update_label, true, 9));
                 }
                 buttons
             }

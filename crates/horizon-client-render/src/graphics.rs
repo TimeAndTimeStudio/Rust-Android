@@ -725,7 +725,6 @@ pub fn auto_shader_scale() -> f32 {
 pub fn light_shader_pack(name: &str) -> bool {
     let name = name.replace(['-', '_', ' '], "").to_ascii_lowercase();
     name.starts_with("starlingvisuals")
-        || name.starts_with("tmlvisuals")
         || name.starts_with("makeup")
 }
 
