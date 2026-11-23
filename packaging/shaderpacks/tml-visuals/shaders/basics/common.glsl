@@ -10,6 +10,7 @@ const float HALF_PI = PI / 2.0;
 	uniform sampler2D lightmap;
 	uniform sampler2D normals;
 	uniform sampler2D specular;
+	uniform sampler2D colortex0;
 	uniform sampler2D tex;
 	uniform sampler2D colortex1;
 	uniform sampler2D colortex2;
@@ -56,7 +57,11 @@ const float HALF_PI = PI / 2.0;
 
 // buffer values:
 
-#define MAIN_TEXTURE                tex
+#if defined SHADER_GBUFFERS_TERRAIN || defined SHADER_GBUFFERS_BLOCK || defined SHADER_GBUFFERS_WATER || defined SHADER_GBUFFERS_ENTITIES || defined SHADER_GBUFFERS_ENTITIES_TRANSLUCENT || defined SHADER_GBUFFERS_HAND || defined SHADER_GBUFFERS_HAND_WATER || defined SHADER_GBUFFERS_TEXTURED || defined SHADER_GBUFFERS_WEATHER || defined SHADER_GBUFFERS_CLOUDS || defined SHADER_GBUFFERS_BASIC || defined SHADER_GBUFFERS_BEACONBEAM || defined SHADER_GBUFFERS_ARMOR_GLINT || defined SHADER_GBUFFERS_DAMAGEDBLOCK || defined SHADER_GBUFFERS_LINE || defined SHADER_GBUFFERS_PARTICLES || defined SHADER_GBUFFERS_PARTICLES_TRANSLUCENT || defined SHADER_GBUFFERS_SKYBASIC || defined SHADER_GBUFFERS_SKYTEXTURED || defined SHADER_DH_TERRAIN || defined SHADER_DH_WATER || defined SHADER_CLRWL_GBUFFERS || defined SHADER_CLRWL_GBUFFERS_TRANSLUCENT || defined SHADER_CLRWL_SHADOW || defined SHADER_SHADOW
+	#define MAIN_TEXTURE                tex
+#else
+	#define MAIN_TEXTURE                colortex0
+#endif
 #define PREV_TEXTURE                colortex1
 #define OPAQUE_DATA_TEXTURE         colortex2
 #define TRANSPARENT_DATA_TEXTURE    colortex3

@@ -1177,6 +1177,9 @@ fn bindings(
             }
             None => {
                 let mut src = source(&s.name, group.shadow(), shadow.is_some(), watershadow);
+                if (s.name == "tex" || s.name == "texture") && geometry.is_none() && !group.shadow() {
+                    src = Source::Color(0);
+                }
                 let blank = match src {
                     // The shadow pass writes the shadow map.
                     Source::ShadowDepth(..) => group == Group::Shadow,
