@@ -779,8 +779,25 @@ pub fn menu_background(
     };
     if atlas.sprites.contains_key(sprite) {
         tiled(batch, atlas, sprite, x, y, w, h, 32.0, u32::MAX);
-    } else {
+    } else if in_world {
         batch.fill(atlas, x, y, w, h, rgba(0, 0, 0, 160));
+    } else {
+        // The menu texture is not in this atlas yet (the connecting screen's, before the
+        // resource packs load): a dark earthen checker, not a black hole behind a dialog.
+        batch.fill(atlas, x, y, w, h, rgba(38, 33, 29, 255));
+        let mut ty = y;
+        let mut row = 0;
+        while ty < y + h {
+            let mut tx = x + if row % 2 == 0 { 0.0 } else { 64.0 };
+            while tx < x + w {
+                let tw = (x + w - tx).min(64.0);
+                let th = (y + h - ty).min(64.0);
+                batch.fill(atlas, tx, ty, tw, th, rgba(46, 40, 34, 255));
+                tx += 128.0;
+            }
+            ty += 64.0;
+            row += 1;
+        }
     }
 }
 /// Header and footer separators of list screens.
@@ -1681,16 +1698,36 @@ impl EditBox {
             } else {
                 "gui/sprites/widget/text_field"
             };
-            nine_slice(
-                batch,
-                atlas,
-                sprite,
-                self.x,
-                self.y,
-                self.width,
-                self.height,
-                u32::MAX,
-            );
+            if atlas.sprites.contains_key(sprite) {
+                nine_slice(
+                    batch,
+                    atlas,
+                    sprite,
+                    self.x,
+                    self.y,
+                    self.width,
+                    self.height,
+                    u32::MAX,
+                );
+            } else {
+                // A field still reads as one before the widget sprites are in the atlas.
+                batch.fill(
+                    atlas,
+                    self.x,
+                    self.y,
+                    self.width,
+                    self.height,
+                    rgba(28, 28, 30, 255),
+                );
+                batch.fill(
+                    atlas,
+                    self.x,
+                    self.y + self.height - 1.0,
+                    self.width,
+                    1.0,
+                    rgba(120, 120, 128, 255),
+                );
+            }
         }
         let color = self.text_color;
         let rest: String = self.value.chars().skip(self.display).collect();

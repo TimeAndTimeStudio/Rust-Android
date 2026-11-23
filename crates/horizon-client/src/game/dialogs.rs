@@ -508,10 +508,6 @@ impl Game<'_> {
         let (w, h) = (batch.width, batch.height);
         let cursor = self.cursor;
         let atlas = &self.gui.atlas;
-        if self.player.is_none() {
-            // In place of the connecting screen, on its background.
-            batch.fill(atlas, 0.0, 0.0, w, h, rgba(20, 20, 20, 255));
-        }
         ui::menu_background(batch, atlas, 0.0, 0.0, w, h, self.player.is_some());
         if self.dialogs.warning {
             let (title, message, [disconnect, back]) = warning_texts();
