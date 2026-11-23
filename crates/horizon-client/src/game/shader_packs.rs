@@ -101,8 +101,8 @@ pub(super) fn picked_pack_draws_flat(settings: &horizon_client::settings::Settin
 }
 
 /// A pack to use when the picked one is gone: the bundled Lite pack first, then a player's own
-/// pack, then the fuller bundled pack. A stale pick then falls back to something that draws a
-/// world instead of leaving the game unshaded until the player opens the menu.
+/// pack, then any other. A stale pick then falls back to something that draws a world instead
+/// of leaving the game unshaded until the player opens the menu.
 fn fallback_shader_pack(missing: &str) -> Option<String> {
     let dir = Game::shader_packs_dir();
     let mut usable: Vec<String> = horizon_client::shader_pack_list::scan(&dir)

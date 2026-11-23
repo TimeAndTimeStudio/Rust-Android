@@ -5590,7 +5590,11 @@ impl Game<'_> {
         // Minecraft.profileFuture: the signed-in account's active skin and cape
         // from `/minecraft/profile` when the server sent none (single player) or
         // only a skin without the equipped cape.
-        if let Some(own) = own {
+        // TimeSMP is online-mode=false and local-only: do not fill a missing
+        // server skin from the signed-in account's Mojang profile either.
+        if online_mode
+            && let Some(own) = own
+        {
             if let Some((_, t)) = entries.iter_mut().find(|(u, _)| *u == local) {
                 if t.skin.is_none() {
                     t.skin = own.skin.clone();

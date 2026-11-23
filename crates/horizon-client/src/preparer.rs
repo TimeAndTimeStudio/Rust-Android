@@ -272,41 +272,39 @@ pub fn skin() -> Option<PathBuf> {
     }
 }
 
-/// The shader packs the app carries, put in `shaderpacks/` of the game folder:
-/// `TMLVisualsLite.zip` (packaging/shaderpacks/tml-visuals-lite, the phone-first pack the
-/// app starts with) and `TMLVisuals.zip` (the fuller Iris pack, still selectable). The
-/// default is Lite, and an untouched old default (`TMLVisuals.zip`) moves to it once.
+/// TML Visuals Lite, the shader pack the app carries, put in `shaderpacks/` of the game
+/// folder. It is never picked for the player: a new install starts with shaders Off, and the
+/// pack is there in the list when the player wants it.
 pub fn put_shader_pack(game_folder: &Path) {
-    let lite = put_asset_pack(game_folder, "TMLVisualsLite.zip", ".tml-visuals-lite");
-    let _full = put_asset_pack(game_folder, "TMLVisuals.zip", ".tml-visuals");
-    if !lite {
-        return;
-    }
-
-    // One migration only: a player who later picks the full pack (or any other) keeps it.
-    let marker = crate::logging::private_home().join(".tml-visuals-default");
-    if marker.exists() {
-        return;
-    }
+    let _ = put_asset_pack(game_folder, "TMLVisualsLite.zip", ".tml-visuals-lite");
+    // A save that still names the removed full pack starts with shaders Off instead: the
+    // player is not quietly moved to another look they did not choose.
     let graphics_file = game_folder.join("horizon-graphics.txt");
-    let content = std::fs::read_to_string(&graphics_file).unwrap_or_default();
-    // Only a file with no choice at all gets the default. An empty `pickedShaderPack:` is the
-    // player's Off, and any other value is their pick: both stay, whatever the default is.
-    let has_choice = content
+    let Ok(content) = std::fs::read_to_string(&graphics_file) else {
+        return;
+    };
+    if !content
         .lines()
-        .any(|line| line.starts_with("pickedShaderPack:"));
-    if lite && !has_choice {
-        let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        lines.push("pickedShaderPack:TMLVisualsLite.zip".to_string());
-        if let Err(e) = std::fs::write(&graphics_file, lines.join("\n") + "\n") {
-            log::warn!(
-                "TML: the default shader pack was not saved in {}: {e}",
-                graphics_file.display()
-            );
-            return;
-        }
+        .any(|line| line.trim() == "pickedShaderPack:TMLVisuals.zip")
+    {
+        return;
     }
-    let _ = std::fs::write(marker, "TML Visuals Lite is the default\n");
+    let lines: Vec<String> = content
+        .lines()
+        .map(|line| {
+            if line.trim() == "pickedShaderPack:TMLVisuals.zip" {
+                "pickedShaderPack:".to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+    if let Err(e) = std::fs::write(&graphics_file, lines.join("\n") + "\n") {
+        log::warn!(
+            "TML: the removed shader pack could not be cleared in {}: {e}",
+            graphics_file.display()
+        );
+    }
 }
 
 /// One bundled shader pack: `asset` from the APK's assets, written as `name` in

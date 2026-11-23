@@ -6,13 +6,12 @@ from pathlib import Path
 from build_apk import ROOT, TARGETS, zip_folder
 
 
-def prepare(folder, version, visuals, lite):
+def prepare(folder, version, lite):
     version = version.removeprefix("v")
     missing = [abi for abi in TARGETS if not (folder / f"starling-{version}-{abi}.apk").is_file()]
     if missing:
         raise ValueError("Missing release APKs: " + ", ".join(missing))
     zip_folder(lite, folder / "TMLVisualsLite.zip")
-    zip_folder(visuals, folder / "TMLVisuals.zip")
 
 
 if __name__ == "__main__":
@@ -24,7 +23,6 @@ if __name__ == "__main__":
         prepare(
             args.output,
             args.version,
-            ROOT / "packaging/shaderpacks/tml-visuals",
             ROOT / "packaging/shaderpacks/tml-visuals-lite",
         )
     except ValueError as error:

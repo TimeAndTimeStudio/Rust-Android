@@ -107,8 +107,6 @@ pub enum H {
     ShaderPackOff,
     /// Direct tick-box selection for the bundled phone-first pack, TML Visuals Lite.
     ShaderPackTml,
-    /// Direct tick-box selection for the bundled full Iris pack (I Like Vanilla).
-    ShaderPackIris,
     /// Direct tick-box selection for custom shader packs.
     ShaderPackCustom0,
     ShaderPackCustom1,
@@ -469,11 +467,6 @@ pub fn rows() -> Vec<(Page, Vec<(&'static str, Vec<Setting>)>)> {
                             "Bundled phone-first shaders: light sky and shadows, water and bloom at a steady frame rate.",
                         ),
                         h(
-                            H::ShaderPackIris,
-                            High,
-                            "Bundled full Iris pack (I Like Vanilla): more effects, for a stronger phone.",
-                        ),
-                        h(
                             H::ShaderPackCustom0,
                             High,
                             "Use custom shader pack from shaderpacks folder.",
@@ -829,7 +822,6 @@ impl H {
             H::ShaderOptions => Text::literal(lang::get("Pack Settings...")),
             H::ShaderPackOff => Text::literal("Off"),
             H::ShaderPackTml => Text::literal("TML Visuals Lite"),
-            H::ShaderPackIris => Text::literal("TML Visuals (I Like Vanilla)"),
             H::ShaderPackCustom0 => Text::literal(
                 s.shader_packs
                     .get(0)
@@ -1229,13 +1221,6 @@ impl H {
                     g.shader_pack = "TMLVisualsLite.zip".to_string();
                 }
             }
-            H::ShaderPackIris => {
-                if g.shader_pack == "TMLVisuals.zip" {
-                    g.shader_pack.clear();
-                } else {
-                    g.shader_pack = "TMLVisuals.zip".to_string();
-                }
-            }
             H::ShaderPackCustom0 => {
                 if let Some(p) = s.shader_packs.get(0) {
                     if g.shader_pack == p.file {
@@ -1276,7 +1261,6 @@ impl H {
                 let mut packs = vec![
                     "".to_string(),
                     "TMLVisualsLite.zip".to_string(),
-                    "TMLVisuals.zip".to_string(),
                 ];
                 for p in &s.shader_packs {
                     if !packs.contains(&p.file) {
@@ -1364,7 +1348,6 @@ impl Item {
                         | H::ShaderReset
                         | H::ShaderPackOff
                         | H::ShaderPackTml
-                        | H::ShaderPackIris
                         | H::ShaderPackCustom0
                         | H::ShaderPackCustom1
                         | H::ShaderPackCustom2
@@ -1378,7 +1361,6 @@ impl Item {
         Some(match self {
             Item::Horizon(H::ShaderPackOff) => g.shader_pack.is_empty(),
             Item::Horizon(H::ShaderPackTml) => g.shader_pack == "TMLVisualsLite.zip",
-            Item::Horizon(H::ShaderPackIris) => g.shader_pack == "TMLVisuals.zip",
             Item::Horizon(H::ShaderPackCustom0) => {
                 s.shader_packs.get(0).is_some_and(|p| p.file == g.shader_pack)
             }
@@ -2482,7 +2464,6 @@ impl GraphicsUi {
                 H::ActiveShaderPack
                     | H::ShaderPackOff
                     | H::ShaderPackTml
-                    | H::ShaderPackIris
                     | H::ShaderPackCustom0
                     | H::ShaderPackCustom1
                     | H::ShaderPackCustom2
