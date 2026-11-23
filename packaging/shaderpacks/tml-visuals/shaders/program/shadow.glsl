@@ -1,272 +1,153 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+in_out vec2 texcoord;
+#if COLORED_SHADOWS_ENABLED == 1
+	in_out vec3 glcolor;
+	#if WATER_CAUSTICS_ENABLED == 1
+		in_out vec3 playerPos;
+		flat in_out uint materialId;
+	#endif
+#endif
 
-//Settings//
-#include "/lib/settings.glsl"
 
-//Fragment Shader///////////////////////////////////////////////////////////////////////////////////
+
 #ifdef FSH
 
-//Varyings//
-varying float mat;
-
-varying vec2 texCoord;
-
-#ifdef WATER_CAUSTICS
-varying vec3 worldPos;
+#if COLORED_SHADOWS_ENABLED == 1 && WATER_CAUSTICS_ENABLED == 1
+	#include "/lib/simplex_noise.glsl"
 #endif
 
-varying vec4 color;
-
-//Uniforms//
-uniform int blockEntityId;
-
-uniform sampler2D tex;
-
-#ifdef WATER_CAUSTICS
-uniform int worldTime;
-
-uniform float frameTimeCounter;
-
-uniform sampler2D noisetex;
-#endif
-
-//Common Variables//
-#ifdef WATER_CAUSTICS
-#ifdef WORLD_TIME_ANIMATION
-float time = float(worldTime) * 0.05 * ANIMATION_SPEED;
-#else
-float time = frameTimeCounter * ANIMATION_SPEED;
-#endif
-
-#ifdef WATER_CAUSTICS
-const vec4 shadowcolor0ClearColor = vec4(0.25,0.25,0.25,1);
-#endif
-
-//Common Functions//
-float GetWaterHeightMap(vec3 worldPos, vec2 offset) {
-    float noise = 0.0, noiseA = 0.0, noiseB = 0.0;
-    
-    vec2 wind = vec2(time) * 0.5 * WATER_SPEED;
-
-	worldPos.xz -= worldPos.y * 0.2;
-
-	#if WATER_NORMALS == 1
-	offset /= 256.0;
-	noiseA = texture2D(noisetex, (worldPos.xz - wind) / 256.0 + offset).g;
-	noiseB = texture2D(noisetex, (worldPos.xz + wind) / 48.0 + offset).g;
-	#elif WATER_NORMALS == 2
-	offset /= 256.0;
-	noiseA = texture2D(noisetex, (worldPos.xz - wind) / 256.0 + offset).r;
-	noiseB = texture2D(noisetex, (worldPos.xz + wind) / 96.0 + offset).r;
-	noiseA *= noiseA; noiseB *= noiseB;
+void main() {
+	vec4 color = texture2D(texture, texcoord);
+	
+	#if COLORED_SHADOWS_ENABLED == 1
+		color.rgb *= glcolor;
 	#endif
 	
-	#if WATER_NORMALS > 0
-	noise = mix(noiseA, noiseB, WATER_DETAIL);
-	#endif
-
-    return noise * WATER_CAUSTICS_STRENGTH;
-}
-#endif
-
-//Includes//
-#ifdef WATER_SHADOW_COLOR
-#include "/lib/color/waterColor.glsl"
-#endif
-
-//Program//
-void main() {
-    #if MC_VERSION >= 11300
-	if (blockEntityId / 100 == 155) discard;
-	#endif
-
-    vec4 albedo = texture2D(tex, texCoord.xy);
-	albedo.rgb *= color.rgb;
-
-    float premult = float(mat > 0.98 && mat < 1.02);
-	float water = float(mat > 1.98 && mat < 2.02);
-	float disable = float(mat > 2.98 && mat < 3.02);
-	if (disable > 0.5) discard;
-
-	if (water > 0.5) {
-		#if !defined WATER_SHADOW_COLOR && !defined WATER_CAUSTICS
-			discard;
-		#else
-			#ifdef WATER_SHADOW_COLOR
-				#if WATER_MODE == 0
-					albedo.rgb = pow(waterColor.rgb / waterColor.a, vec3(0.25));
-				#elif WATER_MODE == 1
-					albedo.rgb = sqrt(albedo.rgb);
-				#elif WATER_MODE == 2
-					float waterLuma = length(albedo.rgb * albedo.rgb / pow(color.rgb, vec3(2.2))) * 2.0;
-					albedo.rgb = sqrt(waterLuma * sqrt(waterColor.rgb / waterColor.a));
-				#elif WATER_MODE == 3
-					albedo.rgb = sqrt(color.rgb * 0.59);
-				#endif
-
-				#if WATER_ALPHA_MODE == 0
-				albedo.a = waterAlpha;
-				#else
-				albedo.a = pow(albedo.a, WATER_VA);
-				#endif
-			#else
-				albedo.rgb = vec3(1.0);
-			#endif
-		
-			#ifdef WATER_CAUSTICS
-				float normalOffset = WATER_SHARPNESS + 0.2;
-				
-				float normalStrength = 0.35;
-
-				float h0 = GetWaterHeightMap(worldPos, vec2(0.0));
-				float h1 = GetWaterHeightMap(worldPos, vec2( normalOffset, 0.0));
-				float h2 = GetWaterHeightMap(worldPos, vec2(-normalOffset, 0.0));
-				float h3 = GetWaterHeightMap(worldPos, vec2(0.0,  normalOffset));
-				float h4 = GetWaterHeightMap(worldPos, vec2(0.0, -normalOffset));
-
-				float xDeltaA = (h1 - h0) / normalOffset;
-				float xDeltaB = (h2 - h0) / normalOffset;
-				float yDeltaA = (h3 - h0) / normalOffset;
-				float yDeltaB = (h4 - h0) / normalOffset;
-
-				float height = max((xDeltaA * -xDeltaB + yDeltaA * -yDeltaB), 0.0);
-
-				#if WATER_NORMALS == 1
-				height *= 48.0;
-				#elif WATER_NORMALS == 2
-				height *= 24.0;
-				#endif
-
-				#ifdef WATER_SHADOW_COLOR
-					height /= length(albedo.rgb);
-				#endif
-
-				height /= sqrt(height * height / 9.0 + 1.0);
-
-				albedo.rgb *= 1.0 + height;
-			#endif
+	#if COLORED_SHADOWS_ENABLED == 1 && WATER_CAUSTICS_ENABLED == 1
+		#if WATER_CAUSTICS_TYPE == 1
+			ivec3 colorInt = ivec3(color * 255.0 + 0.5);
+			if (colorInt.r == 1 && (colorInt.g == 2 || colorInt.g == 3) && colorInt.b == 255) color.rgb -= 0.01;
+			if (materialId == BLOCK_ID_WATER) {
+				vec3 averageColor = texture2DLod(texture, texcoord, 4).rgb * glcolor * 1.05;
+				bool isBright = getLum(color.rgb) > getLum(averageColor);
+				color.rgb = mix(ivec3(1, 2, 255) / 255.0, ivec3(1, 3, 255) / 255.0, float(isBright));
+			}
+		#elif WATER_CAUSTICS_TYPE == 2
+			ivec3 colorInt = ivec3(color * 255.0 + 0.5);
+			if (colorInt.r == 1 && (colorInt.g == 2 || colorInt.g == 3) && colorInt.b == 255) color.rgb -= 0.01;
+			if (materialId == BLOCK_ID_WATER) {
+				vec3 worldPos = playerPos + cameraPosition;
+				worldPos *= 2.0 / WATER_CAUSTICS_SIZE;
+				worldPos.x /= WATER_CAUSTICS_HORIZONTAL_STRETCH * 1.5;
+				worldPos.y += (worldPos.x + worldPos.z);
+				worldPos.y += frameTimeCounter * WATER_CAUSTICS_SPEED;
+				float noise_1 = valueNoise(worldPos);
+				worldPos.y -= frameTimeCounter * 2.0 * WATER_CAUSTICS_SPEED;
+				float noise_2 = valueNoise(worldPos);
+				const float minValue = 0.497 - 0.03 * WATER_CAUSTICS_THICKNESS;
+				const float maxValue = 0.503 + 0.03 * WATER_CAUSTICS_THICKNESS;
+				bool isBright = (noise_1 > minValue && noise_1 < maxValue) || (noise_2 > minValue && noise_2 < maxValue);
+				color.rgb = mix(ivec3(1, 2, 255) / 255.0, ivec3(1, 3, 255) / 255.0, float(isBright));
+			}
 		#endif
-	}
-
-    #ifdef SHADOW_COLOR
-	albedo.rgb = mix(vec3(1.0), albedo.rgb, 1.0 - pow(1.0 - albedo.a, 1.5));
-	albedo.rgb *= 1.0 - pow(albedo.a, 96.0);
-	#else
-	if ((premult > 0.5 && albedo.a < 0.98)) albedo.a = 0.0;
 	#endif
-
-	#ifdef WATER_CAUSTICS
-	albedo.rgb *= 0.25;
-	#endif
-
-	gl_FragData[0] = albedo;
+	
+	gl_FragData[0] = color;
 }
 
 #endif
 
-//Vertex Shader/////////////////////////////////////////////////////////////////////////////////////
+
+
 #ifdef VSH
 
-#extension GL_ARB_shader_image_load_store : enable
-
-//Varyings//
-varying float mat;
-
-varying vec2 texCoord;
-
-#ifdef WATER_CAUSTICS
-varying vec3 worldPos;
+#if COLORED_LIGHTING_ENABLED == 1
+	#include "/lib/colored_lighting/updateVoxelIds.glsl"
+#endif
+#if WAVING_ENABLED == 1
+	#include "/lib/waving.glsl"
 #endif
 
-varying vec4 color;
-
-//Uniforms//
-uniform int renderStage;
-uniform int worldTime;
-
-uniform float frameTimeCounter;
-
-uniform vec3 cameraPosition;
-uniform vec3 cameraPositionFract;
-uniform vec3 relativeEyePosition;
-
-uniform mat4 gbufferModelView, gbufferModelViewInverse;
-uniform mat4 shadowProjection, shadowProjectionInverse;
-uniform mat4 shadowModelView, shadowModelViewInverse;
-
-#ifdef MULTICOLORED_BLOCKLIGHT
-writeonly uniform uimage3D voxelimg;
-#endif
-
-//Attributes//
-attribute vec4 mc_Entity;
-attribute vec4 mc_midTexCoord;
-
-attribute vec3 at_midBlock;
-
-//Common Variables//
-#ifdef WORLD_TIME_ANIMATION
-float time = float(worldTime) * 0.05 * ANIMATION_SPEED;
-#else
-float time = frameTimeCounter * ANIMATION_SPEED;
-#endif
-
-//Includes//
-#include "/lib/vertex/waving.glsl"
-
-#ifdef WORLD_CURVATURE
-#include "/lib/vertex/worldCurvature.glsl"
-#endif
-
-#ifdef MULTICOLORED_BLOCKLIGHT
-#include "/lib/util/voxelMapHelper.glsl"
-#include "/lib/util/voxelMap.glsl"
-#endif
-
-//Program//
 void main() {
-	texCoord = gl_MultiTexCoord0.xy;
 	
-	int blockID = int(mc_Entity.x / 100);
-	int blockData = int(mc_Entity.x) % 100;
-
-	color = gl_Color;
+	// skip entities with this id, currently only used for lightning
+	if (entityId == 10000) {
+		gl_Position = vec4(1.0);
+		return;
+	}
 	
-	mat = 0;
-	if (blockID == 201 || blockID == 202) mat = 1;
-	if (blockID == 200 || blockID == 205) mat = 2;
+	texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
 	
-	#ifndef SHADOW_VEGETATION
-	if (blockID >= 100 && blockID <= 104) mat = 3;
+	#if COLORED_SHADOWS_ENABLED == 1
+		glcolor = gl_Color.rgb;
 	#endif
 	
-	vec4 position = shadowModelViewInverse * shadowProjectionInverse * ftransform();
-
-	#ifdef WATER_CAUSTICS
-	worldPos = position.xyz + cameraPosition.xyz;
+	#if !(COLORED_SHADOWS_ENABLED == 1 && WATER_CAUSTICS_ENABLED == 1)
+		vec3 playerPos;
+	#endif
+	playerPos = (shadowModelViewInverse * shadowProjectionInverse * ftransform()).xyz;
+	
+	uint encodedData = uint(mc_Entity.x + 0.5);
+	encodedData *= uint((encodedData & (1u << 14u)) > 0u && encodedData != 65535u);
+	#if !(COLORED_SHADOWS_ENABLED == 1 && WATER_CAUSTICS_ENABLED == 1)
+		uint materialId;
+	#endif
+	materialId = encodedData;
+	materialId &= (1u << 10u) - 1u;
+	
+	#if COLORED_LIGHTING_ENABLED == 1
+		if (gl_VertexID % 4 == 0) {
+			updateVoxelIds(playerPos, materialId);
+		}
 	#endif
 	
-	float istopv = gl_MultiTexCoord0.t < mc_midTexCoord.t ? 1.0 : 0.0;
-	position.xyz = WavingBlocks(position.xyz, blockID, istopv);
-
-	#ifdef WORLD_CURVATURE
-	position.y -= WorldCurvature(position.xz);
+	#if EXCLUDE_FOLIAGE == 1
+		bool excludeFromShadows = (encodedData & (3u << 12u)) >= (1u << 12u); // test if 'shadow casting' value is 1 or 3
+	#else
+		bool excludeFromShadows = (encodedData & (3u << 12u)) == (1u << 12u); // test if 'shadow casting' value is 1
 	#endif
-
-	#ifdef MULTICOLORED_BLOCKLIGHT
-	UpdateVoxelMap(gl_VertexID, blockData);
+	if (excludeFromShadows) {
+		gl_Position = vec4(1.0);
+		return;
+	}
+	
+	#if WAVING_ENABLED == 1
+		applyWaving(playerPos.xyz, encodedData);
 	#endif
 	
-	gl_Position = shadowProjection * shadowModelView * position;
-
-	float dist = sqrt(gl_Position.x * gl_Position.x + gl_Position.y * gl_Position.y);
-	float distortFactor = dist * shadowMapBias + (1.0 - shadowMapBias);
+	if (materialId == BLOCK_ID_WATER) {
+		float horizontalDist = length(playerPos.xz);
+		#if PHYSICALLY_WAVING_WATER_ENABLED == 1
+			float wavingAmount = PHYSICALLY_WAVING_WATER_AMOUNT_SURFACE;
+			#ifdef DISTANT_HORIZONS
+				float lengthCylinder = max(horizontalDist, abs(playerPos.y));
+				wavingAmount *= smoothstep(far * 0.95 - 10, far * 0.9 - 10, lengthCylinder);
+			#endif
+			playerPos += cameraPosition;
+			playerPos.y += sin(playerPos.x * 0.6 + playerPos.z * 1.4 + frameTimeCounter * 3.0) * 0.015 * wavingAmount;
+			playerPos.y += sin(playerPos.x * 0.9 + playerPos.z * 0.6 + frameTimeCounter * 2.5) * 0.01 * wavingAmount;
+			playerPos -= cameraPosition;
+			playerPos.y -= 0.125 / (1.0 + horizontalDist);
+		#endif
+		playerPos.y += 0.1 / (1.0 + horizontalDist) * sign(isEyeInWater - 0.5);
+		playerPos += mat3(gbufferModelViewInverse) * shadowLightPosition * length(playerPos) / 10000.0;
+		#if PIXELATED_SHADOWS == 0
+			playerPos.y += 0.0078125 * horizontalDist * float(isEyeInWater == 1); // offset shadow bias
+		#else
+			playerPos.y += 0.05 + 0.0078125 * horizontalDist * float(isEyeInWater == 1); // offset shadow bias
+		#endif
+	}
 	
-	gl_Position.xy *= 1.0 / distortFactor;
-	gl_Position.z = gl_Position.z * 0.2;
+	gl_Position = shadowProjection * shadowModelView * vec4(playerPos, 1.0);
+	
+	gl_Position.xyz = distort(gl_Position.xyz);
+	
+	// idk why but there was a situation where something with this block type (sand and sand-likes) was rendering its shadow incorrectly and was instead just two weird almost unmoving lines in the shadowmap
+	//const float low  = 16409;
+	//const float high = 16409;
+	//if (mc_Entity.x >= low && mc_Entity.x <= high) {
+	//	gl_Position = vec4(0.0);
+	//}
+	
 }
 
 #endif

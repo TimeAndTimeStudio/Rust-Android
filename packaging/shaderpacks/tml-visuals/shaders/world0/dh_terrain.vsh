@@ -1,11 +1,12 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+#version 140
 
-#version 120 
-
+#define SHADER_DH_TERRAIN
 #define OVERWORLD
 #define VSH
+
+#include "/basics/settings.glsl"
+#include "/basics/uniforms.glsl"
+#include "/generated/common.glsl"
+#include "/basics/common.glsl"
 
 #include "/program/dh_terrain.glsl"

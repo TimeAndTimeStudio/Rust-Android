@@ -1,13 +1,12 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+#version 140
 
-#version 120 
-
-#extension GL_ARB_shader_texture_lod : enable
-
+#define SHADER_COMPOSITE5
 #define NETHER
 #define FSH
+
+#include "/basics/settings.glsl"
+#include "/basics/uniforms.glsl"
+#include "/generated/common.glsl"
+#include "/basics/common.glsl"
 
 #include "/program/composite5.glsl"

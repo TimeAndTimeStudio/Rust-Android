@@ -1,189 +1,79 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+in_out vec2 texcoord;
 
-//Settings//
-#include "/lib/settings.glsl"
 
-//Fragment Shader///////////////////////////////////////////////////////////////////////////////////
+
 #ifdef FSH
 
-//Varyings//
-varying vec2 texCoord;
-
-varying vec3 upVec, sunVec;
-
-varying vec4 color;
-
-//Uniforms//
-uniform int moonPhase;
-uniform int renderStage;
-
-uniform float frameTimeCounter;
-uniform float nightVision;
-uniform float rainStrength;
-uniform float timeAngle, timeBrightness;
-uniform float viewWidth, viewHeight;
-
-uniform ivec2 eyeBrightnessSmooth;
-
-uniform vec3 cameraPosition;
-
-uniform mat4 gbufferProjectionInverse;
-
-uniform sampler2D texture;
-uniform sampler2D gaux1;
-
-#ifndef MC_RENDER_STAGE_SUN
-#define MC_RENDER_STAGE_SUN 1
-#endif
-
-#ifndef MC_RENDER_STAGE_MOON
-#define MC_RENDER_STAGE_MOON 1
-#endif
-
-#ifndef MC_RENDER_STAGE_CUSTOM_SKY
-#define MC_RENDER_STAGE_CUSTOM_SKY 1
-#endif
-
-//Common Variables//
-float eBS = eyeBrightnessSmooth.y / 240.0;
-float sunVisibility  = clamp(dot( sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-float moonVisibility = clamp(dot(-sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-
-//Common Functions//
-float GetLuminance(vec3 color) {
-	return dot(color,vec3(0.299, 0.587, 0.114));
-}
-
-//Includes//
-#include "/lib/color/dimensionColor.glsl"
-#include "/lib/util/dither.glsl"
-
-//Program//
 void main() {
-	vec4 albedo = texture2D(texture, texCoord) * color;
-
-	#ifdef OVERWORLD
-	albedo.rgb = pow(albedo.rgb, vec3(2.2)) * albedo.a;
-
-	#if MC_VERSION >= 11605
-	vec4 screenPos = vec4(gl_FragCoord.xy / vec2(viewWidth, viewHeight), gl_FragCoord.z, 1.0);
-	vec4 viewPos = gbufferProjectionInverse * (screenPos * 2.0 - 1.0);
-	viewPos /= viewPos.w;
 	
-	float VoU = dot(normalize(viewPos.xyz), upVec);
-
-	#ifdef SUN_MOON_GROUND
-	float sunFade = smoothstep(0.0, 1.0, 1.0 - pow(1.0 - max(VoU * 0.975 + 0.025, 0.0), 8.0));
-	sunFade *= sunFade;
-	#else
-	float sunFade = 1.0;
-	#endif
-
-	if (renderStage == MC_RENDER_STAGE_CUSTOM_SKY) {
-		albedo.rgb *= SKYBOX_INTENSITY * SKYBOX_INTENSITY;
-		albedo.a *= SKYBOX_OPACITY;
-	}
-	if (renderStage == MC_RENDER_STAGE_SUN) {
-		albedo.rgb *= SUN_INTENSITY * SUN_INTENSITY * sunFade;
-	}
-	if (renderStage == MC_RENDER_STAGE_MOON) {
-		albedo.rgb *= MOON_INTENSITY * MOON_INTENSITY * sunFade;
-	}
-	#else 
-	albedo.rgb *= SKYBOX_INTENSITY * SKYBOX_INTENSITY;
-	albedo.a *= SKYBOX_OPACITY;
+	vec4 color = texture2D(texture, texcoord);
+	#ifdef CUSTOM_SKYBOX
+		color.rgb *= color.rgb;
 	#endif
 	
-	#ifdef SHADER_SUN_MOON
-	if (renderStage == MC_RENDER_STAGE_SUN || renderStage == MC_RENDER_STAGE_MOON) {
-		albedo *= 0.0;
-	}
+	
+	#if defined OVERWORLD && CUSTOM_OVERWORLD_SKYBOX == 0
+		
+		// increase opacity (the color is literally just added to the buffer, not mixed, so you have to increase the brightness for "more opacity")
+		color.rgb = 1.0 - color.rgb;
+		if (sunPosition.z < 0.0) {
+			color.rgb = pow(color.rgb, vec3((SUN_OPACITY - 1.0) * 0.5 + 1.0));
+		} else {
+			color.rgb = pow(color.rgb, vec3((MOON_OPACITY - 1.0) * 0.5 + 1.0));
+		}
+		color.rgb = 1.0 - color.rgb;
+		
+		color.rgb *= (sunPosition.z < 0.0 ? SUN_BRIGHTNESS : MOON_BRIGHTNESS) * 1.5;
+		color.rgb *= 1.0 - SUN_MOON_WEATHER_OPACITY_DECREASE * rainStrength;
+		
 	#endif
 	
-	#ifdef SKY_DESATURATION
-	if (renderStage != MC_RENDER_STAGE_SUN) {
-		vec3 desat = GetLuminance(albedo.rgb) * pow(lightNight, vec3(1.6)) * 4.0;
-		albedo.rgb = mix(desat, albedo.rgb, sunVisibility);
-	}
-	#endif
-
-	#ifdef SKY_UNDERGROUND
-	albedo.rgb *= mix(clamp((cameraPosition.y - 48.0) / 16.0, 0.0, 1.0), 1.0, eBS);
-	#endif
-	#endif
-
-	#ifdef END
-	albedo.rgb = pow(albedo.rgb, vec3(2.2));
-
-	#ifdef SKY_DESATURATION
-	albedo.rgb = GetLuminance(albedo.rgb) * endCol.rgb;
-	#endif
-
-	albedo.rgb *= SKYBOX_INTENSITY * 0.02 * 16.0 / 16.0;
-	#endif
-
-	#if ALPHA_BLEND == 0
-	albedo.rgb = sqrt(max(albedo.rgb, vec3(0.0)));
+	
+	#if defined END && CUSTOM_END_SKYBOX == 0
+		discard;
 	#endif
 	
-    /* DRAWBUFFERS:0 */
-	gl_FragData[0] = albedo;
+	
+	/* DRAWBUFFERS:5 */
+	#if DO_COLOR_CODED_GBUFFERS == 1
+		color = vec4(1.0, 1.0, 0.0, 1.0);
+	#endif
+	color *= 0.5;
+	gl_FragData[0] = color;
+	
 }
 
 #endif
 
-//Vertex Shader/////////////////////////////////////////////////////////////////////////////////////
+
+
 #ifdef VSH
 
-//Varyings//
-varying vec2 texCoord;
-
-varying vec3 sunVec, upVec;
-
-varying vec4 color;
-
-//Uniforms//
-uniform float timeAngle;
-
-uniform mat4 gbufferModelView;
-
-#ifdef TAA
-uniform int frameCounter;
-
-uniform float viewWidth;
-uniform float viewHeight;
-#include "/lib/util/jitter.glsl"
+#include "/utils/projections.glsl"
+#if TAA_ENABLED == 1
+	#include "/lib/taa_jitter.glsl"
 #endif
 
-//Program//
 void main() {
-	texCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-
-	color = gl_Color;
+	texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
 	
-	const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
-	#ifndef END
-	float ang = fract(timeAngle - 0.25);
+	
+	#if PROJECTION_TYPE == 2
+		vec4 playerPos4 = gbufferModelViewInverse * gbufferProjectionInverse * ftransform();
+		vec3 playerPos = playerPos4.xyz / playerPos4.w;
+		playerPos *= 5;
+		gl_Position = viewToNdc(mat3(gbufferModelView) * playerPos);
+		gl_Position.z = gl_Position.w;
 	#else
-	#if defined IS_IRIS || MC_VERSION < 12111
-	float ang = 0.0;
-	#else
-	float ang = 0.5;
+		gl_Position = ftransform();
 	#endif
-	#endif
-	ang = (ang + (cos(ang * 3.14159265358979) * -0.5 + 0.5 - ang) / 3.0) * 6.28318530717959;
-	sunVec = normalize((gbufferModelView * vec4(vec3(-sin(ang), cos(ang) * sunRotationData) * 2000.0, 1.0)).xyz);
-
-	upVec = normalize(gbufferModelView[1].xyz);
 	
-	gl_Position = ftransform();
 	
-	#ifdef TAA
-	gl_Position.xy = TAAJitter(gl_Position.xy, gl_Position.w);
+	#if TAA_ENABLED == 1 && !defined END
+		doTaaJitter(gl_Position.xy);
 	#endif
+	
+	
 }
 
 #endif

@@ -1,623 +1,444 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+in_out vec2 texcoord;
+in_out vec2 lmcoord;
+in_out vec3 glcolor;
+in_out float ao;
+in_out float upDot;
+#if PBR_TYPE == 0 && POM_ENABLED == 0
+	flat in_out vec3 normal;
+	flat in_out vec2 encodedNormal;
+#endif
+#if PBR_TYPE == 1 || POM_ENABLED == 1
+	flat in_out mat3 tbn;
+	flat in_out mat3 rawTbn;
+#endif
+in_out vec3 playerPos;
+#if POM_ENABLED == 1
+	in_out vec3 viewPos;
+	flat in_out vec2 midTexCoord;
+	flat in_out vec2 midCoordOffset;
+#endif
+flat in_out uint materialId;
+#if PBR_TYPE == 0
+	flat in_out float reflectiveness;
+	flat in_out float specularness;
+#endif
 
-//Settings//
-#include "/lib/settings.glsl"
+#if EMISSIVE_TEXTURES_ENABLED == 1
+	in_out vec3 glowingColorMin;
+	in_out vec3 glowingColorMax;
+	in_out float glowingAmount;
+#endif
 
-//Fragment Shader///////////////////////////////////////////////////////////////////////////////////
+#if SHOW_DANGEROUS_LIGHT == 1
+	flat in_out float isDangerousLight;
+#endif
+
+
+
 #ifdef FSH
 
-//Varyings//
-varying float mat, recolor;
-
-varying vec2 texCoord, lmCoord;
-
-varying vec3 normal;
-varying vec3 sunVec, upVec, eastVec;
-
-varying vec4 color;
-
-#ifdef ADVANCED_MATERIALS
-varying float dist;
-
-varying vec3 binormal, tangent;
-varying vec3 viewVector;
-
-varying vec4 vTexCoord, vTexCoordAM;
-#endif
-
-#ifdef IRIS_FEATURE_FADE_VARIABLE
-varying float chunkFade;
-#endif
-
-//Uniforms//
-uniform int bedrockLevel;
-uniform int frameCounter;
-uniform int isEyeInWater;
-uniform int moonPhase;
-uniform int worldTime;
-
-uniform float cloudHeight;
-uniform float endFlashIntensity;
-uniform float frameTimeCounter;
-uniform float near, far;
-uniform float nightVision;
-uniform float rainStrength;
-uniform float screenBrightness; 
-uniform float shadowFade;
-uniform float timeAngle, timeBrightness;
-uniform float viewWidth, viewHeight;
-
-uniform ivec2 eyeBrightnessSmooth;
-
-uniform vec3 cameraPosition;
-uniform vec3 relativeEyePosition;
-
-uniform mat4 gbufferProjectionInverse;
-uniform mat4 gbufferModelView, gbufferModelViewInverse;
-uniform mat4 shadowProjection;
-uniform mat4 shadowModelView;
-
-uniform sampler2D texture;
-
-uniform sampler2D noisetex;
-
-#ifdef ADVANCED_MATERIALS
-uniform ivec2 atlasSize;
-
-uniform sampler2D specular;
-uniform sampler2D normals;
-
-#ifdef REFLECTION_RAIN
-uniform float wetness;
-#endif
-#endif
-
-#if DYNAMIC_HANDLIGHT > 0
-uniform int heldBlockLightValue, heldBlockLightValue2;
-#endif
-
-#if defined MULTICOLORED_BLOCKLIGHT || defined MCBL_SS
-uniform int heldItemId, heldItemId2;
-#endif
-
-#ifdef MULTICOLORED_BLOCKLIGHT
-uniform sampler3D lighttex0;
-uniform sampler3D lighttex1;
-#endif
-
-#ifdef MCBL_SS
-uniform mat4 gbufferPreviousModelView;
-uniform mat4 gbufferPreviousProjection;
-uniform vec3 previousCameraPosition;
-
-uniform sampler2D colortex9;
-#endif
-
-//Common Variables//
-float eBS = eyeBrightnessSmooth.y / 240.0;
-float sunVisibility  = clamp(dot( sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-float moonVisibility = clamp(dot(-sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-
-#ifdef WORLD_TIME_ANIMATION
-float time = float(worldTime) * 0.05 * ANIMATION_SPEED;
-#else
-float time = frameTimeCounter * ANIMATION_SPEED;
-#endif
-
-#ifdef ADVANCED_MATERIALS
-vec2 dcdx = dFdx(texCoord);
-vec2 dcdy = dFdy(texCoord);
-#endif
-
-vec3 lightVec = sunVec * ((timeAngle < 0.5325 || timeAngle > 0.9675) ? 1.0 : -1.0);
-
-//Common Functions//
-float GetLuminance(vec3 color) {
-	return dot(color,vec3(0.299, 0.587, 0.114));
-}
-
-//Includes//
-#include "/lib/color/blocklightColor.glsl"
-#include "/lib/color/dimensionColor.glsl"
-#include "/lib/color/lightSkyColor.glsl"
-#include "/lib/color/skyColor.glsl"
-#include "/lib/color/specularColor.glsl"
-#include "/lib/util/dither.glsl"
-#include "/lib/util/spaceConversion.glsl"
-#include "/lib/atmospherics/weatherDensity.glsl"
-#include "/lib/atmospherics/sky.glsl"
-#include "/lib/atmospherics/chunkFade.glsl"
-#include "/lib/lighting/dynamicHandlight.glsl"
-#include "/lib/lighting/forwardLighting.glsl"
-#include "/lib/surface/ggx.glsl"
-#include "/lib/surface/hardcodedEmission.glsl"
-
-#ifdef TAA
-#include "/lib/util/jitter.glsl"
-#endif
-
-#ifdef ADVANCED_MATERIALS
-#include "/lib/util/encode.glsl"
-#include "/lib/reflections/complexFresnel.glsl"
-#include "/lib/surface/directionalLightmap.glsl"
-#include "/lib/surface/materialGbuffers.glsl"
-#include "/lib/surface/parallax.glsl"
-
-#ifdef REFLECTION_RAIN
-#include "/lib/reflections/rainPuddles.glsl"
-#endif
-#endif
-
-#ifdef MULTICOLORED_BLOCKLIGHT
-#include "/lib/util/voxelMapHelper.glsl"
-#endif
-
-#if defined MULTICOLORED_BLOCKLIGHT || defined MCBL_SS
-#include "/lib/lighting/coloredBlocklight.glsl"
-#endif
-
-//Program//
 void main() {
-    vec4 albedo = texture2D(texture, texCoord) * vec4(color.rgb, 1.0);
-	vec3 newNormal = normal;
-	float smoothness = 0.0;
-	vec3 lightAlbedo = vec3(0.0);
-
-	#ifdef ADVANCED_MATERIALS
-	vec2 newCoord = vTexCoord.st * vTexCoordAM.pq + vTexCoordAM.st;
-	float surfaceDepth = 1.0;
-	float parallaxFade = clamp((dist - PARALLAX_DISTANCE) / 32.0, 0.0, 1.0);
-	float skipParallax = float(mat > 3.98 && mat < 4.02);
-		  skipParallax+= float(mat > 7.98 && mat < 8.02);
+	vec2 lmcoord = lmcoord;
 	
-	#ifdef PARALLAX
-	if(skipParallax < 0.5) {
-		newCoord = GetParallaxCoord(texCoord, parallaxFade, surfaceDepth);
-		albedo = texture2DGradARB(texture, newCoord, dcdx, dcdy) * vec4(color.rgb, 1.0);
-	}
+	
+	// fade distant terrain
+	#ifdef DISTANT_HORIZONS
+		//float dither = bayer64(gl_FragCoord.xy);
+		//#if TEMPORAL_FILTER_ENABLED > 0
+		//	dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
+		//#endif
+		//float lengthCylinder = max(length(playerPos.xz), abs(playerPos.y));
+		//if (lengthCylinder >= far - 4.0 - 12.0 * dither) discard;
+	#elif defined VOXY
+		
+	#elif CYLINDRICAL_CLIPPING == 1
+		float dither = bayer64(gl_FragCoord.xy);
+		//#include "/utils/var_rng.glsl"
+		//float dither = randomFloat(rng) * 0.5 + 0.5;
+		#if TEMPORAL_FILTER_ENABLED > 0
+			dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
+		#endif
+		float fogDistance = max(length(playerPos.xz), abs(playerPos.y));
+		fogDistance += dither * 4.0;
+		fogDistance *= invFar;
+		if (fogDistance >= BORDER_FOG_END - 0.01) {discard; return;}
 	#endif
-
-	float skyOcclusion = 0.0;
-	vec3 fresnel3 = vec3(0.0);
+	
+	
+	// get pbr data
+	
+	#if POM_ENABLED == 1
+		float pomDither = bayer64(gl_FragCoord.xy);
+		pomDither = fract(pomDither + 1.61803398875 * mod(float(frameCounter), 3600.0)) * 0.25;
+		// setup
+		vec2 texStart = midTexCoord - midCoordOffset;
+		vec2 texEnd = midTexCoord + midCoordOffset;
+		vec2 inBlockCoord = percentThrough(texcoord, texStart, texEnd);
+		vec2 texcoord = texcoord;
+		vec3 tangentViewDir = normalize(transpose(rawTbn) * viewPos);
+		tangentViewDir.y *= -1.0;
+		tangentViewDir /= 256 / 32.0 * POM_QUALITY;
+		tangentViewDir.z *= 10.0 / POM_DEPTH;
+		// step through texture & search for hit
+		float pomDepth = 0.0;
+		vec4 normalAndDepth = vec4(1.0);
+		float prevDepth;
+		inBlockCoord += tangentViewDir.xy * pomDither;
+		pomDepth -= tangentViewDir.z * pomDither;
+		for (int i = 0; i < POM_QUALITY; i++) {
+			prevDepth = normalAndDepth.a;
+			normalAndDepth = texture2D(normals, texcoord);
+			if (1.0 - normalAndDepth.a <= pomDepth) break;
+			inBlockCoord += tangentViewDir.xy;
+			pomDepth -= tangentViewDir.z;
+			texcoord = mix(texStart, texEnd, fract(inBlockCoord));
+		}
+		// final processing
+		vec3 normal = vec3(normalAndDepth.xy, 0.0);
+		normal.xy -= 0.5;
+		normal.xy *= PBR_NORMALS_AMOUNT * 0.5;
+		normal.xy += 0.5;
+		normal.z = sqrt(1.0 - dot(normal.xy, normal.xy));
+		normal = normalize(normal * 2.0 - 1.0);
+		//if (prevDepth != normalAndDepth.a) { // if hit edge instead of surface
+		//	ivec2 currPixelCoord = ivec2(mix(texStart, texEnd, inBlockCoord) * textureSize(normals, 0));
+		//	ivec2 prevPixelCoord = ivec2(mix(texStart, texEnd, inBlockCoord - tangentViewDir.xy) * textureSize(normals, 0));
+		//	if (currPixelCoord.x != prevPixelCoord.x) {
+		//		normal = vec3(currPixelCoord.x - prevPixelCoord.x, 0.0, 0.0);
+		//	} else if (currPixelCoord.y != prevPixelCoord.y) {
+		//		normal = vec3(0.0, currPixelCoord.y - prevPixelCoord.y, 0.0);
+		//	}
+		//}
 	#endif
-
-	{
-		vec2 lightmap = clamp(lmCoord, vec2(0.0), vec2(1.0));
-		
-		float foliage   = float(mat > 0.98 && mat < 1.02);
-		float leaves    = float(mat > 1.98 && mat < 2.02);
-		float emissive  = float(mat > 2.98 && mat < 3.02);
-		float lava      = float(mat > 3.98 && mat < 4.02);
-		float candle    = float(mat > 4.98 && mat < 5.02);
-		float ore       = float(mat > 5.98 && mat < 6.02);
-		float netherOre = float(mat > 6.98 && mat < 7.02);
-
-		float metalness       = 0.0;
-		float emission        = (emissive + candle + lava);
-		float subsurface      = 0.0;
-		float basicSubsurface = (foliage + candle) * 0.5 + leaves;
-		vec3 baseReflectance  = vec3(0.04);
-		
-		vec3 hsv = RGB2HSV(albedo.rgb);
-		emission *= GetHardcodedEmission(albedo.rgb, hsv);
-		
-		#ifdef GLOWING_ORES
-		float oreEmission = GetOreEmission(hsv, ore, netherOre);
+	
+	#if PBR_TYPE == 0
+		float reflectiveness = reflectiveness;
+	#elif PBR_TYPE == 1
+		vec2 pbrData = texture2D(specular, texcoord).rg;
+		float reflectiveness = pbrData.g;
+		if (int(reflectiveness * 255.0 + 0.5) > 229) reflectiveness -= 175.0 / 255.0;
+		reflectiveness *= 0.5;
+		float specularness = sqrt(pbrData.r);
+		#if POM_ENABLED == 0
+			vec3 normal = vec3(texture2D(normals, texcoord).rg, 0.0);
+			normal.xy -= 0.5;
+			normal.xy *= PBR_NORMALS_AMOUNT * 0.5;
+			normal.xy += 0.5;
+			normal.z = sqrt(1.0 - dot(normal.xy, normal.xy));
+			normal = normalize(normal * 2.0 - 1.0);
 		#endif
-
-		vec3 screenPos = vec3(gl_FragCoord.xy / vec2(viewWidth, viewHeight), gl_FragCoord.z);
-		#ifdef TAA
-		vec3 viewPos = ToNDC(vec3(TAAJitter(screenPos.xy, -0.5), screenPos.z));
-		#else
-		vec3 viewPos = ToNDC(screenPos);
-		#endif
-		vec3 worldPos = ToWorld(viewPos);
-		
-		#if defined DISTANT_HORIZONS && !defined VOXY
-		float dither = Bayer8(gl_FragCoord.xy);
-
-		float viewLength = length(viewPos);
-		float minDist = (dither - 0.75) * 16.0 + far;
-		if (viewLength > minDist) {
-			discard;
+	#endif
+	
+	#if PBR_TYPE == 1 || POM_ENABLED == 1
+		normal = tbn * normal;
+		vec2 encodedNormal = encodeNormal(normal);
+	#endif
+	
+	reflectiveness *= mix(BLOCK_REFLECTION_AMOUNT_SURFACE, BLOCK_REFLECTION_AMOUNT_UNDERGROUND, lmcoord.y);
+	
+	
+	// get texture color
+	vec4 rawColor = texture2D(MAIN_TEXTURE, texcoord);
+	if (rawColor.a < alphaTestRef) discard;
+	
+	vec4 color = rawColor;
+	color.rgb = color.rgb - (4.0 / 27.0) * color.rgb * color.rgb * color.rgb;
+	color.rgb *= glcolor;
+	
+	float m = getLum(color.rgb);
+	m = m * m * (3.0 - 2.0 * m);
+	color.rgb *= 1.0 - TEXTURE_CONTRAST * 0.125 + m * TEXTURE_CONTRAST * 0.25;
+	color.rgb = color.rgb * (1.0 + TEXTURE_CONTRAST_2 * 0.025) - TEXTURE_CONTRAST_2 * 0.025;
+	
+	color.rgb = mix(vec3(getLum(color.rgb)), color.rgb, 1.0 + (1.0 - ao) * 0.25);
+	
+	#if POM_ENABLED == 1
+		color.rgb *= 1.0 - 0.1 * float(prevDepth != normalAndDepth.a);
+		color.rgb *= 1.0 - pomDepth;
+	#endif
+	
+	
+	// misc
+	
+	float glowing = 0.0;
+	#if PBR_TYPE == 0
+		reflectiveness *= 1.0 - 0.5 * getSaturation(rawColor.rgb);
+		if (materialId == BLOCK_ID_SCULK_GROUP_1 || materialId == BLOCK_ID_SCULK_GROUP_2) {
+			glowing = 1.0;
+			reflectiveness = getLum(rawColor.rgb) - rawColor.r;
+			reflectiveness *= reflectiveness;
+			reflectiveness *= 1.5;
 		}
-		#endif
-
-		#ifdef ADVANCED_MATERIALS
-		float f0 = 0.0, porosity = 0.5, ao = 1.0;
-		vec3 normalMap = vec3(0.0, 0.0, 1.0);
-		GetMaterials(smoothness, metalness, f0, emission, subsurface, porosity, ao, normalMap,
-					 newCoord, dcdx, dcdy);
-					 
-		mat3 tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
-							  tangent.y, binormal.y, normal.y,
-							  tangent.z, binormal.z, normal.z);
-
-		if ((normalMap.x > -0.999 || normalMap.y > -0.999) && viewVector == viewVector)
-			newNormal = clamp(normalize(normalMap * tbnMatrix), vec3(-1.0), vec3(1.0));
-		#endif
-		
-		#if DYNAMIC_HANDLIGHT == 2
-		lightmap = ApplyDynamicHandlight(lightmap, worldPos);
-		#endif
-
-		#ifdef TOON_LIGHTMAP
-		lightmap = floor(lightmap * 14.999 * (0.75 + 0.25 * color.a)) / 14.0;
-		lightmap = clamp(lightmap, vec2(0.0), vec2(1.0));
-		#endif
-		
-    	albedo.rgb = pow(albedo.rgb, vec3(2.2));
-
-		#ifdef EMISSIVE_RECOLOR
-		float ec = GetLuminance(albedo.rgb) * 1.7;
-		if (recolor > 0.5) {
-			albedo.rgb = blocklightCol * pow(ec, 1.5) / (BLOCKLIGHT_I * BLOCKLIGHT_I);
-			albedo.rgb /= 0.7 * albedo.rgb + 0.7;
+	#endif
+	
+	#if EMISSIVE_TEXTURES_ENABLED == 1
+		vec3 hsv = rgbToHsv(rawColor.rgb);
+		if (all(greaterThan(hsv, glowingColorMin)) && all(lessThan(hsv, glowingColorMax))) {
+			glowing = 1.0;
+			reflectiveness = clamp(glowingAmount * 0.5, 0.0, 1.0);
 		}
-		if (lava > 0.5) {
-			albedo.rgb = pow(blocklightCol * ec / BLOCKLIGHT_I, vec3(2.0));
-			albedo.rgb /= 0.5 * albedo.rgb + 0.5;
-		}
-		#endif
-
-		#ifdef MCBL_SS
-		lightAlbedo = albedo.rgb + 0.00001;
-		if (lava > 0.5) {
-			lightAlbedo = pow(lightAlbedo, vec3(0.25));
-		}
-		lightAlbedo = sqrt(normalize(lightAlbedo) * emission);
-
-		#ifdef MULTICOLORED_BLOCKLIGHT
-		lightAlbedo *= GetMCBLLegacyMask(worldPos);
-		#endif
-		#endif
-
-		#ifdef WHITE_WORLD
-		albedo.rgb = vec3(0.35);
-		#endif
-		
-		vec3 outNormal = newNormal;
-		#ifdef NORMAL_PLANTS
-		if (foliage > 0.5){
-			newNormal = upVec;
-			
-			#ifdef ADVANCED_MATERIALS
-			newNormal = normalize(mix(outNormal, newNormal, normalMap.z * normalMap.z));
+	#endif
+	
+	#if LAVA_NOISE_ENABLED == 1
+		if (materialId == BLOCK_ID_LAVA) {
+			vec2 worldPos2 = playerPos.xz + cameraPosition.xz + playerPos.y + cameraPosition.y;
+			worldPos2 += worldPos2.yx * 0.125;
+			float noise = 1.4;
+			noise -= valueNoise(vec3(worldPos2 * 0.125, frameTimeCounter * 0.125)) * 0.5;
+			worldPos2 += 128.0;
+			noise -= valueNoise(vec3(worldPos2 * 0.25 , frameTimeCounter * 0.125)) * 0.25;
+			worldPos2 += 128.0;
+			noise -= valueNoise(vec3(worldPos2 * 1.0  , frameTimeCounter * 0.125)) * 0.125;
+			#ifdef OVERWORLD
+				const float halfStrength = LAVA_NOISE_AMOUNT_OVERWORLD * 0.3;
+			#elif defined NETHER
+				const float halfStrength = LAVA_NOISE_AMOUNT_NETHER * 0.3;
+			#elif defined END
+				const float halfStrength = LAVA_NOISE_AMOUNT_END * 0.3;
 			#endif
+			noise = mix(1.0, noise * noise * noise, halfStrength + halfStrength * upDot);
+			color.rgb *= noise;
 		}
-		#endif
-		
-		#ifndef HALF_LAMBERT
-		float NoL = clamp(dot(newNormal, lightVec), 0.0, 1.0);
-		#else
-		float NoL = clamp(dot(newNormal, lightVec) * 0.5 + 0.5, 0.0, 1.0);
-		NoL *= NoL;
-		#endif
-
-		float NoU = clamp(dot(newNormal, upVec), -1.0, 1.0);
-		float NoE = clamp(dot(newNormal, eastVec), -1.0, 1.0);
-		float vanillaDiffuse = (0.25 * NoU + 0.75) + (0.667 - abs(NoE)) * (1.0 - abs(NoU)) * 0.15;
-			  vanillaDiffuse*= vanillaDiffuse;
-		
-		#ifndef NORMAL_PLANTS
-		if (foliage > 0.5) vanillaDiffuse *= 1.8;
-		#endif
-
-		float parallaxShadow = 1.0;
-		#ifdef ADVANCED_MATERIALS
-		vec3 rawAlbedo = albedo.rgb * 0.999 + 0.001;
-		albedo.rgb *= ao * ao;
-
-		#ifdef REFLECTION_SPECULAR
-		albedo.rgb *= 1.0 - metalness * smoothness;
-		#endif
-
-		float doParallax = 0.0;
-		#ifdef SELF_SHADOW
-		float parallaxNoL = dot(outNormal, lightVec);
-		#ifdef OVERWORLD
-		doParallax = float(lightmap.y > 0.0 && parallaxNoL > 0.0);
-		#endif
-		#ifdef END
-		doParallax = float(parallaxNoL > 0.0);
-		#endif
-		
-		if (doParallax > 0.5 && skipParallax < 0.5) {
-			parallaxShadow = GetParallaxShadow(surfaceDepth, parallaxFade, newCoord, lightVec,
-											   tbnMatrix);
-		}
-		#endif
-
-		#ifdef DIRECTIONAL_LIGHTMAP
-		mat3 lightmapTBN = GetLightmapTBN(viewPos);
-		lightmap.x = DirectionalLightmap(lightmap.x, lmCoord.x, outNormal, lightmapTBN);
-		lightmap.y = DirectionalLightmap(lightmap.y, lmCoord.y, outNormal, lightmapTBN);
-		#endif
-		#endif
-
-		#if defined MULTICOLORED_BLOCKLIGHT || defined MCBL_SS
-		blocklightCol = ApplyMultiColoredBlocklight(blocklightCol, screenPos, worldPos, newNormal, 0.0);
-		#endif
-
-		#ifdef GLOWING_ORES
-		if (ore + netherOre > 0.5) {
-			oreEmission *= pow(lightmap.x, 4.0 / max(EMISSIVE_CURVE, 1.0)) * vanillaDiffuse;
-			emission += oreEmission;
-		}
-		#endif
-		
-		vec3 shadow = vec3(0.0);
-		GetLighting(albedo.rgb, shadow, viewPos, worldPos, normal, lightmap, color.a, NoL, 
-					vanillaDiffuse, parallaxShadow, emission, subsurface, basicSubsurface);
-
-		#ifdef ADVANCED_MATERIALS
-		float puddles = 0.0;
-		#ifdef REFLECTION_RAIN
-		float puddlesNoU = dot(outNormal, upVec);
-
-		puddles = GetPuddles(worldPos, newCoord, lightmap.y, puddlesNoU, wetness);
-		puddles *= 1.0 - lava;
-
-		ApplyPuddleToMaterial(puddles, albedo, smoothness, f0, porosity);
-
-		if (puddles > 0.001 && rainStrength > 0.001) {
-			mat3 tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
-							  tangent.y, binormal.y, normal.y,
-							  tangent.z, binormal.z, normal.z);
-
-			vec3 puddleNormal = GetPuddleNormal(worldPos, viewPos, tbnMatrix);
-			outNormal = normalize(
-				mix(outNormal, puddleNormal, puddles * sqrt(1.0 - porosity) * rainStrength)
-			);
-		}
-		#endif
-
-		skyOcclusion = lightmap.y;
-		
-		baseReflectance = mix(vec3(f0), rawAlbedo, metalness);
-		float fresnel = pow(clamp(1.0 + dot(outNormal, normalize(viewPos.xyz)), 0.0, 1.0), 5.0);
-
-		fresnel3 = mix(baseReflectance, vec3(1.0), fresnel);
-		#if MATERIAL_FORMAT == 1
-		if (f0 >= 0.9 && f0 < 1.0) {
-			baseReflectance = GetMetalCol(f0);
-			fresnel3 = ComplexFresnel(pow(fresnel, 0.2), f0);
-			#ifdef ALBEDO_METAL
-			fresnel3 *= rawAlbedo;
-			#endif
-		}
-		#endif
-		
-		float aoSquared = ao * ao;
-		shadow *= aoSquared; fresnel3 *= aoSquared;
-		albedo.rgb = albedo.rgb * (1.0 - fresnel3 * smoothness * smoothness * (1.0 - metalness));
-		#endif
-
-		#if (defined OVERWORLD || defined END) && defined ADVANCED_MATERIALS && SPECULAR_HIGHLIGHT > 0
-		vec3 specularColor = GetSpecularColor(lightmap.y, metalness, baseReflectance);
-		
-		albedo.rgb += GetSpecularHighlight(newNormal, viewPos, smoothness, baseReflectance,
-										   specularColor, shadow * vanillaDiffuse, color.a);
-		#endif
-		
-		#if defined ADVANCED_MATERIALS && defined REFLECTION_SPECULAR && defined REFLECTION_ROUGH
-		newNormal = outNormal;
-		if ((normalMap.x > -0.999 || normalMap.y > -0.999) && viewVector == viewVector) {
-			normalMap = mix(vec3(0.0, 0.0, 1.0), normalMap, smoothness);
-			newNormal = mix(normalMap * tbnMatrix, newNormal, 1.0 - pow(1.0 - puddles, 4.0));
-			newNormal = clamp(normalize(newNormal), vec3(-1.0), vec3(1.0));
-		}
-		#endif
-		
-		#ifdef IRIS_FEATURE_FADE_VARIABLE
-		ChunkFade(albedo.rgb, viewPos, chunkFade);
-		#endif
-
-		#if ALPHA_BLEND == 0
-		albedo.rgb = sqrt(max(albedo.rgb, vec3(0.0)));
-		#endif
-	}
-
-    /* DRAWBUFFERS:0 */
-    gl_FragData[0] = albedo;
-
-	#ifdef MCBL_SS
-		/* DRAWBUFFERS:08 */
-		gl_FragData[1] = vec4(lightAlbedo, 1.0);
-
-		#if defined ADVANCED_MATERIALS && defined REFLECTION_SPECULAR
-		/* DRAWBUFFERS:08367 */
-		gl_FragData[2] = vec4(smoothness, skyOcclusion, 0.0, 1.0);
-		gl_FragData[3] = vec4(EncodeNormal(newNormal), float(gl_FragCoord.z < 1.0), 1.0);
-		gl_FragData[4] = vec4(fresnel3, 1.0);
-		#endif
-	#else
-		#if defined ADVANCED_MATERIALS && defined REFLECTION_SPECULAR
-		/* DRAWBUFFERS:0367 */
-		gl_FragData[1] = vec4(smoothness, skyOcclusion, 0.0, 1.0);
-		gl_FragData[2] = vec4(EncodeNormal(newNormal), float(gl_FragCoord.z < 1.0), 1.0);
-		gl_FragData[3] = vec4(fresnel3, 1.0);
-		#endif
 	#endif
+	
+	color.rgb *= 1.0 - upDot * 0.125 * SIDE_SHADING_BRIGHT * float(materialId == BLOCK_ID_PUMPKIN);
+	
+	#if SHOW_DANGEROUS_LIGHT == 1
+		if (isDangerousLight > 0.0) {
+			vec3 blockPos = fract(playerPos + cameraPosition);
+			float centerDist = length(blockPos.xz - 0.5);
+			vec3 indicatorColor = isDangerousLight > 0.75 ? vec3(1.0, 0.0, 0.0) : vec3(1.0, 1.0, 0.0);
+			color.rgb = mix(color.rgb, indicatorColor, 0.35 * float(centerDist < 0.45));
+			lmcoord.x = max(lmcoord.x, 0.1 * float(centerDist < 0.45));
+		}
+	#endif
+	
+	
+	/* DRAWBUFFERS:02 */
+	#if DO_COLOR_CODED_GBUFFERS == 1
+		color = vec4(0.75, 0.75, 0.75, 1.0);
+	#endif
+	color.rgb *= 0.5;
+	gl_FragData[0] = vec4(color);
+	gl_FragData[1] = vec4(
+		pack_2x8(lmcoord),
+		pack_7_7_1_1(reflectiveness, specularness, glowing, 0.0),
+		encodedNormal
+	);
+	
 }
 
 #endif
 
-//Vertex Shader/////////////////////////////////////////////////////////////////////////////////////
+
+
 #ifdef VSH
 
-//Varyings//
-varying float mat, recolor;
+#include "/utils/projections.glsl"
+#include "/lib/lighting/vsh_lighting.glsl"
 
-varying vec2 texCoord, lmCoord;
-
-varying vec3 normal;
-varying vec3 sunVec, upVec, eastVec;
-
-varying vec4 color;
-
-#ifdef ADVANCED_MATERIALS
-varying float dist;
-
-varying vec3 binormal, tangent;
-varying vec3 viewVector;
-
-varying vec4 vTexCoord, vTexCoordAM;
+#if WAVING_ENABLED == 1
+	#include "/lib/waving.glsl"
+#endif
+#if TAA_ENABLED == 1
+	#include "/lib/taa_jitter.glsl"
 #endif
 
-#ifdef IRIS_FEATURE_FADE_VARIABLE
-varying float chunkFade;
-#endif
+//vec2 Project3DPointTo2D(vec3 point, vec3 planeOrigin, vec3 planeNormal) {
+//	// Step 1: Project the point onto the plane
+//	vec3 toPoint = point - planeOrigin;
+//	vec3 normal = normalize(planeNormal);
+//	vec3 projected = point - dot(toPoint, normal) * normal;
 
-//Uniforms//
-uniform int worldTime;
+//	// Step 2: Create 2D basis vectors (u and v) on the plane
+//	vec3 x = cross(normal, vec3(0.0, 1.0, 0.0));
+//	if (dot(x, x) < 0.001) x = cross(normal, vec3(1.0, 0.0, 0.0));
+//	x = normalize(x);
+//	vec3 y = cross(normal, x);
 
-uniform float frameTimeCounter;
-uniform float timeAngle;
+//	// Step 3: Get 2D coordinates
+//	vec3 relative = projected - planeOrigin;
+//	return vec2(dot(relative, x), dot(relative, y));
+//}
 
-uniform vec3 cameraPosition;
-uniform vec3 relativeEyePosition;
-
-uniform mat4 gbufferModelView, gbufferModelViewInverse;
-
-#ifdef TAA
-uniform int frameCounter;
-
-uniform float viewWidth, viewHeight;
-#endif
-
-//Attributes//
-attribute vec4 mc_Entity;
-attribute vec4 mc_midTexCoord;
-
-#ifdef ADVANCED_MATERIALS
-attribute vec4 at_tangent;
-#endif
-
-//Common Variables//
-#ifdef WORLD_TIME_ANIMATION
-float time = float(worldTime) * 0.05 * ANIMATION_SPEED;
-#else
-float time = frameTimeCounter * ANIMATION_SPEED;
-#endif
-
-//Includes//
-#include "/lib/vertex/waving.glsl"
-
-#ifdef TAA
-#include "/lib/util/jitter.glsl"
-#endif
-
-#ifdef WORLD_CURVATURE
-#include "/lib/vertex/worldCurvature.glsl"
-#endif
-
-//Program//
 void main() {
-	texCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-    
-	lmCoord = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;
-	lmCoord = clamp((lmCoord - 0.03125) * 1.06667, vec2(0.0), vec2(0.9333, 1.0));
-
-	int blockID = int(mc_Entity.x / 100);
-
-	normal = normalize(gl_NormalMatrix * gl_Normal);
-
-	#ifdef ADVANCED_MATERIALS
-	binormal = normalize(gl_NormalMatrix * cross(at_tangent.xyz, gl_Normal.xyz) * at_tangent.w);
-	tangent  = normalize(gl_NormalMatrix * at_tangent.xyz);
+	// get basics
+	texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
+	lmcoord  = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;
+	adjustLmcoord(lmcoord);
+	vec4 glcolor4 = gl_Color;
 	
-	mat3 tbnMatrix = mat3(tangent.x, binormal.x, normal.x,
-						  tangent.y, binormal.y, normal.y,
-						  tangent.z, binormal.z, normal.z);
-								  
-	viewVector = tbnMatrix * (gl_ModelViewMatrix * gl_Vertex).xyz;
-
-	if (mc_Entity.x == 0)
-		viewVector /= 0.0;
-	
-	dist = length(gl_ModelViewMatrix * gl_Vertex);
-
-	vec2 midCoord = (gl_TextureMatrix[0] *  mc_midTexCoord).st;
-	vec2 texMinMidCoord = texCoord - midCoord;
-
-	vTexCoordAM.pq  = abs(texMinMidCoord) * 2;
-	vTexCoordAM.st  = min(texCoord, midCoord - texMinMidCoord);
-	
-	vTexCoord.xy    = sign(texMinMidCoord) * 0.5 + 0.5;
+	#if POM_ENABLED != 1
+		vec3 viewPos;
 	#endif
-    
-	color = gl_Color;
+	viewPos = transform(gl_ModelViewMatrix, gl_Vertex.xyz);
+	playerPos = transform(gbufferModelViewInverse, viewPos);
 	
-	mat = 0.0; recolor = 0.0;
-
-	if (blockID >= 100 && blockID < 150)
-		mat = 1.0;
-	if (blockID == 105 || blockID == 106){
-		mat = 2.0;
-		color.rgb *= 1.225;
+	#if POM_ENABLED == 1
+		midTexCoord = mat2(gl_TextureMatrix[0]) * mc_midTexCoord;
+		midCoordOffset = abs(texcoord - midTexCoord);
+	#endif
+	
+	
+	// start processing glcolor (foliage tint)
+	if (glcolor4.rgb != vec3(1.0)) {
+		glcolor4.rgb = mix(vec3(getLum(glcolor4.rgb)), glcolor4.rgb, FOLIAGE_SATURATION);
+		glcolor4.rgb *= vec3(FOLIAGE_TINT_RED, FOLIAGE_TINT_GREEN, FOLIAGE_TINT_BLUE);
+		#if SNOWY_TWEAKS_ENABLED == 1
+			if (inSnowyBiome > 0.0) {
+				float snowiness = (0.9 + 0.1 * wetness) * inSnowyBiome / (1.0 + 0.00390625 * length(playerPos)) * lmcoord.y * lmcoord.y;
+				glcolor4.rgb = mix(glcolor4.rgb, vec3(1.0, 1.05, 1.2), snowiness);
+				glcolor4.rgb *= 1.0 + 0.4 * snowiness;
+				glcolor4.a = mix(glcolor4.a, 1.0, snowiness * 0.5);
+			}
+		#endif
 	}
-	if (blockID >= 150 && blockID < 200)
-		mat = 3.0;
-	if (blockID == 153){
-		mat = 4.0;
-		lmCoord.x += 0.0667;
-	}
-	if (blockID == 158)
-		mat = 5.0;
-	if (blockID == 159)
-		mat = 6.0;
-	if (blockID == 160)
-		mat = 7.0;
-	if (blockID == 251)
-		mat = 8.0;
-
-	if (blockID == 151 || blockID == 155 || blockID == 156)
-		recolor = 1.0;
-
-	if (blockID == 152)
-		lmCoord.x -= 0.0667;
-
-	if (color.a < 0.1)
-		color.a = 1.0;
-
-	#ifdef IRIS_FEATURE_FADE_VARIABLE
-	chunkFade = mc_chunkFade;
-	#endif
-
-	const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
-	#ifndef END
-	float ang = fract(timeAngle - 0.25);
-	#else
-	#if defined IS_IRIS || MC_VERSION < 12111
-	float ang = 0.0;
-	#else
-	float ang = 0.5;
-	#endif
-	#endif
-	ang = (ang + (cos(ang * 3.14159265358979) * -0.5 + 0.5 - ang) / 3.0) * 6.28318530717959;
-	sunVec = normalize((gbufferModelView * vec4(vec3(-sin(ang), cos(ang) * sunRotationData) * 2000.0, 1.0)).xyz);
-
-	upVec = normalize(gbufferModelView[1].xyz);
-	eastVec = normalize(gbufferModelView[0].xyz);
-
-	vec4 position = gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex;
 	
-	float istopv = gl_MultiTexCoord0.t < mc_midTexCoord.t ? 1.0 : 0.0;
-	position.xyz = WavingBlocks(position.xyz, blockID, istopv);
-
-    #ifdef WORLD_CURVATURE
-	position.y -= WorldCurvature(position.xz);
-    #endif
-
-	gl_Position = gl_ProjectionMatrix * gbufferModelView * position;
 	
-	#ifdef TAA
-	gl_Position.xy = TAAJitter(gl_Position.xy, gl_Position.w);
+	// block id stuff
+	uint encodedData = uint(mc_Entity.x + 0.5);
+	encodedData *= uint((encodedData & (1u << 14u)) > 0u && encodedData != 65535u);
+	materialId = encodedData;
+	materialId &= (1u << 10u) - 1u;
+	
+	bool isFoliage = (encodedData & (3u << 12u)) >= (2u << 12u);
+	bool isFlatShaded = (encodedData & (3u << 12u)) >= (1u << 12u);
+	
+	
+	// process normals
+	
+	#if !(PBR_TYPE == 0 && POM_ENABLED == 0)
+		vec3 normal;
 	#endif
+	vec3 worldNormal = gl_Normal;
+	
+	#if OVERRIDE_FOLIAGE_NORMALS == 1
+		if (isFlatShaded) {
+			worldNormal = vec3(0.0, 1.0, 0.0);
+		}
+	#endif
+	#if LEAVES_SIDE_SHADING < 100
+		if (materialId == BLOCK_ID_LEAVES) {
+			worldNormal = normalize(mix(vec3(0.0, 1.0, 0.0), worldNormal, LEAVES_SIDE_SHADING / 100.0));
+		}
+	#endif
+	
+	normal = gl_NormalMatrix * worldNormal;
+	
+	#if PBR_TYPE == 0 && POM_ENABLED == 0
+		encodedNormal = encodeNormal(normal);
+	#endif
+	
+	#if PBR_TYPE == 1 || POM_ENABLED == 1
+		vec3 tangent = normalize(gl_NormalMatrix * at_tangent.xyz);
+		vec3 bitangent = normalize(cross(normal, tangent) * at_tangent.w);
+		tbn = mat3(tangent, bitangent, normal);
+		rawTbn = tbn;
+		#if OVERRIDE_FOLIAGE_NORMALS == 1
+			if (isFlatShaded) {
+				tbn = mat3(gbufferModelView[0].xyz, gbufferModelView[2].xyz, gbufferModelView[1].xyz);
+			}
+		#endif
+	#endif
+	
+	
+	// finish processing glcolor (ao)
+	ao = 1.0 - glcolor4.a;
+	#if LEAVES_AO_AMOUNT < 100
+		if (materialId == BLOCK_ID_LEAVES) {
+			ao *= 0.5 + 0.5 * LEAVES_AO_AMOUNT / 100.0;
+		}
+	#endif
+	ao *= mix(VANILLA_AO_DARK, VANILLA_AO_BRIGHT, max(lmcoord.x, lmcoord.y));
+	upDot = dot(normal, gbufferModelView[1].xyz);
+	//ao *= 15.0/16.0 + abs(upDot) / 16.0;
+	float lightDot = max(dot(normalize(shadowLightPosition), normal), 0.0);
+	ao *= 1.05 - (1.0 - lightDot) * 0.125 * lmcoord.y;
+	ao = 1.0 - ao;
+	
+	glcolor = glcolor4.rgb * ao;
+	
+	
+	// get block data
+	#if PBR_TYPE == 0
+		#define GET_REFLECTIVENESS
+		#define GET_SPECULARNESS
+	#endif
+	#define DO_BRIGHTNESS_TWEAKS
+	#if EMISSIVE_TEXTURES_ENABLED == 1
+		#define GET_GLOWING_COLOR
+	#endif
+	#include "/generated/blockDatas.glsl"
+	
+	
+	// misc
+	
+	#if FOLIAGE_NOISE_ENABLED
+		if (isFoliage) {
+			ivec2 iWorldPos2 = ivec2(playerPos.xz + cameraPosition.xz + at_midBlock.xz / 64.0);
+			uint rng = uint(iWorldPos2.x) + uint(iWorldPos2.y) * 1024u;
+			float lift = randomFloat(rng);
+			glcolor *= 1.0 + lift * vec3(1.2, 0.8, 0.9) * 0.25 * FOLIAGE_NOISE_AMOUNT;
+		}
+	#endif
+	
+	#if SHOW_DANGEROUS_LIGHT == 1
+		isDangerousLight = 0.0;
+		if (gl_Normal.y > 0.9) {
+			if (lmcoord.x < 0.5) {
+				if (abs(lmcoord.x - 0.05) < 0.02) {
+					isDangerousLight = 0.5;
+				} else {
+					isDangerousLight = 1.0;
+				}
+			}
+		}
+	#endif
+	
+	
+	// experiments
+	
+	//#define WORLD_TEXTURE_SCALING 2
+	//#define TEXTURE_SIZE 16
+	//vec2 scale = textureSize(MAIN_TEXTURE, 0) / TEXTURE_SIZE;
+	////texcoord *= scale;
+	//vec2 texcoordFract = fract(texcoord);
+	//vec3 worldPos = playerPos + cameraPosition;
+	//vec2 worldTexPos = Project3DPointTo2D(worldPos, vec3(0.0), gl_Normal);
+	//texcoordFract += mod(worldTexPos, WORLD_TEXTURE_SCALING);
+	//texcoordFract /= WORLD_TEXTURE_SCALING;
+	////texcoord = floor(texcoord) + texcoordFract;
+	////texcoord /= scale;
+	
+	// fun way to screw up the textures:
+	//#define WORLD_TEXTURE_SCALING 2
+	//#define TEXTURE_SIZE 16
+	//vec2 scale = textureSize(MAIN_TEXTURE, 0) / TEXTURE_SIZE;
+	//texcoord *= scale;
+	//vec2 texcoordFract = fract(texcoord);
+	//vec3 worldPos = playerPos + cameraPosition;
+	//vec2 worldTexPos = Project3DPointTo2D(worldPos, vec3(0.0), gl_Normal);
+	//texcoordFract += mod(worldTexPos, WORLD_TEXTURE_SCALING);
+	//texcoordFract /= WORLD_TEXTURE_SCALING;
+	//texcoord = floor(texcoord) + texcoordFract;
+	//texcoord /= scale;
+	
+	
+	#if WAVING_ENABLED == 1
+		applyWaving(playerPos, encodedData);
+	#endif
+	
+	
+	gl_Position = playerToNdc(playerPos);
+	
+	
+	#if TAA_ENABLED == 1
+		doTaaJitter(gl_Position.xy);
+	#endif
+	
+	
+	doVshLighting(lmcoord, glcolor, viewPos, normal, worldNormal);
+	
 }
 
 #endif

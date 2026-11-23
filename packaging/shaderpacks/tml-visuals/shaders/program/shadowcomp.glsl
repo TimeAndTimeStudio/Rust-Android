@@ -1,127 +1,74 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+#include "/lib/colored_lighting/coloredLightingUtils.glsl"
 
-//Settings//
-#include "/lib/settings.glsl"
 
-//Compute Shader////////////////////////////////////////////////////////////////////////////////////
-#ifdef CSH
 
-layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+// workgroup size (always 8x8x8)
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-#ifdef MCBL_HALF_HEIGHT
-#if MCBL_DISTANCE == 128
-const ivec3 workGroups = ivec3(16, 8, 16);
-#elif MCBL_DISTANCE == 192
-const ivec3 workGroups = ivec3(24, 12, 24);
-#elif MCBL_DISTANCE == 256
-const ivec3 workGroups = ivec3(32, 16, 32);
-#elif MCBL_DISTANCE == 384
-const ivec3 workGroups = ivec3(48, 24, 48);
-#elif MCBL_DISTANCE == 512
-const ivec3 workGroups = ivec3(64, 32, 64);
-#endif
+// number of workgroups
+#if COLORED_LIGHTING_DIST == 32
+	const ivec3 workGroups = ivec3(4, 2, 4);
+#elif COLORED_LIGHTING_DIST == 48
+	const ivec3 workGroups = ivec3(6, 3, 6);
+#elif COLORED_LIGHTING_DIST == 64
+	const ivec3 workGroups = ivec3(8, 4, 8);
+#elif COLORED_LIGHTING_DIST == 96
+	const ivec3 workGroups = ivec3(12, 6, 12);
+#elif COLORED_LIGHTING_DIST == 128
+	const ivec3 workGroups = ivec3(16, 8, 16);
+#elif COLORED_LIGHTING_DIST == 192
+	const ivec3 workGroups = ivec3(24, 12, 24);
+#elif COLORED_LIGHTING_DIST == 256
+	const ivec3 workGroups = ivec3(32, 16, 32);
+#elif COLORED_LIGHTING_DIST == 384
+	const ivec3 workGroups = ivec3(48, 24, 48);
+#elif COLORED_LIGHTING_DIST == 512
+	const ivec3 workGroups = ivec3(64, 32, 64);
 #else
-#if MCBL_DISTANCE == 128
-const ivec3 workGroups = ivec3(16, 16, 16);
-#elif MCBL_DISTANCE == 192
-const ivec3 workGroups = ivec3(24, 24, 24);
-#elif MCBL_DISTANCE == 256
-const ivec3 workGroups = ivec3(32, 32, 32);
-#elif MCBL_DISTANCE == 384
-const ivec3 workGroups = ivec3(48, 32, 48);
-#elif MCBL_DISTANCE == 512
-const ivec3 workGroups = ivec3(64, 32, 64);
-#endif
+	const ivec3 workGroups = ivec3(8, 4, 8);
 #endif
 
-//Uniforms//
-uniform float framemod2;
+#extension GL_ARB_shader_image_load_store : enable
+layout(rgb10_a2) uniform restrict image3D lightFloodfill1;
+uniform usampler3D voxelIdsSampler;
 
-uniform vec3 cameraPosition, previousCameraPosition;
 
-uniform usampler3D voxeltex;
-uniform sampler3D lighttex0;
-uniform sampler3D lighttex1;
 
-writeonly uniform image3D lightimg0;
-writeonly uniform image3D lightimg1;
+// cache for faster reading
+shared vec4 cachedFloodfillDatas[10 * 10 * 10];
 
-//Common Variables//
 
-//Common Functions//
-vec3 HSV2RGB(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+
+vec4 getCachedFloodfill(ivec3 offset) {
+	ivec3 cachePos = ivec3(gl_LocalInvocationID) + offset + 1; // +1 b/c padding
+	return cachedFloodfillDatas[cachePos.x + cachePos.y * 10 + cachePos.z * 100];
 }
 
-vec3 GetLightFromNeighbors(sampler3D lighttex, ivec3 pos) {
-	vec3 light = vec3(0.0);
-	
-	light += texelFetch(lighttex, pos + ivec3( 1,0,0), 0).rgb;
-	light += texelFetch(lighttex, pos + ivec3(-1,0,0), 0).rgb;
-	light += texelFetch(lighttex, pos + ivec3(0, 1,0), 0).rgb;
-	light += texelFetch(lighttex, pos + ivec3(0,-1,0), 0).rgb;
-	light += texelFetch(lighttex, pos + ivec3(0,0, 1), 0).rgb;
-	light += texelFetch(lighttex, pos + ivec3(0,0,-1), 0).rgb;
-	light /= 6.0 / 0.995;
 
-	return light;
-}
 
-//Includes//
-#include "/lib/color/blocklightColor.glsl"
-#include "/lib/util/voxelMapHelper.glsl"
-#include "/lib/lighting/voxelColorFetch.glsl"
-
-//Program//
 void main() {
-	int iFrameMod2 = int(framemod2);
-
-	ivec3 pos = ivec3(gl_GlobalInvocationID);
-	uint voxelData = texelFetch(voxeltex, pos, 0).r;
-
-	if (voxelData == 99) {
-		if (iFrameMod2 == 0) {
-			imageStore(lightimg0, pos, vec4(0));
-		} else {
-			imageStore(lightimg1, pos, vec4(0));
-		}
-		return;
+	
+	// load shared cache (note: there's more cache slots than threads, so some threads read 2 voxels and others skip)
+    int cacheI = int(gl_LocalInvocationIndex);
+    if (cacheI < 500) {
+		cacheI *= 2;
+		ivec3 cachePos = (cacheI / ivec3(1, 10, 100)) % 10;
+		cachePos.z *= 2;
+		cachePos += ivec3(gl_WorkGroupID * gl_WorkGroupSize) - 1; // -1 b/c padding
+		cachePos = clamp(cachePos, ivec3(0), coloredLightingSize - 1);
+		cachedFloodfillDatas[cacheI] = imageLoad(lightFloodfill1, cachePos);
+		cachePos.z = min(cachePos.z + 1, coloredLightingSize.z - 1);
+		cachedFloodfillDatas[cacheI + 1] = imageLoad(lightFloodfill1, cachePos);
 	}
-
-	vec3 emission = GetEmission(voxelData);
-	vec3 tint = GetTint(voxelData);
-	vec3 light = vec3(0.0);
-
-	#ifdef MCBL_RANDOM
-	if (emission != vec3(0.0)) {
-		vec3 randomPos = pos + floor(cameraPosition) - voxelMapSize / 2;
-		emission = GetRandomEmissionHSV(randomPos, voxelData);
-		emission = HSV2RGB(emission);
-	}
-	#endif
-
-	ivec3 prevPos = pos + ivec3(floor(cameraPosition) - floor(previousCameraPosition));
-
-	if (emission == vec3(0.0)) {
-		if (iFrameMod2 == 0) {
-			light = GetLightFromNeighbors(lighttex1, prevPos);
-		} else {
-			light = GetLightFromNeighbors(lighttex0, prevPos);
-		}
-	}
-
-	vec4 color = vec4(emission + light * tint, 0.0);
-
-	if (iFrameMod2 == 0) {
-		imageStore(lightimg0, pos, color);
-	} else {
-		imageStore(lightimg1, pos, color);
-	}
+	
+	// get voxel id and datas
+	ivec3 voxelPos = ivec3(gl_GlobalInvocationID);
+	uint voxelId = texelFetch(voxelIdsSampler, voxelPos, 0).r;
+	#include "/generated/voxelDatas.glsl"
+	
+	// synchronize threads, ensure cache is full
+	barrier();
+	
+	vec4 originalValue = getCachedFloodfill(ivec3(0));
+	
 }
-
-#endif

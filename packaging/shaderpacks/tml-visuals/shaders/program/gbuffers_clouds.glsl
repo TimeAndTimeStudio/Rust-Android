@@ -1,204 +1,137 @@
-/* 
-BSL Shaders v10 Series by Capt Tatsu 
-https://capttatsu.com 
-*/ 
+#if CLOUD_COMPATIBILITY == 1
+	in_out vec2 texcoord;
+#endif
+in_out vec3 playerPos;
+#if CLOUDS_TYPE == 2
+	in_out float alphaMult;
+#endif
 
-//Settings//
-#include "/lib/settings.glsl"
 
-//Fragment Shader///////////////////////////////////////////////////////////////////////////////////
+
 #ifdef FSH
 
-//Varyings//
-varying vec2 texCoord;
-
-varying vec3 normal;
-varying vec3 sunVec, upVec, eastVec;
-
-varying vec4 color;
-
-//Uniforms//
-uniform int isEyeInWater;
-uniform int moonPhase;
-uniform int worldTime;
-
-uniform float rainStrength;
-uniform float timeAngle, timeBrightness;
-uniform float viewWidth, viewHeight;
-
-uniform ivec2 eyeBrightnessSmooth;
-
-uniform sampler2D texture;
-
-uniform mat4 gbufferProjectionInverse;
-uniform mat4 gbufferModelViewInverse;
-uniform mat4 shadowProjection;
-uniform mat4 shadowModelView;
-
-#ifdef VOXY
-uniform mat4 vxProjInv;
-
-uniform sampler2D vxDepthTexOpaque;
-#endif
+#include "/utils/getCloudColor.glsl"
 
 #ifdef DISTANT_HORIZONS
-uniform mat4 dhProjectionInverse;
-
-uniform sampler2D dhDepthTex0;
+	#include "/utils/depth.glsl"
 #endif
 
-//Common Variables//
-float eBS = eyeBrightnessSmooth.y / 240.0;
-float sunVisibility  = clamp(dot( sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-float moonVisibility = clamp(dot(-sunVec, upVec) * 10.0 + 0.5, 0.0, 1.0);
-
-//Includes//
-#include "/lib/color/lightColor.glsl"
-#include "/lib/util/spaceConversion.glsl"
-
-#ifdef TAA
-#include "/lib/util/jitter.glsl"
-#endif
-
-//Program//
 void main() {
-	#if CLOUDS != 3
-	discard;
+	
+	#if CLOUD_COMPATIBILITY == 1
+		vec4 color = texture2D(MAIN_TEXTURE, texcoord);
+		if (color.a < 0.5) discard;
+	#else
+		vec4 color = vec4(1.0);
 	#endif
 	
-	vec4 albedo = texture2D(texture, texCoord);
-	albedo.rgb = pow(albedo.rgb,vec3(2.2));
 	
-	float NoU = clamp(dot(normal, upVec), -1.0, 1.0);
-	float NoE = clamp(dot(normal, eastVec), -1.0, 1.0);
-	float vanillaDiffuse = (0.25 * NoU + 0.75) + (-0.333 + abs(NoE)) * (1.0 - abs(NoU)) * 0.15;
-		  vanillaDiffuse = mix(vanillaDiffuse, 0.75, rainStrength * 0.75);
-		  vanillaDiffuse*= vanillaDiffuse;
-
-	albedo.rgb *= lightCol * vanillaDiffuse * CLOUD_BRIGHTNESS;
-	albedo.rgb *= mix(0.4 - 0.25 * rainStrength, 0.5 - 0.425 * rainStrength, sunVisibility);
-	
-	vec3 screenPos = vec3(gl_FragCoord.xy / vec2(viewWidth, viewHeight), gl_FragCoord.z);
-	#ifdef TAA
-	vec3 viewPos = ToNDC(vec3(TAAJitter(screenPos.xy, -0.5), screenPos.z));
-	#else
-	vec3 viewPos = ToNDC(screenPos);
-	#endif
-	vec3 worldPos = ToWorld(viewPos);
-
-	#if FOG_VANILLA_CLOUD > 0
-	#if FOG_VANILLA_CLOUD == 1
-	float vanillaFogEnd = 4.0;
-	#elif FOG_VANILLA_CLOUD == 2
-	float vanillaFogEnd = 2.0;
-	#elif FOG_VANILLA_CLOUD == 3
-	float vanillaFogEnd = 1.0;
-	#else
-	#if MC_VERSION > 12106
-	float vanillaFogEnd = 4.0;
-	#else
-	float vanillaFogEnd = 1.0;
-	#endif
-	#endif
-
-	float worldDistance = length(worldPos.xz) / 256.0;
-	float vanillaFog = 1.0 - smoothstep(0.5, vanillaFogEnd, worldDistance);
-
-	albedo.a *= color.a * vanillaFog;
-	#endif
-
-	#ifdef VOXY
-	float vxZ = texture2D(vxDepthTexOpaque, gl_FragCoord.xy / vec2(viewWidth, viewHeight)).r;
-
-	vec4 vxScreenPos = vec4(screenPos.xy, vxZ, 1.0);
-	vec4 vxViewPos = vxProjInv * (vxScreenPos * 2.0 - 1.0);
-	vxViewPos /= vxViewPos.w;
-	if (length(vxViewPos) < length(viewPos)) {
-		discard;
-	}
-	#endif
-
 	#ifdef DISTANT_HORIZONS
-	float dhZ = texture2D(dhDepthTex0, gl_FragCoord.xy / vec2(viewWidth, viewHeight)).r;
-
-	vec4 dhScreenPos = vec4(screenPos.xy, dhZ, 1.0);
-	vec4 dhViewPos = dhProjectionInverse * (dhScreenPos * 2.0 - 1.0);
-	dhViewPos /= dhViewPos.w;
-	if (length(dhViewPos) < length(viewPos)) {
-		discard;
-	}
-	#endif
-
-	#if ALPHA_BLEND == 0
-	albedo.rgb = sqrt(max(albedo.rgb, vec3(0.0)));
+		float depthDh = texelFetch(DH_DEPTH_BUFFER_ALL, texelcoord, 0).r;
+		float blockDepthDh = toBlockDepthDh(depthDh);
+		if (blockDepthDh < length(playerPos)) discard;
 	#endif
 	
-    /* DRAWBUFFERS:0 */
-	gl_FragData[0] = albedo;
-
-	#ifdef ADVANCED_MATERIALS
-	/* DRAWBUFFERS:0367 */
-	gl_FragData[1] = vec4(0.0, 0.0, 0.0, 1.0);
-	gl_FragData[2] = vec4(0.0, 0.0, 0.0, 1.0);
-	gl_FragData[3] = vec4(0.0, 0.0, 0.0, 1.0);
+	
+	// nearby transparency
+	float playerPosDist = max(length(playerPos.xz), abs(playerPos.y));
+	color.a = 1.0 - mix(NEARBY_CLOUD_TRANSPARENCY, VANILLA_CLOUD_TRANSPARENCY, clamp(playerPosDist / NEARBY_CLOUD_DIST, 0.0, 1.0));
+	
+	
+	// story mode clouds
+	#if CLOUDS_TYPE == 2
+		float alphaMult = 1.0 - alphaMult;
+		#if STORY_MODE_CLOUDS_CURVE == 2
+			alphaMult = pow2(alphaMult);
+		#elif STORY_MODE_CLOUDS_CURVE == 3
+			alphaMult = pow3(alphaMult);
+		#elif STORY_MODE_CLOUDS_CURVE == 4
+			alphaMult = pow4(alphaMult);
+		#elif STORY_MODE_CLOUDS_CURVE == 5
+			alphaMult = pow5(alphaMult);
+		#endif
+		color.a *= 1.0 - alphaMult;
 	#endif
+	
+	
+	// cloud color
+	vec3 xDir = dFdx(playerPos);
+	vec3 yDir = dFdy(playerPos);
+	vec3 normal = normalize(cross(xDir, yDir));
+	normal.xz = abs(normal.xz);
+	float cloudBrightness = dot(normal, normalize(vec3(0.5, 1.0, 0.0)));
+	float maxBrightnessDecrease = mix(0.25, 0.1, betterRainStrength);
+	color.rgb *= getCloudColor(cloudBrightness * maxBrightnessDecrease + (1.0 - maxBrightnessDecrease));
+	
+	
+	// fog transparency
+	float dist = length(playerPos.xz) / VANILLA_CLOUDS_SCALE_XZ;
+	dist /= 128.0 * 16.0 * 1.25;
+	float fogAmount = percentThrough(dist, 1.0, CLOUD_FOG_START);
+	#if CLOUD_FOG_CURVE == 2
+		fogAmount = pow2(fogAmount);
+	#elif CLOUD_FOG_CURVE == 3
+		fogAmount = pow3(fogAmount);
+	#elif CLOUD_FOG_CURVE == 4
+		fogAmount = pow4(fogAmount);
+	#elif CLOUD_FOG_CURVE == 5
+		fogAmount = pow5(fogAmount);
+	#endif
+	color.a *= fogAmount;
+	
+	color.a *= 1.0 - blindness;
+	color.a *= 1.0 - darknessFactor;
+	
+	/* DRAWBUFFERS:03 */
+	#if DO_COLOR_CODED_GBUFFERS == 1
+		color = vec4(0.0, 1.0, 1.0, 1.0);
+	#endif
+	color.rgb *= 0.5;
+	gl_FragData[0] = color;
+	gl_FragData[1] = vec4(
+		pack_2x8(0.0, 0.25),
+		pack_7_7_1_1(0.0, 0.0, 1.0, 0.0),
+		0.0, 1.0
+	);
+	
 }
 
 #endif
 
-//Vertex Shader/////////////////////////////////////////////////////////////////////////////////////
+
+
 #ifdef VSH
 
-//Varyings//
-varying vec2 texCoord;
+#include "/utils/projections.glsl"
 
-varying vec3 normal;
-varying vec3 sunVec, upVec, eastVec;
-
-varying vec4 color;
-
-//Uniforms//
-#ifdef TAA
-uniform int frameCounter;
-
-uniform float viewWidth;
-uniform float viewHeight;
-#include "/lib/util/jitter.glsl"
+#if TAA_ENABLED == 1
+	#include "/lib/taa_jitter.glsl"
 #endif
 
-uniform float timeAngle;
-
-uniform mat4 gbufferModelView;
-
-//Program//
 void main() {
-	texCoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-
-	color = gl_Color;
-
-	normal = normalize(gl_NormalMatrix * gl_Normal);
-	
-	const vec2 sunRotationData = vec2(cos(sunPathRotation * 0.01745329251994), -sin(sunPathRotation * 0.01745329251994));
-	#ifndef END
-	float ang = fract(timeAngle - 0.25);
-	#else
-	#if defined IS_IRIS || MC_VERSION < 12111
-	float ang = 0.0;
-	#else
-	float ang = 0.5;
+	#if CLOUD_COMPATIBILITY == 1
+		texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
 	#endif
-	#endif
-	ang = (ang + (cos(ang * 3.14159265358979) * -0.5 + 0.5 - ang) / 3.0) * 6.28318530717959;
-	sunVec = normalize((gbufferModelView * vec4(vec3(-sin(ang), cos(ang) * sunRotationData) * 2000.0, 1.0)).xyz);
-
-	upVec = normalize(gbufferModelView[1].xyz);
-	eastVec = normalize(gbufferModelView[0].xyz);
 	
-	gl_Position = ftransform();
-	
-	#ifdef TAA
-	gl_Position.xy = TAAJitter(gl_Position.xy, gl_Position.w);
+	vec3 viewPos = transform(gl_ModelViewMatrix, gl_Vertex.xyz);
+	playerPos = transform(gbufferModelViewInverse, viewPos);
+	#if CLOUDS_TYPE == 2
+		alphaMult = percentThrough(cameraPosition.y, cloudHeight + 8.0, cloudHeight - 4.0); // start off inverted
+		alphaMult *= float(playerPos.y + cameraPosition.y > cloudHeight + 1.5);
+		alphaMult = 1.0 - alphaMult;
 	#endif
+	playerPos.xz *= VANILLA_CLOUDS_SCALE_XZ;
+	playerPos.y *= VANILLA_CLOUDS_SCALE_Y;
+	playerPos.y += VANILLA_CLOUDS_HEIGHT_OFFSET;
+	viewPos = transform(gbufferModelView, playerPos);
+	
+	gl_Position = viewToNdc(viewPos);
+	gl_Position.z += 0.00004;
+	
+	#if TAA_ENABLED == 1
+		doTaaJitter(gl_Position.xy);
+	#endif
+	
 }
 
 #endif
