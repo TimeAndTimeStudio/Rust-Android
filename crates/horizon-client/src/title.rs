@@ -1774,12 +1774,7 @@ impl Title {
                 }
                 // Starling's account, where the game signs in itself: in the top left corner,
                 // clear of the logo, so vanilla's buttons stay as they are.
-                let app_version = {
-                    #[cfg(target_os = "android")]
-                    { crate::android::app_version().map(|(v, _)| v).unwrap_or_else(|| "1.0.6".into()) }
-                    #[cfg(not(target_os = "android"))]
-                    { "1.0.6".to_string() }
-                };
+                let app_version = crate::platform::app_version().unwrap_or("1.0.6");
                 let update_label = format!("Update (v{})", app_version);
                 if crate::accounts::in_game() {
                     buttons.push(b(4.0, 4.0, 120.0, &account::main_label(), true, 8));
@@ -2489,12 +2484,7 @@ Would you like to enable the Narrator or visit the Accessibility Settings?",
                         ];
                     }
                 }
-                let app_version = {
-                    #[cfg(target_os = "android")]
-                    { crate::android::app_version().map(|(v, _)| v).unwrap_or_else(|| "1.0.6".into()) }
-                    #[cfg(not(target_os = "android"))]
-                    { "1.0.6".to_string() }
-                };
+                let app_version = crate::platform::app_version().unwrap_or("1.0.6");
                 let version = format!("TML v{} - Minecraft {} (Rust)", app_version, horizon_core::VANILLA_VERSION);
                 batch.text(atlas, &version, 2.0, h - 10.0, u32::MAX, true);
                 // A nightly names its build in the top-left corner, the one spot no button reaches at any GUI

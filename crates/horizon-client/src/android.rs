@@ -1283,6 +1283,9 @@ pub fn main(app: AndroidApp) {
         asset,
         keep_working,
     });
+    if let Some((v, _)) = app_version() {
+        crate::platform::set_app_version(v);
+    }
     horizon_protocol::set_name_servers(dns_servers);
     let _ = ARGS.set(args.clone());
     let _ = APP.set(app);

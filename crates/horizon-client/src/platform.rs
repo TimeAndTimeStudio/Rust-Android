@@ -102,3 +102,13 @@ pub fn library_dir() -> Option<PathBuf> {
 pub fn asset(name: &str) -> Option<Vec<u8>> {
     HOOKS.get().and_then(|h| (h.asset)(name))
 }
+
+static APP_VERSION: OnceLock<String> = OnceLock::new();
+
+pub fn set_app_version(version: String) {
+    let _ = APP_VERSION.set(version);
+}
+
+pub fn app_version() -> Option<&'static str> {
+    APP_VERSION.get().map(|s| s.as_str())
+}
