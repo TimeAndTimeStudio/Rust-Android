@@ -401,6 +401,7 @@ const NO_MEDIA: &[&str] = &[
     "horizon-mods",
     "assets",
     "minecraft",
+    "resources",
 ];
 
 /// The game folder: shared storage's once allowed (and what the player made in the app's own
@@ -448,6 +449,7 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
             }
         }
     }
+    move_heavy_dirs(private, shared, notes);
     for name in NO_MEDIA {
         let dir = shared.join(name);
         if std::fs::create_dir_all(&dir).is_ok() && !dir.join(".nomedia").exists() {
@@ -455,6 +457,41 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
         }
     }
     shared.clone()
+}
+
+/// The big folders that only take space: the fetched Minecraft files and the resources prepared
+/// from them. They are copied to shared storage and the private copy is removed once the copy is
+/// whole, so a phone's app storage gets the space back (the old copies of the player's own files
+/// stay in `moved-to-shared`).
+fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
+    for name in ["minecraft", "resources"] {
+        let from = private.join(name);
+        let to = shared.join(name);
+        if !from.is_dir() || to.exists() {
+            continue;
+        }
+        let partial = shared.join(format!("{name}.partial"));
+        let _ = std::fs::remove_dir_all(&partial);
+        match copy_tree(&from, &partial).and_then(|()| std::fs::rename(&partial, &to)) {
+            Ok(()) => match std::fs::remove_dir_all(&from) {
+                Ok(()) => notes.push(format!(
+                    "TML: moved {name} to {} and freed the private copy",
+                    to.display()
+                )),
+                Err(e) => notes.push(format!(
+                    "TML: moved {name} to {}; the private copy could not be removed: {e}",
+                    to.display()
+                )),
+            },
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&partial);
+                notes.push(format!(
+                    "TML: could not move {name} to {}: {e}",
+                    to.display()
+                ));
+            }
+        }
+    }
 }
 
 /// Copy the player's files to shared storage, then set the private copies aside.
