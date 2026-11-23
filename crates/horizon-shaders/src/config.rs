@@ -143,6 +143,11 @@ pub struct Shadow {
     pub far: f32,
     /// `shadowHardwareFiltering(0|1)`: shadowtex0/1 sampled with depth comparison.
     pub hardware_filtering: [bool; 2],
+    /// `shadowtex0Nearest` (or `shadowtexNearest`, `shadow0MinMagNearest`) and
+    /// `shadowtex1Nearest` (or `shadow1MinMagNearest`): read through a plain sampler, take the
+    /// nearest texel. Otherwise Iris 1.11.7 filters them linearly, which keeps fine shadows
+    /// from turning into stripes on distant ground.
+    pub nearest: [bool; 2],
     /// `shadowcolor0/1`: format, cleared every frame, clear colour (default white).
     pub colors: [Buffer; 2],
 }
@@ -165,6 +170,7 @@ impl Default for Shadow {
             near: 0.05,
             far: 256.0,
             hardware_filtering: [false; 2],
+            nearest: [false; 2],
             colors: [white.clone(), white],
         }
     }
@@ -331,6 +337,16 @@ impl Config {
             "shadowHardwareFiltering0" | "shadowHardwareFiltering1" => {
                 if let Some(b) = boolean(value) {
                     s.hardware_filtering[usize::from(name.ends_with('1'))] = b;
+                }
+            }
+            "shadowtexNearest" | "shadowtex0Nearest" | "shadow0MinMagNearest" => {
+                if let Some(b) = boolean(value) {
+                    s.nearest[0] = b;
+                }
+            }
+            "shadowtex1Nearest" | "shadow1MinMagNearest" => {
+                if let Some(b) = boolean(value) {
+                    s.nearest[1] = b;
                 }
             }
             _ => {

@@ -60,3 +60,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - `8365a5f59e` — section arena pages grow by half, not double (less video memory).
 - `e349aeccea` — chunk lighting BFS reads the sky layer directly and packs its bits (-7.9% CPU).
 - `f43817376a` — upload staging ring is bucketed and trims when idle (-13 to -25 MB RSS).
+- `6d40db2be5` — shadowtex0/1 read through a plain sampler filter linearly as Iris does, which
+  removes the striped shadows on distant ground; a pack's `shadowtexNNearest` keeps nearest.
