@@ -10908,12 +10908,13 @@ impl Game<'_> {
         laps.lap("eg_name_tags");
         // Entity shadows (EntityRenderer.extractShadow), unless the Entity Shadows option is off.
         self.mark_translucent_entity(out.len(), "minecraft:entity_shadow");
-        // A shader pack's sun shadows already fall under the entities in the Overworld: the round
-        // blob would be a second one. The Nether and the End have no sun to cast them; a
-        // `shaders/` pack with its own shadow pass covers the dimensions it draws.
-        let pack_shadows = self.renderer.as_ref().is_some_and(|r| {
-            (self.dim == Dim::Overworld && r.native_shadow()) || r.pack_post_shadows()
-        });
+        // With a shader pack on, the pack lights the world: vanilla's round blob would be a
+        // second, wrong shadow under every mob (and never turns off by itself). The pack's own
+        // shadow pass draws the real ones where it has one, in every dimension it draws.
+        let pack_shadows = self
+            .renderer
+            .as_ref()
+            .is_some_and(|r| r.shader_pack_active());
         let shadow_sprite = (self.settings.entity_shadows && !pack_shadows)
             .then(|| self.gui.atlas.sprites.get("misc/shadow").copied())
             .flatten();

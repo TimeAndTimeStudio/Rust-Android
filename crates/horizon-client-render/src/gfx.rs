@@ -4925,14 +4925,15 @@ impl Renderer {
     pub fn native_shadow(&self) -> bool {
         self.native.as_ref().is_some_and(|n| n.shadow.is_some())
     }
-    /// Whether the shader pack running now draws sun shadows of its own, through the `shaders/`
-    /// pack post passes. The game then leaves out its round entity shadow: the pack's would be a
-    /// second one under every mob.
-    pub fn pack_post_shadows(&self) -> bool {
-        self.pack_post
-            .as_ref()
-            .and_then(|(_, post)| post.as_ref())
-            .is_some_and(pack_post::PackPost::has_shadow)
+    /// Whether a shader pack runs now (one of Horizon's own, or a `shaders/` pack): the game
+    /// then leaves out vanilla's round entity shadow, shaders replacing the way the world is
+    /// lit — and drawing their own under the entities when the pack has a shadow pass.
+    pub fn shader_pack_active(&self) -> bool {
+        self.native.is_some()
+            || self
+                .pack_post
+                .as_ref()
+                .is_some_and(|(_, post)| post.is_some())
     }
     /// What a shader pack's shadow pass draws of the entities this frame: (entities or block
     /// entities other than the player, so those Horizon's culling hides from the camera are

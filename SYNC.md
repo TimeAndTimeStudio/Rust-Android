@@ -88,3 +88,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Shaders: Iris's `mc_hasGlint()` and `mc_sampleGlint()` are supplied to every program. Mellow
   v3.5 calls them in its gbuffers programs; without them 17 programs (terrain, water, entities,
   hand, weather) were skipped and the pack drew with a plain texture and no shadows.
+- Shadows: vanilla's round entity shadow is left out whenever any shader pack runs (not only a
+  pack with a loaded shadow pass), so it can no longer stay on under Mellow, Fantasy or others.
