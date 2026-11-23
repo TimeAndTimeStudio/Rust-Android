@@ -281,41 +281,22 @@ impl Screen {
                 b(50.0, 108.0, 200.0, tr("offline"), true, 77),
                 b(50.0, h - 28.0, 200.0, tr("back"), true, 70),
             ],
-            Page::Offline | Page::Ely => {
-                let valid = !self.username.trim().is_empty()
-                    && (self.page == Page::Offline || !self.password.is_empty());
+            Page::Offline => {
+                let valid = !self.username.trim().is_empty();
                 let mut out = vec![
                     b(
-                        if self.page == Page::Ely { 0.0 } else { 50.0 },
+                        50.0,
                         h - 52.0,
-                        if self.page == Page::Ely { 148.0 } else { 200.0 },
-                        tr(if self.page == Page::Ely {
-                            "log_in"
-                        } else {
-                            "save"
-                        }),
+                        200.0,
+                        tr("save"),
                         valid,
                         71,
                     ),
                     b(50.0, h - 28.0, 200.0, tr("back"), true, 70),
                 ];
-                if self.page == Page::Ely {
-                    out.push(b(
-                        50.0,
-                        158.0,
-                        200.0,
-                        tr(if self.show_password {
-                            "hide_password"
-                        } else {
-                            "show_password"
-                        }),
-                        true,
-                        108,
-                    ));
-                    out.insert(1, b(152.0, h - 52.0, 148.0, tr("register"), true, 72));
-                }
                 out
             }
+            Page::Ely => vec![b(50.0, h - 28.0, 200.0, tr("back"), true, 70)],
             Page::Files => vec![
                 b(
                     50.0,
@@ -454,7 +435,7 @@ impl Screen {
             75 => self.offset += rows(h),
             76 | 77 => {
                 self.clear();
-                self.page = if id == 76 { Page::Ely } else { Page::Offline };
+                self.page = Page::Offline;
             }
             79 => {
                 self.clear();

@@ -169,8 +169,6 @@ fn density(w: f32, h: f32) -> f32 {
 impl Game<'_> {
     /// Once at start (the check, in the background), then the download while it runs.
     pub(super) fn poll_update_offer(&mut self) {
-        return;
-
         let offer = &mut self.update_offer;
         if !offer.started {
             offer.started = true;
@@ -181,7 +179,7 @@ impl Game<'_> {
                 .filter(|v| !v.is_empty());
             let current = match (crate::android::app_version(), test) {
                 (_, Some(pretend)) => pretend,
-                (Some((version, true)), None) => version,
+                (Some((version, _)), None) => version,
                 _ => return,
             };
             let until = std::fs::read_to_string(later())
@@ -265,23 +263,23 @@ impl Game<'_> {
         let version = &release.version;
         let (title, body, buttons): (String, String, &[&str]) = match &stage {
             Stage::Ask => (
-                format!("Starling {version} is out"),
+                format!("TML Client {version} is out"),
                 format!(
-                    "Update now? Starling downloads it ({} MB) and Android installs it over this \
+                    "Update now? TML Client downloads it ({} MB) and Android installs it over this \
                      one: your worlds and settings stay.",
                     mb(release.size)
                 ),
                 &["Update", "Tomorrow", "No"],
             ),
             Stage::Downloading => (
-                format!("Downloading Starling {version}"),
+                format!("Downloading TML Client {version}"),
                 format!("{} of {} MB", mb(done), mb(total)),
                 &["Cancel"],
             ),
             Stage::Installing => (
-                format!("Install Starling {version}"),
+                format!("Install TML Client {version}"),
                 "Android asks to install the update (the first time, to allow installs from \
-                 Starling). Once it is in, open Starling again."
+                 TML Client). Once it is in, open TML Client again."
                     .into(),
                 &["Install", "Later"],
             ),

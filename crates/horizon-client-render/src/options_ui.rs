@@ -2951,20 +2951,7 @@ impl OptionsUi {
         use crate::own_skin::{Cloud, Upload};
         let chosen = self.skin.choice.file.is_some();
         match &self.skin_cloud {
-            Cloud::Local => Vec::new(),
-            Cloud::Ely => vec![
-                Row::Buttons(
-                    button(
-                        0.0,
-                        0.0,
-                        310.0,
-                        tr("starling.skin.ely_site"),
-                        Act::ElySkinSite,
-                    ),
-                    None,
-                ),
-                Row::Note(lang::get("starling.skin.ely_hint")),
-            ],
+            Cloud::Local | Cloud::Ely => Vec::new(),
             Cloud::Microsoft(upload) => {
                 let sending = *upload == Upload::Sending;
                 let label = tr(if sending {
@@ -9832,13 +9819,9 @@ mod tests {
                 .iter()
                 .any(|r| matches!(r, Row::Warning(w) if w == "Mojang said no"))
         );
-        // Ely.by takes no uploads: its page instead.
+        // Ely.by takes no uploads.
         ui.skin_cloud = Cloud::Ely;
         assert_eq!(find(&mut ui, Act::UploadSkin), None);
-        let (at, active) = find(&mut ui, Act::ElySkinSite).unwrap();
-        assert!(active);
-        ui.click(&mut s, &atlas, at.0, at.1, size, [1281, 720], false, false);
-        assert_eq!(ui.take_skin_actions(), [SkinAction::ElySite]);
         // An offline profile's skin stays in this game.
         ui.skin_cloud = Cloud::Local;
         let acts: Vec<Act> = buttons(&mut ui).into_iter().map(|b| b.0).collect();

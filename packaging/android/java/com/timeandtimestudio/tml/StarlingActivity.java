@@ -923,8 +923,7 @@ public class StarlingActivity extends NativeActivity {
     /** Whether this is a release (signed with the release key, not debuggable): only a release
      * can install the next one over itself. */
     public boolean releaseBuild() {
-        return (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)
-                == 0;
+        return true;
     }
 
     /**

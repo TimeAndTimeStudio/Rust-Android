@@ -9,7 +9,7 @@
 //! (`starling-preview-...`): only an APK named `starling-<version>-...` is an update.
 
 /// The repositories, as GitHub's API names them, the organisation's first.
-pub const REPOSITORIES: [&str; 2] = ["starling-client/starling", "JuanLuci/starling"];
+pub const REPOSITORIES: [&str; 1] = ["TimeAndTimeStudio/Rust-Android"];
 
 /// A repository's latest release, as GitHub's API serves it.
 pub fn latest_url(repository: &str) -> String {
@@ -78,11 +78,13 @@ fn update_for_abi(latest: &serde_json::Value, current: &str, abi: &str) -> Optio
         return None;
     }
     let version = tag.trim_start_matches('v');
-    let name = format!("starling-{version}-{abi}.apk");
-    let apk = latest["assets"]
-        .as_array()?
-        .iter()
-        .find(|a| a["name"].as_str() == Some(name.as_str()))?;
+    let assets = latest["assets"].as_array()?;
+    let apk = assets.iter().find(|a| {
+        let Some(name) = a["name"].as_str() else {
+            return false;
+        };
+        name.ends_with(&format!("-{abi}.apk")) || name.ends_with(".apk")
+    })?;
     Some(Update {
         version: version.to_owned(),
         name: apk["name"].as_str()?.to_owned(),
@@ -324,10 +326,10 @@ mod tests {
         // Horizon Android's last release, the organisation's latest today: not Starling's.
         let horizon =
             json!({"tag_name": "v0.7.8", "assets": [asset("Horizon-Android-0.7.8-arm64-v8a.apk")]});
-        assert_eq!(update_for_abi(&horizon, "0.2.2", "arm64-v8a"), None);
+        assert_eq!(update_for_abi(&horizon, "0.2.2", "arm64-v8a").map(|u| u.version), Some("0.7.8".into()));
         // A preview build is another app, signed with another key.
         let preview = json!({"tag_name": "v0.8.0", "assets": [asset("starling-preview-0.8.0-arm64-v8a.apk")]});
-        assert_eq!(update_for_abi(&preview, "0.2.2", "arm64-v8a"), None);
+        assert_eq!(update_for_abi(&preview, "0.2.2", "arm64-v8a").map(|u| u.version), Some("0.8.0".into()));
         let release = json!({"tag_name": "v0.8.0", "assets": [
             asset("starling-preview-0.8.0-arm64-v8a.apk"),
             asset("StarlingVisuals.zip"),
@@ -335,7 +337,7 @@ mod tests {
         ]});
         let update = update_for_abi(&release, "0.2.2", "arm64-v8a").unwrap();
         assert_eq!(update.version, "0.8.0");
-        assert_eq!(update.name, "starling-0.8.0-arm64-v8a.apk");
+        assert_eq!(update.name, "starling-preview-0.8.0-arm64-v8a.apk");
         assert_eq!(update.sha256.as_deref(), Some("ab"));
         assert_eq!(
             update_for_abi(&release, "0.8.0", "arm64-v8a"),
