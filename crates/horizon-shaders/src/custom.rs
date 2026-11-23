@@ -369,7 +369,15 @@ struct Parser<'a> {
     tokens: Vec<String>,
     at: usize,
     calls: &'a mut usize,
+    nesting: usize,
 }
+
+/// Deepest nesting of brackets, unary operators and call arguments, so that a pack can't
+/// overflow the stack while its expression parses.
+const NESTING: usize = 64;
+/// Most tokens an expression may have. A run like `1+1+1+...` builds a tree as deep as it is
+/// long without nesting, and every walk of the tree (`eval`, `clone`, drop) recurses per level.
+const TOKENS: usize = 512;
 
 const OPERATORS: [&str; 18] = [
     "||", "&&", "==", "!=", "<=", ">=", "<", ">", "+", "-", "*", "/", "%", "!", "(", ")", ",", ".",
@@ -419,6 +427,7 @@ impl<'a> Parser<'a> {
             tokens,
             at: 0,
             calls,
+            nesting: 0,
         }
     }
     fn peek(&self) -> Option<&str> {
@@ -430,6 +439,12 @@ impl<'a> Parser<'a> {
         hit
     }
     fn expr_all(&mut self) -> Result<Expr, String> {
+        if self.tokens.len() > TOKENS {
+            return Err(format!(
+                "the expression is too long: {} tokens",
+                self.tokens.len()
+            ));
+        }
         let e = self.binary(0)?;
         match self.peek() {
             None => Ok(e),
@@ -461,6 +476,16 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
     fn unary(&mut self) -> Result<Expr, String> {
+        // Every nesting (brackets, arguments, repeated operators) passes through here.
+        self.nesting += 1;
+        if self.nesting > NESTING {
+            return Err("the expression is nested too deeply".into());
+        }
+        let e = self.unary_inner();
+        self.nesting -= 1;
+        e
+    }
+    fn unary_inner(&mut self) -> Result<Expr, String> {
         if self.eat("-") {
             return Ok(Expr::Neg(Box::new(self.unary()?)));
         }
@@ -716,5 +741,328 @@ mod tests {
         let c = custom("uniform.float.a = (1 + \nuniform.mat4.m = 1\nuniform.float.ok = 2\n");
         assert_eq!(c.uniforms().count(), 1);
         assert_eq!(c.notes.len(), 2, "{:?}", c.notes);
+    }
+
+    /// Iris 1.11.7, with our probe pack of #8995: an expression naming something the custom
+    /// uniforms can't see reads 0 as a whole, even in an `if` branch not taken, and so does
+    /// anything using its uniform or variable.
+    #[test]
+    fn a_name_custom_uniforms_cannot_see_fails_the_whole_expression() {
+        let mut c = custom(
+            "variable.float.v0 = fogStart * 0.0 + 2.0\n\
+             variable.float.v1 = 5.0\n\
+             uniform.float.u0 = 2.0\n\
+             uniform.float.u1 = dimension * 0.0 + 2.0\n\
+             uniform.float.u2 = fogColor.r * 0.0 + 2.0\n\
+             uniform.float.u3 = notAName * 0.0 + 2.0\n\
+             uniform.float.u4 = if(1 > 0, 2.0, fogStart)\n\
+             uniform.float.u5 = u0 + 1.0\n\
+             uniform.float.u6 = u2 + 1.0\n\
+             uniform.float.u7 = v0 + 1.0\n\
+             uniform.float.u8 = v1 + 1.0\n\
+             uniform.float.u9 = frameTime * 0.0 + 2.0\n\
+             uniform.vec3.w = vec3(skyColor.r, entityColor.a, blockEntityId) * 0.0 + 2.0\n\
+             uniform.float.r = currentRenderedItemId * 0.0 + lightningBoltPosition.x + 2.0\n",
+        );
+        // The game gives every name here but `notAName`, `currentRenderedItemId` and
+        // `lightningBoltPosition`, as Horizon's frame uniforms do.
+        let builtin = |n: &str| match n {
+            "notAName" | "currentRenderedItemId" | "lightningBoltPosition" => None,
+            "fogColor" | "skyColor" => Some(Val::vector(&[0.5, 0.6, 0.7])),
+            "entityColor" => Some(Val::vector(&[0.0; 4])),
+            _ => Some(Val::scalar(1.0)),
+        };
+        let x: Vec<f64> = c.eval(0.016, &builtin).iter().map(|v| v.v[0]).collect();
+        // `w` reads 0 as well: `vec3 * 0.0` joins a vector and a scalar (#9086).
+        assert_eq!(
+            x,
+            [2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 6.0, 2.0, 0.0, 2.0]
+        );
+        assert_eq!(c.notes.len(), 10, "{:?}", c.notes);
+        // The same on later frames, with no new notes.
+        let again: Vec<f64> = c.eval(0.016, &builtin).iter().map(|v| v.v[0]).collect();
+        assert_eq!(again, x);
+        assert_eq!(c.notes.len(), 10, "{:?}", c.notes);
+    }
+
+    /// Iris 1.11.7, with our probe packs of #9086 (`final` drew each uniform, a vector's `.y`):
+    /// an expression without its declared shape, or joining a vector and a scalar, reads 0, and
+    /// so does a uniform using such a variable. Each row: the probe's line, then what Iris read
+    /// (`k5` reads our `skyColor.y` here; Iris read its own sky, 0.64). A variable isn't drawn:
+    /// its number follows Iris's warnings (`vbad` failed) and the uniforms reading it.
+    #[test]
+    fn an_expression_without_its_declared_shape_reads_zero() {
+        const ROWS: &str = "\
+            uniform.float.k0 = 2.0 | 2
+            uniform.float.k1 = skyColor * 0.0 + 2.0 | 0
+            uniform.vec3.k2 = skyColor * 0.0 + 2.0 | 0
+            uniform.float.k3 = skyColor.y * 0.0 + 2.0 | 2
+            uniform.vec3.k4 = vec3(skyColor.x * 0.0 + 2.0, skyColor.y * 0.0 + 2.0, skyColor.z * 0.0 + 2.0) | 2
+            uniform.vec3.k5 = skyColor | 0.5
+            uniform.float.k6 = skyColor | 0
+            uniform.vec3.k7 = vec3(2.0, 2.0, 2.0) * 1.0 | 0
+            uniform.vec3.k8 = vec3(2.0, 2.0, 2.0) + 0.0 | 0
+            uniform.vec3.k9 = skyColor * vec3(0.0, 0.0, 0.0) + vec3(2.0, 2.0, 2.0) | 2
+            uniform.float.k10 = vec3(2.0, 2.0, 2.0) | 0
+            uniform.vec2.k11 = vec3(2.0, 2.0, 2.0) | 0
+            uniform.vec3.w0 = 2.0 * vec3(1.0, 1.0, 1.0) | 0
+            uniform.vec3.w1 = vec3(4.0, 4.0, 4.0) / 2.0 | 0
+            uniform.vec3.w19 = vec3(2.0, 2.0, 2.0) % 3.0 | 0
+            uniform.vec3.w2 = -vec3(-2.0, -2.0, -2.0) | 2
+            uniform.vec3.z11 = vec3(4.0, 4.0, 4.0) / vec3(2.0, 2.0, 2.0) | 2
+            uniform.vec3.x0 = vec3(2.0, 2.0, 2.0) + vec2(0.0, 0.0) | 0
+            uniform.vec3.x17 = -skyColor + skyColor + vec3(2.0, 2.0, 2.0) | 2
+            uniform.bool.z0 = !vec3(0.0, 0.0, 0.0) | 0
+            uniform.bool.z2 = vec3(1.0, 1.0, 1.0) < vec3(2.0, 2.0, 2.0) | 0
+            uniform.vec3.w5 = 2.0 | 0
+            uniform.vec3.w6 = vec3(2.0) | 0
+            uniform.vec3.z10 = vec3(2.0, 2.0) | 0
+            uniform.vec3.w7 = vec3(vec2(2.0, 2.0), 2.0) | 0
+            uniform.vec3.x6 = vec3(vec3(2.0, 2.0, 2.0)) | 0
+            uniform.vec2.x8 = vec2(frameCounter * 0 + 2, 2) | 2
+            uniform.vec4.w4 = vec4(2.0, 2.0, 2.0, 2.0) | 2
+            uniform.vec3.w11 = abs(vec3(-2.0, -2.0, -2.0)) | 2
+            uniform.vec2.z5 = floor(vec3(2.5, 2.5, 2.5)) | 0
+            uniform.float.z6 = abs(skyColor) | 0
+            uniform.vec3.w10 = max(vec3(2.0, 2.0, 2.0), vec3(0.0, 0.0, 0.0)) | 2
+            uniform.vec3.w9 = max(vec3(2.0, 2.0, 2.0), 0.0) | 0
+            uniform.vec3.x12 = min(vec3(2.0, 2.0, 2.0), vec3(3.0, 3.0, 3.0), vec3(4.0, 4.0, 4.0)) | 0
+            uniform.vec3.y3 = clamp(vec3(2.0, 2.0, 2.0), vec3(0.0, 0.0, 0.0), vec3(3.0, 3.0, 3.0)) | 2
+            uniform.vec3.w12 = clamp(vec3(2.0, 2.0, 2.0), 0.0, 3.0) | 0
+            uniform.vec3.y9 = sqrt(vec3(4.0, 4.0, 4.0)) | 0
+            uniform.vec3.x3 = pow(vec3(2.0, 2.0, 2.0), 1.0) | 0
+            uniform.vec3.x11 = smooth(vec3(2.0, 2.0, 2.0), 0.0001, 0.0001) | 0
+            uniform.vec3.w8 = if(1.0 > 0.0, vec3(2.0, 2.0, 2.0), vec3(0.0, 0.0, 0.0)) | 2
+            uniform.vec3.x19 = if(1.0 > 0.0, vec3(2.0, 2.0, 2.0), 0.0) | 0
+            uniform.float.x9 = if(vec3(1.0, 1.0, 1.0), 2.0, 0.0) | 0
+            uniform.vec3.z12 = if(1.0 < 0.0, vec3(0.0, 0.0, 0.0), 1.0 > 0.0, vec3(2.0, 2.0, 2.0), vec3(0.0, 0.0, 0.0)) | 0
+            uniform.vec3.z9 = ifb(1.0 > 0.0, vec3(2.0, 2.0, 2.0), vec3(0.0, 0.0, 0.0)) | 0
+            uniform.float.x15 = gbufferModelView * 0.0 + 2.0 | 0
+            uniform.float.x16 = gbufferModelView.0.0 * 0.0 + 2.0 | 2
+            variable.vec3.vbad = vec3(2.0, 2.0, 2.0) * 1.0 | 0
+            uniform.float.w13 = vbad.y | 0
+            variable.vec3.vgood = vec3(2.0, 2.0, 2.0) | 2
+            uniform.float.w14 = vgood.y | 2
+            uniform.vec3.w16 = vgood * vgood * vec3(0.5, 0.5, 0.5) | 2";
+        let rows: Vec<(&str, f64)> = (ROWS.lines())
+            .map(|l| l.trim().split_once(" | ").unwrap())
+            .map(|(line, x)| (line, x.parse().unwrap()))
+            .collect();
+        let mut c = custom(
+            &rows
+                .iter()
+                .map(|r| format!("{}\n", r.0))
+                .collect::<String>(),
+        );
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let builtin = |n: &str| match n {
+            "skyColor" => Some(Val::vector(&[0.25, 0.5, 0.75])),
+            "gbufferModelView" => Some(Val::vector(&[0.0; 16])),
+            "frameCounter" => Some(Val::scalar(7.0)),
+            _ => None,
+        };
+        let got = c.eval(0.016, &builtin);
+        let uniforms = rows.iter().filter(|r| r.0.starts_with("uniform."));
+        assert_eq!(got.len(), uniforms.clone().count());
+        for (v, (line, x)) in got.iter().zip(uniforms) {
+            // A vector shows its `.y`, as the probe drew it; one reading 0 is 0 throughout.
+            let shown = v.v[usize::from(v.n > 1)];
+            assert!((shown - x).abs() < 1e-9, "{line}: {shown}, Iris {x}");
+            assert!(*x != 0.0 || v.v[..v.n].iter().all(|&c| c == 0.0), "{line}");
+        }
+        let zeros = rows.iter().filter(|r| r.1 == 0.0).count();
+        assert_eq!(c.notes.len(), zeros, "{:?}", c.notes);
+    }
+
+    /// Iris 1.11.7, with our probe packs of #9126 (`final` drew each uniform, a vector's `.y`):
+    /// an expression whose type isn't the declared one (an `int` given a float, a `float` given a
+    /// bool...), or that names `true`, `false` or a function Iris doesn't have, reads 0. Each row:
+    /// the probe's line, what Iris read (`-` where it depends on the world: the built-ins), and
+    /// `w` where Iris warned `Failed to resolve uniform`. Values are read from stripes, to 0.02.
+    #[test]
+    fn an_expression_without_its_declared_scalar_type_reads_zero() {
+        const ROWS: &str = "\
+            uniform.int.s0 = 2 | 2
+            uniform.int.s1 = 2.0 | 0 | w
+            uniform.float.s2 = 2 | 2
+            uniform.int.s3 = 7 / 2 | 0 | w
+            uniform.bool.s4 = 1 > 0 | 1
+            uniform.float.s5 = 1 > 0 | 0 | w
+            uniform.int.s6 = 1 > 0 | 0 | w
+            uniform.bool.s7 = 2.0 | 0 | w
+            uniform.float.s10 = frameCounter * 0 + 2 | 2
+            uniform.int.t2 = 2 * 1.0 | 0 | w
+            uniform.float.t4 = 7 / 2 | 3.5
+            uniform.bool.t6 = 1 | 0 | w
+            uniform.bool.t7 = true | 0 | w
+            uniform.int.t8 = true | 0 | w
+            uniform.float.t9 = true | 0 | w
+            uniform.bool.t12 = !1 | 0 | w
+            uniform.int.t17 = if(1 > 0, 2, 0) | 2
+            uniform.int.t18 = round(2.4) | 0 | w
+            uniform.bool.t21 = between(2.0, 1.0, 3.0) | 1
+            uniform.float.t22 = between(2.0, 1.0, 3.0) | 0 | w
+            uniform.int.t25 = max(2, 1.0) | 0 | w
+            uniform.float.t26 = if(1 > 0, 2, 0) | 2
+            uniform.float.q0 = if(1 < 0, 1.0, 1 > 0, 2.0, 0.0) | 2
+            uniform.int.q1 = if(1 < 0, 1, 1 > 0, 2, 0) | 2
+            uniform.float.q2 = randomInt(2.0, 2.0) | 0 | w
+            uniform.bool.q4 = 1 > 0 || 1 | 0 | w
+            uniform.bool.q11 = in(2.0, 1, 2) | 1
+            uniform.vec2.v0 = eyeBrightness + vec2(0.0, 0.0) | 0 | w
+            uniform.vec2.v1 = vec2(0.0, 0.0) + eyeBrightness | 0 | w
+            uniform.vec2.v4 = eyeBrightness - eyeBrightness + vec2(2.0, 2.0) | 0 | w
+            uniform.float.v5 = eyeBrightness.y / 100 | 2.4
+            uniform.vec2.v6 = max(eyeBrightness, vec2(0.0, 0.0)) | 0 | w
+            uniform.vec2.v7 = if(1 > 0, eyeBrightness, vec2(0.0, 0.0)) | 0 | w
+            uniform.bool.v8 = (1 > 0) == 1 | 0 | w
+            uniform.bool.v9 = 1 > (1 > 0) | 0 | w
+            uniform.vec2.v14 = abs(eyeBrightness) | 0 | w
+            uniform.int.v19 = fmod(5.0, 3) | 0 | w
+            uniform.int.v20 = edge(1.5, 2.5) | 0 | w
+            uniform.int.v21 = randomInt(2.0, 3.0) | 0 | w
+            uniform.float.v25 = sin(1 > 0) | 0 | w
+            uniform.float.v26 = between(1 > 0, 0, 2) * 0 + 2 | 0 | w
+            uniform.int.o0 = (1 > 0) + 1 | 0 | w
+            uniform.bool.o1 = (1 > 0) && 1 | 0 | w
+            uniform.int.o5 = -(1 > 0) | 0 | w
+            uniform.int.o6 = 5 % 3.0 | 0 | w
+            uniform.int.o8 = if(1, 2, 0) | 0 | w
+            uniform.float.o9 = if(1.0, 2.0, 0.0) | 0 | w
+            uniform.int.o10 = if(1 > 0, 2, 1.0) | 0 | w
+            uniform.float.o11 = if(1 > 0, 2, 1.0) | 2
+            uniform.int.o14 = smooth(2, 0.0001) | 0 | w
+            uniform.int.o16 = false | 0 | w
+            uniform.bool.o17 = false | 0 | w
+            uniform.vec2.o19 = eyeBrightness | 0 | w
+            uniform.vec3.o20 = cameraPositionInt | 0 | w
+            uniform.vec2.o21 = vec2(eyeBrightness.x, 2) | 2
+            uniform.vec3.o22 = vec3(1 > 0, 2, 2) | 0 | w
+            uniform.float.o24 = sin(0) + 2 | 2
+            uniform.int.o25 = abs(-2.0) | 0 | w
+            uniform.int.o27 = clamp(2, 0, 3.0) | 0 | w
+            uniform.int.o30 = 2 + 0 * frameTimeCounter | 0 | w
+            uniform.int.f0i = sin(1.5707963) | 0 | w
+            uniform.int.f8i = torad(114.59156) | 0 | w
+            uniform.float.f8f = torad(114.59156) | 2
+            uniform.int.f16i = floor(2.5) | 2
+            uniform.int.f17i = ceil(1.5) | 2
+            uniform.int.f29i = pow(2, 1) | 0 | w
+            uniform.int.f30i = fmod(5, 3) | 2
+            uniform.int.f31i = lerp(0.5, 0, 4) | 0 | w
+            uniform.float.f31f = lerp(0.5, 0, 4) | 0 | w
+            uniform.int.f32i = mix(0, 4, 0.5) | 0 | w
+            uniform.int.f33i = edge(1, 2) | 1
+            uniform.bool.g0b = ifb(1 > 0, 1 > 0, 2 > 3) | 0 | w
+            uniform.bool.g1b = ifb(1 > 0, 2, 3) | 0 | w
+            uniform.bool.g2b = edge(1, 2) | 0 | w
+            uniform.bool.g3b = between(2, 1, 3) | 1
+            uniform.int.p0i = pi | 0 | w
+            uniform.float.p0f = pi | 3.14
+            uniform.bool.p0b = pi | 0 | w
+            uniform.bool.p1b = BIOME_PLAINS | 0 | w
+            uniform.int.p4i = notAFunction(2.0) | 0 | w
+            uniform.int.b0i = frameCounter | -
+            uniform.bool.b0b = frameCounter | 0 | w
+            uniform.int.b4i = hideGUI | 0 | w
+            uniform.bool.b4b = hideGUI | -
+            uniform.int.b7i = frameTimeCounter | 0 | w
+            uniform.bool.b7b = frameTimeCounter | 0 | w
+            uniform.int.b19i = eyeBrightness.x | -
+            uniform.bool.b19b = eyeBrightness.x | 0 | w
+            uniform.int.b3_22i = centerDepthSmooth | 0 | w
+            uniform.float.b3_22f = centerDepthSmooth | 0 | w
+            uniform.bool.b3_22b = centerDepthSmooth | 0 | w
+            uniform.int.b3_31i = currentRenderedItemId | -
+            uniform.bool.b3_31b = currentRenderedItemId | 0 | w
+            uniform.bool.b3_33b = worldTime | 0 | w";
+        let rows: Vec<(&str, Option<f64>, bool)> = (ROWS.lines())
+            .map(|l| {
+                let mut p = l.trim().split(" | ");
+                let line = p.next().unwrap();
+                let x = p.next().unwrap().parse().ok();
+                (line, x, p.next() == Some("w"))
+            })
+            .collect();
+        let mut c = custom(
+            &rows
+                .iter()
+                .map(|r| format!("{}\n", r.0))
+                .collect::<String>(),
+        );
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let builtin = |n: &str| match n {
+            "frameCounter" | "worldTime" | "frameTimeCounter" => Some(Val::scalar(2.0)),
+            "hideGUI" => Some(Val::scalar(1.0)),
+            "sunAngle" => Some(Val::scalar(0.25)),
+            "centerDepthSmooth" => Some(Val::scalar(0.5)),
+            "eyeBrightness" => Some(Val::vector(&[0.0, 240.0])),
+            "cameraPositionInt" => Some(Val::vector(&[1.0, 2.0, 3.0])),
+            "cameraPosition" => Some(Val::vector(&[1.0, 64.0, 2.0])),
+            _ => None,
+        };
+        let got = c.eval(0.016, &builtin);
+        assert_eq!(got.len(), rows.len());
+        for (v, (line, x, _)) in got.iter().zip(&rows) {
+            let shown = v.v[usize::from(v.n > 1)];
+            if let Some(x) = x {
+                assert!((shown - x).abs() <= 0.02, "{line}: {shown}, Iris {x}");
+            }
+        }
+        // Exactly the uniforms Iris warned about read 0, each with a note.
+        let warned: Vec<&str> = (rows.iter().filter(|r| r.2))
+            .map(|r| r.0.split(" = ").next().unwrap().rsplit('.').next().unwrap())
+            .collect();
+        let noted: Vec<&str> = (c.notes.iter())
+            .filter(|n| n.contains("` reads 0: "))
+            .map(|n| n[1..].split('`').next().unwrap())
+            .collect();
+        assert_eq!(noted, warned);
+    }
+
+    #[test]
+    fn deeply_nested_expressions_are_notes_not_a_stack_overflow() {
+        let open = "(".repeat(100_000);
+        for body in [
+            format!("{open}1"),
+            format!("{}1", "-".repeat(100_000)),
+            format!("{}1", "!".repeat(100_000)),
+            format!("{}1", "f(".repeat(100_000)),
+        ] {
+            let c = custom(&format!("uniform.float.x = {body}\n"));
+            assert_eq!(c.notes.len(), 1, "{}", &body[..8]);
+            assert!(c.uniforms().next().is_none());
+        }
+    }
+
+    #[test]
+    fn a_long_chain_is_a_note_and_one_within_the_limit_evaluates_on_a_small_stack() {
+        let chain = |terms: usize| vec!["1"; terms].join("+");
+        let c = custom(&format!("uniform.float.x = {}\n", chain(100_000)));
+        assert_eq!(c.notes.len(), 1);
+        // The longest chain the limit allows must not overflow a 4 MiB stack, debug frames included.
+        let value = std::thread::Builder::new()
+            .stack_size(1 << 22)
+            .spawn(move || {
+                let mut c = custom(&format!("uniform.float.x = {}\n", chain(255)));
+                assert!(c.notes.is_empty(), "{:?}", c.notes);
+                let v = c.eval(0.0, &|_| None)[0].x();
+                drop(c);
+                v
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(value, 255.0);
+    }
+
+    #[test]
+    fn nesting_within_the_limit_still_parses() {
+        let c = custom(&format!(
+            "uniform.float.x = {}1{}\n",
+            "(".repeat(30),
+            ")".repeat(30)
+        ));
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
 }

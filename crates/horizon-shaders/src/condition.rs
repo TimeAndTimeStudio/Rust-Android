@@ -18,6 +18,7 @@ pub fn eval_condition(expr: &str, macros: &Macros) -> Result<i64, String> {
         tokens: &tokens,
         at: 0,
         real,
+        nesting: 0,
     };
     let value = parser.binary(0)?;
     match parser.tokens.get(parser.at) {
@@ -257,7 +258,12 @@ struct Parser<'a> {
     at: usize,
     /// A float literal appears: `/` and `%` divide as floats.
     real: bool,
+    nesting: usize,
 }
+
+/// Deepest nesting of brackets and unary operators, so that a pack can't overflow the stack
+/// while its `#if` evaluates.
+const NESTING: usize = 64;
 
 /// Binary operators from the loosest to the tightest (GLSL §5.1 / §3.3).
 const LEVELS: [&[&str]; 10] = [
@@ -297,6 +303,17 @@ impl Parser<'_> {
     }
 
     fn unary(&mut self) -> Result<f64, String> {
+        // Every nesting (brackets, repeated operators) passes through here.
+        self.nesting += 1;
+        if self.nesting > NESTING {
+            return Err("the condition is nested too deeply".into());
+        }
+        let v = self.unary_inner();
+        self.nesting -= 1;
+        v
+    }
+
+    fn unary_inner(&mut self) -> Result<f64, String> {
         match self.next() {
             Some(Token::Num(n)) => Ok(n),
             Some(Token::Op("(")) => {
@@ -402,5 +419,25 @@ mod tests {
         assert!(eval("").is_err());
         assert!(eval("defined").is_err());
         assert!(eval("1 @ 2").is_err());
+    }
+
+    #[test]
+    fn deeply_nested_conditions_are_errors_not_a_stack_overflow() {
+        for body in [
+            format!("{}1{}", "(".repeat(100_000), ")".repeat(100_000)),
+            format!("{}1", "-".repeat(100_000)),
+            format!("{}1", "!".repeat(100_000)),
+            format!("{}1", "~".repeat(100_000)),
+        ] {
+            assert!(eval(&body).is_err(), "{}", &body[..8]);
+        }
+    }
+
+    #[test]
+    fn nesting_within_the_limit_still_evaluates() {
+        assert_eq!(
+            eval(&format!("{}1{}", "(".repeat(30), ")".repeat(30))),
+            Ok(1)
+        );
     }
 }
