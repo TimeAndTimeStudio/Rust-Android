@@ -33,7 +33,7 @@ pub(super) fn read_shader_options(
     macros: &Macros,
 ) -> Option<ShaderOptions> {
     let target = Game::shader_packs_dir().join(name);
-    if !target.exists() && (name == "TMLVisuals.zip" || name.contains("TML") || name.contains("tml")) {
+    if !target.exists() && (name.contains("TML") || name.contains("tml")) {
         crate::preparer::put_shader_pack(&Game::game_dir());
     }
     let pack = match Pack::open(&Game::shader_packs_dir().join(name)) {

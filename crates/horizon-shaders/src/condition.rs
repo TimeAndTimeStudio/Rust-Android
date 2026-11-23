@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(eval("undefinedFeature"), Ok(0));
     }
 
-    /// Float values, as GL drivers read them (I Like Vanilla's `#if AMBIENT_CEL_AMOUNT != 0` with
+    /// Float values, as GL drivers read them (a pack's `#if AMBIENT_CEL_AMOUNT != 0` with
     /// `#define AMBIENT_CEL_AMOUNT 0.0`).
     #[test]
     fn float_values_count() {
