@@ -13,7 +13,7 @@ use super::{
 use crate::{
     front::Typifier, proc::Emitter, proc::Layouter, AddressSpace, Arena, BinaryOperator, Block,
     Expression, FastHashMap, FunctionArgument, Handle, Literal, LocalVariable, RelationalFunction,
-    Scalar, Span, Statement, Type, TypeInner, VectorSize,
+    Scalar, ScalarKind, Span, Statement, Type, TypeInner, VectorSize,
 };
 
 /// The position at which an expression is, used while lowering
