@@ -32,7 +32,12 @@ impl Stage<'_> {
     /// Declarations of ours this stage uses (after the uniform block, samplers and varyings).
     pub(super) fn prelude(&self) -> String {
         let mut p = String::from(
-            "float hz_modf(float x, out float i) { i = trunc(x); return x - i; }\n\
+            // Iris's glint helpers (GlintTransformer): a pack may ask whether the thing drawn
+            // has the enchanted glint and sample it. The glint pass has none of its own here, so
+            // they are false and zero wherever a pack calls them.
+            "bool mc_hasGlint() { return false; }\n\
+             vec3 mc_sampleGlint() { return vec3(0.0); }\n\
+             float hz_modf(float x, out float i) { i = trunc(x); return x - i; }\n\
              vec2 hz_modf(vec2 x, out vec2 i) { i = trunc(x); return x - i; }\n\
              vec3 hz_modf(vec3 x, out vec3 i) { i = trunc(x); return x - i; }\n\
              vec4 hz_modf(vec4 x, out vec4 i) { i = trunc(x); return x - i; }\n\

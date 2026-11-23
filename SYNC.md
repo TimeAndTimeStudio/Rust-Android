@@ -85,3 +85,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   terrain where they are in front of it, to the horizon instead of only overhead.
 - Shadows: a `shaders/` pack with its own shadow pass hides vanilla's round entity shadows too;
   a pack whose shadow programs did not load says so when it loads.
+- Shaders: Iris's `mc_hasGlint()` and `mc_sampleGlint()` are supplied to every program. Mellow
+  v3.5 calls them in its gbuffers programs; without them 17 programs (terrain, water, entities,
+  hand, weather) were skipped and the pack drew with a plain texture and no shadows.

@@ -2777,6 +2777,19 @@ mod tests {
         assert!(p.is_ok(), "{:?}", p.err());
     }
 
+    /// Mellow v3.5 asks Iris's glint helpers (`mc_hasGlint`, `mc_sampleGlint`): the loader
+    /// supplies them, so its gbuffers programs load instead of falling back to a plain texture.
+    #[test]
+    fn iris_glint_helpers_translate() {
+        let fsh = "#version 330\nout vec4 color;\nvoid main() {\n    color = mc_hasGlint()\n        ? \
+                   vec4(mc_sampleGlint(), 1.0) : vec4(0.0);\n}\n";
+        let p = program(
+            &[("gbuffers_terrain.vsh", VSH_120), ("gbuffers_terrain.fsh", fsh)],
+            Target::Buffers,
+        );
+        assert!(p.is_ok(), "{:?}", p.err());
+    }
+
     /// `x / 0.0` and `sqrt(-1.0)` are GL's infinity and NaN at run time; naga folds them into
     /// constants and refuses them (Mellow, Bloop). `texelFetch2D` is GL_EXT_gpu_shader4's name
     /// (Bliss).
