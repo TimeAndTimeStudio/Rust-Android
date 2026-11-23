@@ -698,7 +698,7 @@ pub fn light_from_layers<L: AsRef<[u8]>>(
         for (i, a) in above.iter_mut().enumerate() {
             *a = data[i] >> 4;
         }
-        section.light = Light::from_slice(&data);
+        section.light = Light::packed(Box::new(data));
         section.compact();
     }
     crate::chunk::share_uniform(&mut chunk.sections);
@@ -733,7 +733,7 @@ pub fn update_light_layers<L: AsRef<[u8]>>(
             continue;
         }
         let section = Arc::make_mut(&mut chunk.sections[si]);
-        section.light = Light::from_slice(&data);
+        section.light = Light::packed(Box::new(data));
         section.compact();
         changed.push(si);
     }
