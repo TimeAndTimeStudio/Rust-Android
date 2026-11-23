@@ -53,3 +53,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   world, so the sky no longer stands still under a bobbing camera.
 - `e55ba16038` and later — TML's own shader cache, resolution-scale and default-pack changes
   stay on top and are not upstream.
+- `15c1eec6c6` — shader-pack expressions and `#if` conditions have a nesting limit.
+- `58d1bd9ce5` — a continued `block.properties` value continues past a preprocessor group.
+- `a95d0770af` — numeric promotion stays local to each shader-pack operation.
+- `ca9f24c304` — classic GLSL parsing/lowering depth is bounded (naga).
+- `8365a5f59e` — section arena pages grow by half, not double (less video memory).
