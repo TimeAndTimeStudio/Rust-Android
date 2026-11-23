@@ -25,9 +25,13 @@ pub struct Textures {
 }
 
 /// The `getTexture` endpoint's valid URIs from Minecraft services discovery.
-pub const TEXTURE_URIS: [&str; 2] = [
+pub const TEXTURE_URIS: [&str; 6] = [
     "https://textures.minecraft.net/texture/{textureId}",
     "http://textures.minecraft.net/texture/{textureId}",
+    "https://skinsystem.ely.by/textures/{textureId}",
+    "http://ely.by/storage/{textureId}",
+    "https://ely.by/storage/{textureId}",
+    "data:image/",
 ];
 
 /// `java.util.Base64.getDecoder().decode`.
@@ -570,6 +574,14 @@ fn resample_64(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
 
 /// `MinecraftProfileTexture.getHash`: the base name of the URL's path.
 pub fn texture_hash(url: &str) -> Option<String> {
+    if let Some(rest) = url.strip_prefix("data:") {
+        let digest = sha1(rest.as_bytes());
+        let mut out = String::new();
+        for b in digest {
+            out.push_str(&format!("{b:02x}"));
+        }
+        return Some(out);
+    }
     let rest = url.split_once("://")?.1;
     let path = &rest[rest.find('/').unwrap_or(rest.len())..];
     let path = &path[..path.find(['?', '#']).unwrap_or(path.len())];
@@ -1059,8 +1071,14 @@ impl SkinSlots {
 }
 
 /// A GET over HTTP or HTTPS (textures.minecraft.net serves both; vanilla
-/// uses https): the body of a 2xx answer, 16 MiB at most, after redirects.
+/// uses https) or decodes a data:image/... URI: the body of a 2xx answer,
+/// 16 MiB at most, after redirects.
 fn http_get(url: &str) -> Option<Vec<u8>> {
+    if let Some(rest) = url.strip_prefix("data:") {
+        if let Some((_, b64)) = rest.split_once(";base64,") {
+            return base64_decode(b64);
+        }
+    }
     use std::io::Read;
     let response = ureq::AgentBuilder::new()
         .timeout(std::time::Duration::from_secs(15))
