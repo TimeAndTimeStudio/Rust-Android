@@ -64,3 +64,4 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   removes the striped shadows on distant ground; a pack's `shadowtexNNearest` keeps nearest.
 - `d652ec2f1b` — classic packs' terrain is drawn from the camera rounded to 1/65536 block, as
   Iris does, so shadow-map texel ties no longer flip and stripe the ground.
+- `b45d73de43` — weather columns outside the view frustum are not built or uploaded.

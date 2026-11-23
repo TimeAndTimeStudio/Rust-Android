@@ -296,6 +296,25 @@ fn column_size(index: usize) -> (f32, f32) {
     SIZES[index]
 }
 
+/// Camera-relative bounding box for a weather column, enclosing its quad with padding for
+/// vertex rounding and sub-pixel jitter.
+pub fn column_bounds(
+    x: i32,
+    bottom_y: i32,
+    top_y: i32,
+    z: i32,
+    camera: [f64; 3],
+) -> ([f32; 3], [f32; 3]) {
+    let rel_x = (f64::from(x) + 0.5 - camera[0]) as f32;
+    let rel_z = (f64::from(z) + 0.5 - camera[2]) as f32;
+    let y0 = (f64::from(bottom_y) - camera[1]) as f32;
+    let y1 = (f64::from(top_y) - camera[1]) as f32;
+    (
+        [rel_x - 1.0, y0, rel_z - 1.0],
+        [rel_x + 1.0, y1, rel_z + 1.0],
+    )
+}
+
 /// `prepareInstances` for one column: rain uses `max_alpha` 1, snow 0.8.
 pub fn column_quad(
     column: &Column,
