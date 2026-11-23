@@ -23,6 +23,7 @@ const bool shadowHardwareFiltering = true;
 #define GODRAYS_SAMPLES 10 // [6 10 16]
 #define BLOOM
 #define BLOOM_STRENGTH 0.08 // [0.03 0.05 0.08 0.12 0.16]
+#define CLOUDS_AMOUNT 1.0 // [0.0 0.35 0.6 0.8 1.0]
 
 // A torch or another glowing block in the hand lights around the player.
 #define HAND_LIGHT

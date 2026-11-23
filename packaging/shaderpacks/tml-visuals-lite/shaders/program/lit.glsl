@@ -169,6 +169,11 @@ float sunReaches() {
 }
 
 void main() {
+#ifdef CLOUDS
+    // The game's cloud mesh is kept out of the way: `composite` draws one soft cloud layer
+    // over the sky whether vanilla clouds are on or off.
+    discard;
+#endif
     vec4 albedo = texture2D(gtexture, texcoord) * glcolor;
     if (albedo.a < 0.1) discard;
     #ifdef ENTITIES

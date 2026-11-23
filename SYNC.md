@@ -41,3 +41,15 @@ clippy-android, fmt, test, raw CMD). On the VM: `~/sync4`, `~/sync4-target`, `~/
 Nothing ran on a phone. On the VM the client ran without mods and without a shader pack: Create,
 shader packs, touch, custom buttons, the setup download and native mods builds were not run after
 the merge.
+
+## Ported after the squash (2026-11-23)
+
+The fork's history is a single squashed root (`1beb91ea75`), so `git merge upstream/main` has no
+common ancestor to merge from. Stable upstream changes that matter to phones are ported by hand:
+
+- `ab44288662` — cloud mesh rebuilds through a precomputed L2 cloud mask (+2.07x CPU).
+- `2d43808325` — shader-pack sky visibility switches (`sky`, `stars`, `sun`, `moon`).
+- `95c4d72ce9` — the sky gradient and sunrise fan follow the same view pose (bob/spin) as the
+  world, so the sky no longer stands still under a bobbing camera.
+- `e55ba16038` and later — TML's own shader cache, resolution-scale and default-pack changes
+  stay on top and are not upstream.

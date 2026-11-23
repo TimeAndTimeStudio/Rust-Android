@@ -510,6 +510,8 @@ pub struct PackPost {
     /// program: vanilla's stays hidden even when the program writes nothing.
     hides_sky: bool,
     hides_celestial: bool,
+    /// Which sky parts the pack's `shaders.properties` asks the game to hide.
+    sky_visibility: horizon_shaders::SkyVisibility,
     /// `colortex0ClearColor`, when the pack sets it.
     sky_clear: Option<[f32; 4]>,
     /// What draws rain and snow (the same program, each with its kind's sprite as `texture`),
@@ -2098,6 +2100,7 @@ impl PackPost {
             .zip(terrain_geometry.as_ref())
             .and_then(|(p, g)| build(p, Some(g)));
         let (hides_sky, hides_celestial) = (post.sky.is_some(), post.sky_textured.is_some());
+        let sky_visibility = post.sky_visibility;
         let sky = (post.sky.is_some() || post.sky_textured.is_some()).then(|| {
             let geometry = PackSky::new(device);
             let basic = Geometry {
@@ -2506,6 +2509,7 @@ impl PackPost {
             hides_clouds,
             hides_sky,
             hides_celestial,
+            sky_visibility,
             sky_clear,
             weather,
             weather_draw: None,
@@ -3544,6 +3548,12 @@ impl PackPost {
     /// Whether the pack has the sun and moon's program, drawing or not.
     pub fn has_celestial(&self) -> bool {
         self.hides_celestial
+    }
+
+    /// The sky parts the pack asks the game to hide (`sky=false`, `stars=false`, `sun=false`,
+    /// `moon=false` in its `shaders.properties`).
+    pub fn sky_visibility(&self) -> horizon_shaders::SkyVisibility {
+        self.sky_visibility
     }
 
     /// Whether the pack draws translucent terrain itself.

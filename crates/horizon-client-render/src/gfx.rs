@@ -6779,7 +6779,8 @@ impl Renderer {
                 views.primary().aspect,
                 views.primary().tan_half_fov,
             ],
-            inverse_view: view.inverse().to_cols_array_2d(),
+            // The sky turns with the view bob and the nausea spin, as the world does.
+            inverse_view: views.primary().posed_view(pose).inverse().to_cols_array_2d(),
             sunrise: frame.sky.sunrise_color,
             sun: [sun.x, sun.y, sun.z, frame.sky.star_brightness],
             fog_ends: [
@@ -6853,11 +6854,11 @@ impl Renderer {
         self.uploads
             .buffer(&mut encoder, &self.globals, 0, bytemuck::bytes_of(&globals));
         // The sunrise fan as sixteen triangles. Its clip positions use the sky's
-        // own view (no TAA jitter, bob or spin: `fs_sky`'s `view_ray` has none),
+        // own view (no TAA jitter; the bob and the spin, as `fs_sky`'s `view_ray`),
         // and its apex weight interpolates the barycentric the shader used to
         // compute for every sky pixel.
         if frame.sky.sunrise_color[3] > 0.001 && !frame.title && frame.skybox {
-            let sky_view_proj = views.primary().view_proj(Mat4::IDENTITY);
+            let sky_view_proj = views.primary().view_proj(pose);
             let mut mesh = [[0.0f32; 5]; sunrise_fan::VERTICES];
             for (to, from) in mesh
                 .iter_mut()
@@ -8039,6 +8040,11 @@ impl Renderer {
                 .as_ref()
                 .and_then(|p| p.1.as_ref())
                 .is_some_and(|p| p.has_sky());
+        let pack_sky_visibility = self
+            .pack_post
+            .as_ref()
+            .and_then(|p| p.1.as_ref())
+            .map_or_else(Default::default, |p| p.sky_visibility());
         let pack_draws_celestial = pack_post
             && self
                 .pack_post
@@ -8541,7 +8547,12 @@ impl Renderer {
             if late_sky.is_none()
                 && (frame.title || (sky_visible && (frame.skybox || frame.end_sky)))
             {
-                if !frame.title && frame.skybox && !native_sky_pass {
+                if !frame.title
+                    && frame.skybox
+                    && !pack_draws_sky
+                    && !native_sky_pass
+                    && pack_sky_visibility.sky
+                {
                     match self
                         .native
                         .as_ref()
@@ -8577,9 +8588,24 @@ impl Renderer {
                                 .native
                                 .as_ref()
                                 .is_some_and(|n| n.sky.is_some() && !n.vanilla_sun);
-                        let first = if own_sun { 6 } else { 0 };
-                        pass.set_vertex_buffer(0, self.celestial_buffer.slice(..));
-                        pass.draw_indexed(first..(celestial_vertices as u32 / 4) * 6, 0, 0..1);
+                        let total = (celestial_vertices as u32 / 4) * 6;
+                        // A pack's `sun=false`/`moon=false` hides that body; the End's flashes
+                        // are neither and keep their whole range.
+                        let first = if !frame.end_sky && (own_sun || !pack_sky_visibility.sun)
+                        {
+                            6.min(total)
+                        } else {
+                            0
+                        };
+                        let end = if !frame.end_sky && !pack_sky_visibility.moon {
+                            6.min(total)
+                        } else {
+                            total
+                        };
+                        if first < end {
+                            pass.set_vertex_buffer(0, self.celestial_buffer.slice(..));
+                            pass.draw_indexed(first..end, 0, 0..1);
+                        }
                     }
                     pass.set_bind_group(0, &self.group, &[]);
                 }
@@ -8587,11 +8613,15 @@ impl Renderer {
                     .native
                     .as_ref()
                     .is_some_and(|n| n.sky.is_some() && !n.vanilla_stars);
-                if !frame.title && frame.stars.is_some() && !own_stars {
+                if !frame.title
+                    && frame.stars.is_some()
+                    && !own_stars
+                    && pack_sky_visibility.stars
+                {
                     self.stars.draw(&mut pass);
                     pass.set_bind_group(0, &self.group, &[]);
                 }
-                if !frame.title && frame.dark_disc {
+                if !frame.title && frame.dark_disc && !pack_draws_sky && pack_sky_visibility.sky {
                     pass.set_pipeline(&self.dark_disc);
                     pass.draw(0..3, 0..1);
                 }

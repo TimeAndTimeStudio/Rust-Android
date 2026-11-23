@@ -373,6 +373,44 @@ pub enum ShadowCulling {
     Reversed,
 }
 
+/// The sky parts a pack asks the game to hide (`shaders.properties`'s `sky`, `stars`, `sun`
+/// and `moon`). Only an explicit `false` hides one; absent or unknown values keep the game's
+/// draw, as Iris leaves them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkyVisibility {
+    pub sky: bool,
+    pub stars: bool,
+    pub sun: bool,
+    pub moon: bool,
+}
+
+impl Default for SkyVisibility {
+    fn default() -> Self {
+        Self {
+            sky: true,
+            stars: true,
+            sun: true,
+            moon: true,
+        }
+    }
+}
+
+impl SkyVisibility {
+    pub fn parse(properties: &crate::Properties) -> Self {
+        let shown = |name| {
+            properties
+                .get(name)
+                .is_none_or(|value| value.trim() != "false")
+        };
+        Self {
+            sky: shown("sky"),
+            stars: shown("stars"),
+            sun: shown("sun"),
+            moon: shown("moon"),
+        }
+    }
+}
+
 pub struct Post {
     /// The folder the programs came from: `""` for `shaders` itself, else `world0`...
     pub folder: String,
@@ -439,6 +477,8 @@ pub struct Post {
     /// only what casts a shadow into view; `reversed` within `voxelDistance` of the player.
     pub shadow_culling: ShadowCulling,
     pub config: Config,
+    /// Which sky parts `shaders.properties` asks to hide.
+    pub sky_visibility: SkyVisibility,
     /// Programs skipped and why, as `program: message` or `file:line: message`.
     pub notes: Vec<String>,
     /// Every program that was found but did not load (it does not preprocess or translate, or
@@ -620,6 +660,7 @@ pub fn load_post(
             _ => ShadowCulling::On,
         },
         config: Config::default(),
+        sky_visibility: SkyVisibility::parse(properties),
         notes: Vec::new(),
         skipped: Vec::new(),
     };

@@ -1131,7 +1131,9 @@ pub fn apply_mobile_defaults(tier: crate::system_stats::Tier, s: &mut crate::set
         Tier::Low => 6,
     };
     s.simulation_distance = if high { 8 } else { 6 };
-    s.clouds = if high { "fast" } else { "false" }.into();
+    // Clouds are part of the default look, and a shader pack's `gbuffers_clouds` needs the
+    // game's mesh: every tier starts with vanilla's fast clouds (one flat quad a cell) on.
+    s.clouds = "fast".into();
     s.particles = if high { 1 } else { 2 };
     s.entity_shadows = high;
     s.biome_blend = if high { 1 } else { 0 };
