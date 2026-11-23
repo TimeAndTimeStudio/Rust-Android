@@ -434,10 +434,16 @@ impl Game<'_> {
             return;
         }
         let rows = self.chest_rows().unwrap_or(3);
+        let title = self.chest_title(rows);
         let top = rows as f32 * 18.0 + 17.0;
+        // TimeSMP's own menus carry a themed *top* texture in the TML pack.
+        // The player inventory half below stays vanilla `generic_54`, as
+        // DeluxeMenus/ItemsAdder menus do; a plain chest stays fully vanilla.
+        let custom = custom_gui_texture(&title.plain())
+            .filter(|(key, expected)| *expected == rows && atlas.sprites.contains_key(*key));
         batch.sprite_region(
             atlas,
-            "gui/container/generic_54",
+            custom.map_or("gui/container/generic_54", |(key, _)| key),
             [ox, oy, 176.0, top],
             256.0,
             256.0,
@@ -450,7 +456,6 @@ impl Game<'_> {
             r.u1 = r.u0 + 176.0 * du;
             batch.rect_uv(ox, oy + top, 176.0, 96.0, r, u32::MAX);
         }
-        let title = self.chest_title(rows);
         super::screen_info::name_container(|| title.plain());
         batch.text_styled(atlas, &title, ox + 8.0, oy + 6.0, grey, false);
         let inventory = self.translate("container.inventory", "Inventory");
@@ -463,6 +468,52 @@ impl Game<'_> {
             false,
         );
     }
+}
+
+/// The TimeSMP menu background for a container title, and the row count the
+/// asset is drawn for. Titles are the literals the server's
+/// `VirtualChestMenu.open` passes; page numbers come after the stable prefix.
+fn custom_gui_texture(title: &str) -> Option<(&'static str, usize)> {
+    let (key, rows) = if title.contains("ตลาดประมูล") {
+        ("timesmp:gui/auction", 6)
+    } else if title.contains("ไอเท็มประมูล") {
+        ("timesmp:gui/auction_items", 6)
+    } else if title.contains("ประมูลที่ดิน") {
+        ("timesmp:gui/auction_cells", 6)
+    } else if title.contains("เสนอราคา:") {
+        ("timesmp:gui/auction_detail", 3)
+    } else if title.contains("รายการประมูลของฉัน") {
+        ("timesmp:gui/auction_mine", 6)
+    } else if title.contains("ตลาดซื้อสินค้าผู้เล่น") {
+        ("timesmp:gui/buy", 6)
+    } else if title.contains("สินค้าของฉัน") {
+        ("timesmp:gui/buy_mine", 6)
+    } else if title.contains("ยืนยันการซื้อสินค้า") || title.contains("จัดการสินค้าของคุณ") {
+        ("timesmp:gui/buy_detail", 3)
+    } else if title.contains("ลากไอเท็มที่ต้องการขาย") {
+        ("timesmp:gui/sell", 6)
+    } else if title.contains("ระบบเทเลพอร์ต") {
+        ("timesmp:gui/tpa", 6)
+    } else if title.contains("คำขอวาร์ป") {
+        ("timesmp:gui/tpa_requests", 6)
+    } else if title.contains("แผนที่เขต") {
+        ("timesmp:gui/claimmap", 6)
+    } else if title.contains("จัดการเขต") {
+        ("timesmp:gui/claim_manage", 3)
+    } else if title.contains("กล่องรับของ") {
+        ("timesmp:gui/mail", 6)
+    } else if title.contains("เช็คราคาไอเท็ม") {
+        ("timesmp:gui/price", 6)
+    } else if title.contains("ราคา:") {
+        ("timesmp:gui/price_detail", 3)
+    } else if title.contains("จุดเซฟบ้าน") {
+        ("timesmp:gui/home", 6)
+    } else if title.contains("คู่มือการใช้งานคำสั่ง") {
+        ("timesmp:gui/help", 6)
+    } else {
+        return None;
+    };
+    Some((key, rows))
 }
 
 impl Game<'_> {

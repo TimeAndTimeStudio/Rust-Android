@@ -25,14 +25,35 @@ pub struct Textures {
 }
 
 /// The `getTexture` endpoint's valid URIs from Minecraft services discovery.
-pub const TEXTURE_URIS: [&str; 6] = [
+pub const TEXTURE_URIS: [&str; 7] = [
     "https://textures.minecraft.net/texture/{textureId}",
     "http://textures.minecraft.net/texture/{textureId}",
     "https://skinsystem.ely.by/textures/{textureId}",
+    "http://skinsystem.ely.by/textures/{textureId}",
     "http://ely.by/storage/{textureId}",
     "https://ely.by/storage/{textureId}",
     "data:image/",
 ];
+
+/// Whether a texture URL names a skin the TimeSMP server supplies itself:
+/// an embedded `data:image/` or an Ely.by texture. Those are unsigned by
+/// design (the server builds the property), so an online-mode client must not
+/// reject them for other players. A Mojang URL stays subject to signatures.
+pub fn is_custom_url(url: &str) -> bool {
+    url.starts_with("data:image/")
+        || url.starts_with("http://skinsystem.ely.by/")
+        || url.starts_with("https://skinsystem.ely.by/")
+        || url.starts_with("http://ely.by/")
+        || url.starts_with("https://ely.by/")
+}
+
+/// Whether any texture of `textures` is a server-supplied custom skin.
+pub fn is_custom(textures: &Textures) -> bool {
+    [&textures.skin, &textures.cape, &textures.elytra]
+        .into_iter()
+        .flatten()
+        .any(|url| is_custom_url(url))
+}
 
 /// `java.util.Base64.getDecoder().decode`.
 pub fn base64_decode(text: &str) -> Option<Vec<u8>> {
@@ -732,7 +753,9 @@ pub fn lookup(
             Download::Ready => {}
         }
     }
-    if state != Download::Ready || require_secure && !textures.signed {
+    if state != Download::Ready
+        || (require_secure && !textures.signed && !is_custom(textures))
+    {
         return None;
     }
     skin
@@ -1075,9 +1098,25 @@ impl SkinSlots {
 /// 16 MiB at most, after redirects.
 fn http_get(url: &str) -> Option<Vec<u8>> {
     if let Some(rest) = url.strip_prefix("data:") {
-        if let Some((_, b64)) = rest.split_once(";base64,") {
-            return base64_decode(b64);
+        let rest = rest.trim();
+        let (_, b64) = rest.split_once(";base64,")?;
+        let bytes = base64_decode(b64.trim())?;
+        // A profile property value is at most 32,767 characters before
+        // base64; a decoded 64x64 skin is a few KiB. Anything near a
+        // megabyte is not a skin and must not reach the decoder/atlas.
+        if bytes.len() > 1 << 20 {
+            return None;
         }
+        // PNG magic; `process_legacy_skin` and `decode_bytes` expect an image.
+        if bytes.len() < 8
+            || bytes[0] != 0x89
+            || bytes[1] != b'P'
+            || bytes[2] != b'N'
+            || bytes[3] != b'G'
+        {
+            return None;
+        }
+        return Some(bytes);
     }
     use std::io::Read;
     let response = ureq::AgentBuilder::new()
@@ -1188,6 +1227,43 @@ mod tests {
         assert!(t.slim);
         assert!(!unpack(wide, Signature::Signed, &TEXTURE_URIS).slim);
     }
+    /// Server-supplied skins are unsigned: an online-mode client must show
+    /// them for other players, while an unsigned Mojang URL stays rejected.
+    #[test]
+    fn unsigned_server_skins_are_allowed_in_online_mode() {
+        use super::{Download, Signature, TEXTURE_URIS, is_custom, lookup, unpack};
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        let payload = |url: &str| {
+            let json = format!(r#"{{"textures":{{"SKIN":{{"url":"{url}"}}}}}}"#);
+            STANDARD.encode(json)
+        };
+
+        let data = unpack(
+            &payload("data:image/png;base64,iVBORw0KGgo="),
+            Signature::Unsigned,
+            &TEXTURE_URIS,
+        );
+        assert!(is_custom(&data));
+        assert!(lookup(&data, true, |_, _| Download::Ready).is_some());
+
+        let ely = unpack(
+            &payload("http://skinsystem.ely.by/textures/abc"),
+            Signature::Unsigned,
+            &TEXTURE_URIS,
+        );
+        assert_eq!(ely.skin.as_deref(), Some("http://skinsystem.ely.by/textures/abc"));
+        assert!(is_custom(&ely));
+        assert!(lookup(&ely, true, |_, _| Download::Ready).is_some());
+
+        let mojang = unpack(
+            &payload("http://textures.minecraft.net/texture/abc"),
+            Signature::Unsigned,
+            &TEXTURE_URIS,
+        );
+        assert!(!is_custom(&mojang));
+        assert!(lookup(&mojang, true, |_, _| Download::Ready).is_none());
+    }
+
     #[test]
     fn profiles_parse_like_resolvable_profiles() {
         use super::{NameOrId, Signature, parse_profile};
