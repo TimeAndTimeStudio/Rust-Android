@@ -25,7 +25,7 @@ use winit::event::{Touch, TouchPhase};
 const LATER: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Clone, PartialEq)]
-enum Stage {
+pub(super) enum Stage {
     Checking,
     UpToDate(String),
     CheckFailed(String),
