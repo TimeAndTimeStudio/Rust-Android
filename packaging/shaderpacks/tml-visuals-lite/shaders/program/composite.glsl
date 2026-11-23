@@ -80,7 +80,7 @@ float cloudNoise(vec2 p) {
 float cloudFbm(vec2 p) {
     float sum = 0.0;
     float amp = 0.5;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         sum += amp * cloudNoise(p);
         p = p * 2.03 + vec2(17.1, 9.2);
         amp *= 0.5;
@@ -88,30 +88,52 @@ float cloudFbm(vec2 p) {
     return sum;
 }
 
+// One detail octave under the billows: wisps at the edges, not another full fbm.
+float cloudDensity(vec2 p, float t) {
+    float base = cloudFbm(p) * 0.72 + 0.14;
+    float detail = cloudNoise(p * 3.1 + vec2(t * 0.012, -t * 0.004));
+    return base + (detail - 0.5) * 0.16;
+}
+
 // The cloud colour and how much of the sky it covers along `dir`, at the vanilla cloud
 // layer's height. Zero below the horizon, underwater, or with the option at 0.
 vec4 cloudLayer(vec3 dir, vec3 s) {
-    if (CLOUDS_AMOUNT <= 0.0 || isEyeInWater != 0 || dir.y < 0.02) {
+    if (CLOUDS_AMOUNT <= 0.0 || isEyeInWater != 0 || dir.y < 0.01) {
         return vec4(0.0);
     }
     float t = (192.33 - cameraPosition.y) / dir.y;
     if (t <= 0.0) {
         return vec4(0.0);
     }
-    vec2 p = cameraPosition.xz + dir.xz * t;
-    p += vec2(frameTimeCounter * 15.0, frameTimeCounter * 3.0);
-    float n = cloudFbm(p * 0.006);
-    float cover = smoothstep(0.50, 0.68, n) * CLOUDS_AMOUNT;
-    // Fade into the haze at the world's edge.
-    cover *= 1.0 - smoothstep(far * 0.7, far * 1.6, t);
+    vec2 q = (cameraPosition.xz + dir.xz * t) * 0.0045;
+    q += vec2(frameTimeCounter * CLOUD_SPEED * 0.8,
+              frameTimeCounter * CLOUD_SPEED * 0.18);
+    float n = cloudDensity(q, frameTimeCounter);
+    // More coverage lowers the threshold: the same sky, more or fewer clouds.
+    float threshold = mix(0.70, 0.40, CLOUD_COVERAGE);
+    float cover = smoothstep(threshold, threshold + 0.17, n) * CLOUDS_AMOUNT;
+    // Keep a soft edge at the horizon and fade into the haze at the world's edge.
+    cover *= smoothstep(0.01, 0.10, dir.y);
+    cover *= 1.0 - smoothstep(far * 0.85, far * 2.2, t);
     if (cover <= 0.0) {
         return vec4(0.0);
     }
-    vec3 day = mix(vec3(0.42, 0.48, 0.58), vec3(1.0, 0.98, 0.94), daylight(s));
-    float lit = smoothstep(0.48, 0.74, n);
-    vec3 color = mix(day * 0.62, day, lit);
-    color *= mix(0.35, 1.0, max(s.y, 0.0) * 0.5 + 0.5);
-    color += sunlight(s) * pow(max(dot(dir, s), 0.0), 8.0) * 0.18;
+    float day = daylight(s);
+    vec3 shadowColor = mix(vec3(0.30, 0.35, 0.46), vec3(0.55, 0.58, 0.66), day);
+    vec3 litColor = mix(vec3(1.0, 0.68, 0.46), vec3(1.0, 0.99, 0.96),
+                        smoothstep(-0.05, 0.35, s.y));
+    float lit = smoothstep(threshold + 0.02, threshold + 0.30, n);
+    vec3 color = mix(shadowColor, litColor, lit);
+    // Darker undersides where another cloud sits between this one and the sun.
+    vec2 towardSun = normalize(vec2(s.x, s.z) + vec2(0.0001));
+    float under = cloudNoise(q * 0.9 + towardSun * 0.35);
+    color *= mix(0.76, 1.0, smoothstep(0.30, 0.82, under));
+    color *= mix(0.55, 1.0, max(s.y, 0.0) * 0.6 + 0.4);
+    // A silver lining on the sunward edge, brighter through thinner cloud.
+    float sunward = pow(max(dot(dir, s), 0.0), 12.0);
+    color += sunlight(s) * sunward * mix(0.55, 0.18, lit);
+    // Sunrise and sunset paint the whole layer with the sky.
+    color = mix(color, skyRadiance(dir, s) * 1.12, (1.0 - day) * 0.35);
     return vec4(color, cover);
 }
 

@@ -24,6 +24,8 @@ const bool shadowHardwareFiltering = true;
 #define BLOOM
 #define BLOOM_STRENGTH 0.08 // [0.03 0.05 0.08 0.12 0.16]
 #define CLOUDS_AMOUNT 1.0 // [0.0 0.35 0.6 0.8 1.0]
+#define CLOUD_COVERAGE 0.55 // [0.2 0.35 0.45 0.55 0.65 0.75 0.9]
+#define CLOUD_SPEED 1.0 // [0.0 0.5 1.0 1.5 2.0]
 
 // A torch or another glowing block in the hand lights around the player.
 #define HAND_LIGHT
