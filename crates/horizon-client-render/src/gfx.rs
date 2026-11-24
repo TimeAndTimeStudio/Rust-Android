@@ -7229,16 +7229,6 @@ impl Renderer {
             self.animate(&mut encoder, frame.ticks, !frame.title);
         }
         self.drawn_sections = visible.len() + visible_lods.len();
-        if now >= self.stats_at {
-            self.stats_at = now + std::time::Duration::from_secs(20);
-            log::info!(
-                "Horizon renderer: {} sections and {} shadow casters drawn with {} draw calls                  (occlusion culling {})",
-                self.drawn_sections,
-                shadow_visible.len(),
-                self.section_draw_calls,
-                on_off(self.cull.is_some()),
-            );
-        }
         let instances = self.drawn_sections + shadow_visible.len();
         if instances as u64 > self.instance_capacity {
             self.instance_capacity = (instances as u64).next_power_of_two();
@@ -7647,6 +7637,30 @@ impl Renderer {
         } else {
             self.section_draws
         };
+        if now >= self.stats_at {
+            self.stats_at = now + std::time::Duration::from_secs(20);
+            let (drawn, casters, calls) = (
+                self.drawn_sections,
+                shadow_visible.len(),
+                self.section_draw_calls,
+            );
+            match self.cull.as_ref().map(|cull| cull.hidden) {
+                // What the last test hid: the boxes it saw and did not, and the share of solid
+                // indices those boxes kept out of the passes.
+                Some(([hidden, seen], share)) => log::info!(
+                    "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \
+                     {calls} draw calls; occlusion culling hid {hidden} of {} boxes, {:.0}% of \
+                     solid indices",
+                    hidden + seen,
+                    share * 100.0,
+                ),
+                None => log::info!(
+                    "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \
+                     {calls} draw calls (occlusion culling off)",
+                ),
+            }
+        }
+
         let debug_depth = frame.debug_lines.len() as u32;
         let debug_top = frame.debug_lines_on_top.len() as u32;
         let crosshair = frame.debug_crosshair.len() as u32;

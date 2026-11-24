@@ -169,3 +169,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - TML Visuals Lite: `TML_DIMENSION`/`TML_OVERWORLD`/`TML_NETHER`/`TML_END` are defined for every
   pack's programs. In the Nether the cloud sheet is gone and embers drift through warm air; in
   the End a black hole hangs over the island — a black disc with a hot ring and a violet halo.
+- Culling, measured properly: the line is written after the frame's draw calls are counted, and
+  it says what the last test hid — boxes hidden out of those tested, and the share of solid
+  indices kept out of the passes.
