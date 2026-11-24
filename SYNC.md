@@ -101,3 +101,7 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   assets; when the phone has no resources, it is streamed out and unpacked, and unpacked again
   whenever they go missing. Clearing app data cannot lose it. CI takes the zip from the
   `TML_RESOURCES_URL` secret.
+- On-phone preparation is back: the app downloads the Android Java runtime, runs the exporters
+  and prepares `resources` again (no computer needed), then writes `resources.zip` beside them.
+  The zip is re-unpacked if the folder is lost. Fetched `minecraft` files stay and move to
+  shared storage instead of being deleted.

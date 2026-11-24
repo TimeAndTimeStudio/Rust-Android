@@ -16,6 +16,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub mod ely;
 pub mod files;
+pub mod java;
 mod profiles;
 pub mod skins;
 pub use profiles::{

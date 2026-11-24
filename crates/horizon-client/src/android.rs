@@ -489,22 +489,34 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
 /// from them. The resources go to shared storage (the game reads them there) and the private copy
 /// is removed once the copy is whole, so a phone's app storage gets the space back.
 fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
-    // The official jars and assets were only read by the preparation the phone no longer runs
-    // (Java is gone): they are dead weight in both folders.
-    for base in [private, shared] {
-        let minecraft = base.join("minecraft");
-        if minecraft.is_dir() {
-            let freed = tree_size(&minecraft);
-            match std::fs::remove_dir_all(&minecraft) {
-                Ok(()) => notes.push(format!(
-                    "TML: removed {} ({} MB of fetched game files the phone cannot prepare)",
-                    minecraft.display(),
+    // The fetched Minecraft files are read by the preparation on the phone: they move to shared
+    // storage too (a copy that is already there makes the private one only space to free).
+    let fetched = private.join("minecraft");
+    if fetched.is_dir() && private != shared {
+        let to = shared.join("minecraft");
+        if to.is_dir() {
+            let freed = tree_size(&fetched);
+            if std::fs::remove_dir_all(&fetched).is_ok() {
+                notes.push(format!(
+                    "TML: removed a redundant private minecraft copy ({} MB)",
                     mib(freed)
-                )),
-                Err(e) => notes.push(format!(
-                    "TML: could not remove {}: {e}",
-                    minecraft.display()
-                )),
+                ));
+            }
+        } else {
+            let partial = shared.join("minecraft.partial");
+            let _ = std::fs::remove_dir_all(&partial);
+            match copy_tree(&fetched, &partial).and_then(|()| std::fs::rename(&partial, &to)) {
+                Ok(()) => {
+                    let _ = std::fs::remove_dir_all(&fetched);
+                    notes.push(format!("TML: moved minecraft to {}", to.display()));
+                }
+                Err(e) => {
+                    let _ = std::fs::remove_dir_all(&partial);
+                    notes.push(format!(
+                        "TML: could not move minecraft to {}: {e}",
+                        to.display()
+                    ));
+                }
             }
         }
     }
@@ -594,24 +606,9 @@ fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
     }
 }
 
-/// Space the app no longer needs: the Java-era preparation files, an APK kept from an update,
-/// and interrupted imports. The sizes go to the log, so a full app folder can be accounted for.
+/// Space the app no longer needs: an APK kept from an update, interrupted imports, and a
+/// resources folder left empty. The sizes go to the log, so the app folder can be accounted for.
 fn free_dead_space(private: &Path, shared: &Path, notes: &mut Vec<String>) {
-    let preparer = private.join("preparer");
-    for name in ["jre25", "kit", "tmp", "exporters"] {
-        let path = preparer.join(name);
-        if path.exists() {
-            let freed = tree_size(&path);
-            match std::fs::remove_dir_all(&path) {
-                Ok(()) => notes.push(format!(
-                    "TML: removed the Java preparation's {} ({} MB)",
-                    path.display(),
-                    mib(freed)
-                )),
-                Err(e) => notes.push(format!("TML: could not remove {}: {e}", path.display())),
-            }
-        }
-    }
     let updates = private.join("updates");
     if updates.is_dir() {
         let freed = tree_size(&updates);

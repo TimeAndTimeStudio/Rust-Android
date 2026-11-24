@@ -1470,6 +1470,7 @@ dependencies = [
  "horizon-mods",
  "horizon-narrator",
  "horizon-optifine",
+ "horizon-prepare",
  "horizon-protocol",
  "horizon-server-files",
  "horizon-shader-api",
@@ -2306,6 +2307,16 @@ name = "lz4_flex"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecbdfe44b1bd960b68170b417450a628c43f7cf56bb3c5317e61cb230ee7f226"
+
+[[package]]
+name = "lzma-rs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "297e814c836ae64db86b36cf2a557ba54368d03f6afcd7d947c266692f71115e"
+dependencies = [
+ "byteorder",
+ "crc",
+]
 
 [[package]]
 name = "mach2"
@@ -3812,10 +3823,12 @@ name = "starling-account"
 version = "0.1.0"
 dependencies = [
  "getrandom 0.3.4",
+ "lzma-rs",
  "serde",
  "serde_json",
  "sha1",
  "sha2",
+ "tar",
  "ureq",
 ]
 
@@ -3965,6 +3978,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "tar"
+version = "0.4.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
+dependencies = [
+ "filetime",
+ "libc",
 ]
 
 [[package]]

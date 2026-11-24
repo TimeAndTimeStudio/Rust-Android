@@ -1,13 +1,313 @@
-//! What the app itself needs around the game files. TML no longer prepares them on the phone:
-//! preparing runs Mojang's own exporters, which need a Java runtime the app does not carry (or
-//! download) any more. The resources `horizon-prepare` makes on a computer are imported as a
-//! zip (`import.rs`, `Kind::Resources`). What stays here is the setup's skin and the packs the
-//! app carries.
+//! The game files prepared on the device, where no computer does it (Android): once the sign-in
+//! has fetched the official files (accounts.rs), the Java runtime (starling_account::java) and
+//! the preparer's kit the app carries (`assets/prepare-kit.zip`, build_apk.py), then
+//! horizon-prepare over those files with the app's Java launchers. What it makes becomes the
+//! game's resources folder; the runtime goes once it is done.
+#[path = "preparer_install.rs"]
+mod install;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-/// The app's own folder, where the setup's skin is unpacked.
+/// Where the preparing is.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Stage {
+    #[default]
+    Idle,
+    /// Fetching the Java runtime: bytes so far, and in all.
+    Java(u64, u64),
+    /// Unpacking it.
+    Unpacking,
+    /// horizon-prepare at work: its last line.
+    Preparing(String),
+    /// The resources are in place.
+    Done,
+    Failed(String),
+}
+
+fn shared() -> MutexGuard<'static, Stage> {
+    static STAGE: OnceLock<Mutex<Stage>> = OnceLock::new();
+    STAGE
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Where the preparing is now.
+pub fn stage() -> Stage {
+    shared().clone()
+}
+
+/// Back to idle once what it made was taken (the game loads it).
+pub fn clear() {
+    let mut stage = shared();
+    if *stage == Stage::Done {
+        *stage = Stage::Idle;
+    }
+}
+
+/// Whether it is under way.
+pub fn running() -> bool {
+    matches!(
+        stage(),
+        Stage::Java(..) | Stage::Unpacking | Stage::Preparing(_)
+    )
+}
+
+/// The runtime, the kit and horizon-prepare's work files: the app's own folder.
 fn home() -> PathBuf {
     crate::logging::private_home().join("preparer")
+}
+
+/// Prepare the fetched files into `resources` (the folder the game reads), on a thread of its
+/// own; `stage` follows it.
+pub fn start(resources: PathBuf) {
+    let Some(runtime) = starling_account::java::android_runtime(std::env::consts::ARCH) else {
+        *shared() = Stage::Failed("On 32-bit x86, import prepared resources as a .starling file. An Android x86 Java 25 runtime is not available.".into());
+        return;
+    };
+    {
+        let mut stage = shared();
+        if matches!(
+            *stage,
+            Stage::Java(..) | Stage::Unpacking | Stage::Preparing(_)
+        ) {
+            return;
+        }
+        *stage = Stage::Java(0, runtime.size);
+    }
+    let spawned = std::thread::Builder::new()
+        .name("preparer".into())
+        .spawn(move || {
+            let started = std::time::Instant::now();
+            let result = run(&resources);
+            *shared() = match result {
+                Ok(()) => {
+                    log::info!(
+                        "Horizon: the game files were prepared in {} s",
+                        started.elapsed().as_secs()
+                    );
+                    Stage::Done
+                }
+                Err(e) => {
+                    log::warn!("Horizon: the game files were not prepared: {e}");
+                    Stage::Failed(e)
+                }
+            };
+        });
+    if let Err(e) = spawned {
+        *shared() = Stage::Failed(e.to_string());
+    }
+}
+
+fn run(resources: &Path) -> Result<(), String> {
+    let runtime = starling_account::java::android_runtime(std::env::consts::ARCH)
+        .ok_or("No Java runtime is available for this architecture.")?;
+    let server_jar = crate::accounts::server_jar()
+        .ok_or("The game files are not all there: download them again.")?;
+    let library = crate::platform::library_dir().ok_or("TML cannot find its own files.")?;
+    let home = home();
+    let kit = home.join("kit");
+    unpack_kit(&kit)?;
+    if !horizon_prepare::exporters::available(&kit) {
+        return Err("The app's exporter bundle is missing, outdated or damaged. Install the current APK again.".into());
+    }
+    let jre = home.join("jre25");
+    starling_account::java::install(
+        runtime,
+        &jre,
+        &|done, total| {
+            *shared() = if done >= total {
+                Stage::Unpacking
+            } else {
+                Stage::Java(done, total)
+            };
+        },
+        &|| false,
+    )?;
+    let temp = home.join("tmp");
+    std::fs::create_dir_all(&temp).map_err(|e| format!("{}: {e}", temp.display()))?;
+    let env = |path: &Path| path.display().to_string();
+    horizon_prepare::java::supply(horizon_prepare::java::Supplied {
+        java: library.join("libstarling_java.so"),
+        javac: library.join("libstarling_javac.so"),
+        env: vec![
+            ("STARLING_JAVA_HOME".into(), env(&jre)),
+            // The runtime's libraries need one another by name (libnio.so libnet.so): Android's
+            // linker finds them on this path only. Not lib/server, libjvm.so's (loaded by its
+            // path): with that on it the launcher runs the runtime's bin/java again, which an
+            // app may not.
+            (
+                "LD_LIBRARY_PATH".into(),
+                format!("{}:{}", env(&jre.join("lib")), env(&library)),
+            ),
+            ("JAVA_HOME".into(), env(&jre)),
+            ("TMPDIR".into(), env(&temp)),
+            (
+                "JAVA_TOOL_OPTIONS".into(),
+                format!("-Djava.io.tmpdir={}", env(&temp)),
+            ),
+        ],
+    });
+    if let Some(limit) = horizon_prepare::java::max_heap_mib() {
+        log::info!("Horizon: 32-bit preparation Java heap limit: {limit} MiB");
+    }
+    *shared() = Stage::Preparing("Starting Java".into());
+    let made = horizon_prepare::prepare(
+        &horizon_prepare::Options {
+            root: kit.clone(),
+            import: true,
+            minecraft_dir: Some(crate::accounts::files_root()),
+            server_jar: Some(server_jar),
+            java_home: None,
+            inputs: Default::default(),
+            output: None,
+        },
+        &|line| {
+            log::info!("Horizon: preparing: {line}");
+            *shared() = Stage::Preparing(line.to_owned());
+        },
+    )?;
+    // The sounds: `prepare` leaves them out (the desktop launcher copies them after it,
+    // backend.rs). Without them the game plays, silent.
+    copy_sounds(&kit)?;
+    let missing = horizon_prepare::check(&kit, &made)?;
+    if !missing.is_empty() {
+        return Err(format!(
+            "Prepared resources are incomplete: {}",
+            missing.join("; ")
+        ));
+    }
+    install::activate(&made, resources)?;
+    // Bedrock's touch buttons, from Mojang too, so the first game already has them.
+    crate::bedrock_touch::fetch_logged(resources);
+    // Preparation replaces the resource directory. Fetch the original control
+    // overlay afterwards so the first game, not just a restart, receives it.
+    crate::android_control_assets::fetch(resources, |done, total| {
+        *shared() = Stage::Preparing(format!("Control textures: {done}/{total}"));
+    })
+    .map_err(|e| format!("Control textures: {e}"))?;
+    // One archive beside them: clearing the app's data (or a damaged folder) is then restored
+    // without a computer (`android::unpack_resources` reads it).
+    match zip_resources(resources) {
+        Ok(path) => log::info!("Horizon: wrote {}", path.display()),
+        Err(e) => log::warn!("Horizon: resources.zip not written: {e}"),
+    }
+    // Everything the game reads is in the resources now: the runtime and the work files go.
+    for done in [&jre, &kit.join(".local"), &temp] {
+        let _ = std::fs::remove_dir_all(done);
+    }
+    Ok(())
+}
+
+/// `resources` as `resources.zip` beside it, stored (the files are mostly compressed already).
+fn zip_resources(resources: &Path) -> Result<std::path::PathBuf, String> {
+    let zip_path = resources.with_file_name("resources.zip");
+    let part = resources.with_file_name("resources.zip.part");
+    let write = || -> Result<(), String> {
+        let file = std::fs::File::create(&part).map_err(|e| format!("{}: {e}", part.display()))?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        let mut stack = vec![resources.to_path_buf()];
+        while let Some(dir) = stack.pop() {
+            let entries = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+            for entry in entries {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let path = entry.path();
+                let meta = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+                if meta.is_dir() {
+                    stack.push(path);
+                } else if meta.is_file() {
+                    let name = path
+                        .strip_prefix(resources)
+                        .map_err(|e| e.to_string())?
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    zip.start_file(name, options).map_err(|e| e.to_string())?;
+                    let mut source =
+                        std::fs::File::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+                    std::io::copy(&mut source, &mut zip).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+        zip.finish().map_err(|e| e.to_string()).map(drop)
+    };
+    if let Err(e) = write() {
+        let _ = std::fs::remove_file(&part);
+        return Err(e);
+    }
+    std::fs::rename(&part, &zip_path).map_err(|e| format!("{}: {e}", zip_path.display()))?;
+    // The next start finds this zip already unpacked (`android::unpack_resources`): remember
+    // it, so the good resources are not unpacked over themselves.
+    if let Ok(meta) = std::fs::metadata(&zip_path) {
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos());
+        let stamp = format!("{}-{modified}", meta.len());
+        let _ = std::fs::write(
+            crate::logging::private_home().join("resources-zip.stamp"),
+            stamp,
+        );
+    }
+    Ok(zip_path)
+}
+
+/// The fetched files' sounds into `kit`'s prepared folder (horizon-prepare's `sounds`).
+fn copy_sounds(kit: &Path) -> Result<(), String> {
+    horizon_prepare::sounds(kit, Some(&crate::accounts::files_root()), &|line| {
+        log::info!("Horizon: preparing: {line}");
+        *shared() = Stage::Preparing(line.to_owned());
+    })
+    .map(drop)
+}
+
+/// TML before 0.1.6 prepared the game without its sounds: once the fetched files are
+/// there, they are added to the prepared `resources`, before the game reads its sounds.
+pub fn complete_sounds(resources: &Path) {
+    if !crate::platform::registered()
+        || !resources.is_dir()
+        || resources.join("assets/minecraft/sounds.json").is_file()
+        || crate::accounts::files() != crate::accounts::Files::Ready
+    {
+        return;
+    }
+    match add_sounds(resources) {
+        Ok(()) => log::info!(
+            "Horizon: the game's sounds were added to {}",
+            resources.display()
+        ),
+        Err(e) => log::warn!("Horizon: the game's sounds were not added: {e}"),
+    }
+}
+
+/// horizon-prepare copies into the kit's prepared folder: a link to `resources` stands in for
+/// it while it does.
+#[cfg(unix)]
+fn add_sounds(resources: &Path) -> Result<(), String> {
+    let kit = home().join("kit");
+    unpack_kit(&kit)?;
+    let version = horizon_prepare::artifacts::Lock::read(&kit)?.version;
+    let target = kit.join(".local/horizon-client").join(&version);
+    // A link left by a stop midway, or the work of a preparation cut short.
+    let _ = std::fs::remove_file(&target);
+    let _ = std::fs::remove_dir_all(&target);
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    std::os::unix::fs::symlink(resources, &target)
+        .map_err(|e| format!("{}: {e}", target.display()))?;
+    let copied = horizon_prepare::sounds(&kit, Some(&crate::accounts::files_root()), &|line| {
+        log::info!("Horizon: adding the sounds: {line}")
+    });
+    let _ = std::fs::remove_file(&target);
+    copied.map(drop)
+}
+
+#[cfg(not(unix))]
+fn add_sounds(_: &Path) -> Result<(), String> {
+    Err("only a phone's setup prepares on the device".into())
 }
 
 /// The low-budget skin the setup draws the game's menus with while their own resources are not
@@ -99,7 +399,10 @@ fn put_asset_pack(game_folder: &Path, name: &str, marker_name: &str) -> bool {
 /// Bundled resource packs the app carries (e.g. Faithful 32x),
 /// put in `resourcepacks/` of the game folder so the player can choose to activate them.
 pub fn put_resource_packs(game_folder: &Path) {
-    let packs = ["Faithful 32x - 26.3.zip", "TML.zip"];
+    let packs = [
+        "Faithful 32x - 26.3.zip",
+        "TML.zip",
+    ];
     let dir = game_folder.join("resourcepacks");
     for pack_name in packs {
         let Some(bytes) = crate::platform::asset(pack_name) else {
@@ -107,8 +410,7 @@ pub fn put_resource_packs(game_folder: &Path) {
         };
         let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
         let target = dir.join(pack_name);
-        let marker =
-            crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
+        let marker = crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
         if target.exists() && std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
             continue;
         }
@@ -172,6 +474,14 @@ fn crc32(bytes: &[u8]) -> u32 {
         }
     }
     !crc
+}
+
+/// The kit the app carries, over `dir` (its sources replaced, horizon-prepare's work kept).
+fn unpack_kit(dir: &Path) -> Result<(), String> {
+    let bytes = crate::platform::asset("prepare-kit.zip")
+        .ok_or("TML's preparer is missing from the app: install it again.")?;
+    install::reset_kit_sources(dir)?;
+    unpack(&bytes, dir)
 }
 
 /// A zip the app carries over `dir`, its entries kept inside it.
