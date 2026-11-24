@@ -16005,8 +16005,31 @@ impl Game<'_> {
         if !title {
             let mut dragon = Vec::new();
             self.dragon_geometry(camera, alpha, &mut dragon, &mut additive);
+            let body = dragon.len();
             self.dragon_fireball_geometry(camera, alpha, &mut dragon);
+            // The dragon is not made by `entity_geometry`, which marks the other entities for a
+            // shader pack's `gbuffers_entities`: its vertices are marked here, or the pack would
+            // paint over it with its deferred pass and it would be invisible (Solas).
+            let start = entities.len();
             entities.extend(dragon);
+            if body > 0 {
+                self.mark_entity_part(start, "minecraft:ender_dragon", false);
+            }
+            if entities.len() > start + body {
+                self.mark_entity_part(start + body, "minecraft:dragon_fireball", false);
+            }
+            // Its eyes and death rays are additive geometry the pack would not draw either.
+            // They join the entities as translucent geometry, where the pack shades them.
+            let pack_draws = self
+                .renderer
+                .as_ref()
+                .is_some_and(|r| r.pack_draws_entities());
+            if pack_draws && !additive.is_empty() {
+                let start = entities.len();
+                entities.extend_from_slice(&additive);
+                additive.clear();
+                self.mark_entity_part(start, "minecraft:ender_dragon", true);
+            }
         }
         let (celestial, stars) = if title {
             (Vec::new(), None)

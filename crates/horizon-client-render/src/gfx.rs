@@ -4952,6 +4952,15 @@ impl Renderer {
     /// Whether a shader pack runs now (one of Horizon's own, or a `shaders/` pack): the game
     /// then leaves out vanilla's round entity shadow, shaders replacing the way the world is
     /// lit — and drawing their own under the entities when the pack has a shadow pass.
+    /// Whether the pack drawing now draws entities itself (`gbuffers_entities`): the game then
+    /// marks the entities it makes outside `entity_geometry` (the dragon) for the pack.
+    pub fn pack_draws_entities(&self) -> bool {
+        self.pack_post
+            .as_ref()
+            .and_then(|(_, post)| post.as_ref())
+            .is_some_and(pack_post::PackPost::has_entities)
+    }
+
     pub fn shader_pack_active(&self) -> bool {
         self.native.is_some()
             || self

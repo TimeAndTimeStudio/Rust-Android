@@ -769,7 +769,7 @@ impl Game<'_> {
         self.mark_entity_part(start, name, true);
     }
 
-    fn mark_entity_part(&self, start: usize, name: &str, translucent: bool) {
+    pub(super) fn mark_entity_part(&self, start: usize, name: &str, translucent: bool) {
         let id = match &self.pack_ids {
             Some(ids) => ids
                 .entities

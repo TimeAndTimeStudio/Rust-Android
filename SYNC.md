@@ -156,3 +156,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Culling, measured: every 20 s the log says how many sections and shadow casters were drawn and
   with how many draw calls, and whether occlusion culling ran — the A/B is `HORIZON_GPU_CULL=0`
   in horizon-args.txt.
+- Shaders: the Ender Dragon is marked for a pack's `gbuffers_entities` like the mobs are (its
+  geometry is made outside `entity_geometry`, which marks them), and its eyes and death rays —
+  additive geometry the pack never drew — join the entities as translucent draws when the pack
+  draws entities. With Solas the dragon was invisible: the pack's deferred pass painted over the
+  geometry Horizon drew on its own.
