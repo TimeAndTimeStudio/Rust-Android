@@ -186,72 +186,11 @@ fn run(resources: &Path) -> Result<(), String> {
         *shared() = Stage::Preparing(format!("Control textures: {done}/{total}"));
     })
     .map_err(|e| format!("Control textures: {e}"))?;
-    // One archive beside them: clearing the app's data (or a damaged folder) is then restored
-    // without a computer (`android::unpack_resources` reads it).
-    match zip_resources(resources) {
-        Ok(path) => log::info!("Horizon: wrote {}", path.display()),
-        Err(e) => log::warn!("Horizon: resources.zip not written: {e}"),
-    }
     // Everything the game reads is in the resources now: the runtime and the work files go.
     for done in [&jre, &kit.join(".local"), &temp] {
         let _ = std::fs::remove_dir_all(done);
     }
     Ok(())
-}
-
-/// `resources` as `resources.zip` beside it, stored (the files are mostly compressed already).
-fn zip_resources(resources: &Path) -> Result<std::path::PathBuf, String> {
-    let zip_path = resources.with_file_name("resources.zip");
-    let part = resources.with_file_name("resources.zip.part");
-    let write = || -> Result<(), String> {
-        let file = std::fs::File::create(&part).map_err(|e| format!("{}: {e}", part.display()))?;
-        let mut zip = zip::ZipWriter::new(file);
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Stored);
-        let mut stack = vec![resources.to_path_buf()];
-        while let Some(dir) = stack.pop() {
-            let entries = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-            for entry in entries {
-                let entry = entry.map_err(|e| e.to_string())?;
-                let path = entry.path();
-                let meta = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-                if meta.is_dir() {
-                    stack.push(path);
-                } else if meta.is_file() {
-                    let name = path
-                        .strip_prefix(resources)
-                        .map_err(|e| e.to_string())?
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    zip.start_file(name, options).map_err(|e| e.to_string())?;
-                    let mut source =
-                        std::fs::File::open(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-                    std::io::copy(&mut source, &mut zip).map_err(|e| e.to_string())?;
-                }
-            }
-        }
-        zip.finish().map_err(|e| e.to_string()).map(drop)
-    };
-    if let Err(e) = write() {
-        let _ = std::fs::remove_file(&part);
-        return Err(e);
-    }
-    std::fs::rename(&part, &zip_path).map_err(|e| format!("{}: {e}", zip_path.display()))?;
-    // The next start finds this zip already unpacked (`android::unpack_resources`): remember
-    // it, so the good resources are not unpacked over themselves.
-    if let Ok(meta) = std::fs::metadata(&zip_path) {
-        let modified = meta
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map_or(0, |d| d.as_nanos());
-        let stamp = format!("{}-{modified}", meta.len());
-        let _ = std::fs::write(
-            crate::logging::private_home().join("resources-zip.stamp"),
-            stamp,
-        );
-    }
-    Ok(zip_path)
 }
 
 /// The fetched files' sounds into `kit`'s prepared folder (horizon-prepare's `sounds`).

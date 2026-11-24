@@ -238,7 +238,7 @@ pub fn install(path: &Path, name: &str, places: &Places) -> Result<Installed, St
 
 /// Unpack prepared resources beside the current ones, check they are for this Horizon, then
 /// swap them in: a failed import leaves the old ones as they were.
-pub fn install_resources(path: &Path, prefix: &str, resources: &Path) -> Result<(), String> {
+fn install_resources(path: &Path, prefix: &str, resources: &Path) -> Result<(), String> {
     let staged = sibling(resources, ".new");
     let _ = fs::remove_dir_all(&staged);
     extract_into(path, prefix, &staged, &[])

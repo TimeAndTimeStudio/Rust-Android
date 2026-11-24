@@ -42,8 +42,8 @@ LABEL = "TML"
 # CI builds, signed with that repository's test key: the release key stays out of it.
 DEV_SUFFIX = ".dev"
 VARIANTS = {"dev": (DEV_SUFFIX, " Dev"), "preview": (".preview", " Preview")}
-VERSION_NAME = "1.0.36"
-VERSION_CODE = 51
+VERSION_NAME = "1.0.37"
+VERSION_CODE = 52
 MIN_SDK = 26  # AAudio (cpal)
 TARGET_SDK = 35
 PLATFORM = 36
@@ -184,13 +184,6 @@ def assets(out):
     zip_folder(HERE.parent / "lowbudget" / "pack", folder / "lowbudget.zip")
     zip_folder(HERE.parent / "shaderpacks" / "tml-visuals-lite", folder / "TMLVisualsLite.zip")
     shutil.copyfile(folder / "TMLVisualsLite.zip", out / "TMLVisualsLite.zip")
-    # A prepared `resources` zip the app carries (read-only, so clearing app data cannot lose
-    # it): `TML_RESOURCES_ZIP`, else packaging/resources.zip. It is unpacked on the phone when
-    # the resources folder is missing.
-    bundled = Path(os.environ.get("TML_RESOURCES_ZIP", ROOT / "packaging/resources.zip"))
-    if bundled.is_file():
-        shutil.copyfile(bundled, folder / "resources.zip")
-        print(f"assets: resources.zip from {bundled} ({bundled.stat().st_size / 1e6:.0f} MB)")
     rp_dir = HERE.parent / "resourcepacks"
     if rp_dir.exists():
         for rp in rp_dir.glob("*.zip"):
@@ -265,8 +258,6 @@ def link_resources(aapt2, android_jar, out, assets, variant, abi=ABI):
         "--manifest", out / "AndroidManifest.xml",
         "--java", out / "generated", "--custom-package", "com.timeandtimestudio.tml",
         "-I", android_jar,
-        # Zips are archives already: store them, so the bundled resources arrive quickly.
-        "-0", "zip",
         "--min-sdk-version", MIN_SDK, "--target-sdk-version", TARGET_SDK,
         "--version-code", VERSION_CODE, "--version-name", VERSION_NAME,
         *debug,

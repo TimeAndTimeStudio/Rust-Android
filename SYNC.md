@@ -105,3 +105,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   and prepares `resources` again (no computer needed), then writes `resources.zip` beside them.
   The zip is re-unpacked if the folder is lost. Fetched `minecraft` files stay and move to
   shared storage instead of being deleted.
+- No `resources.zip`: it doubled the space the game used, and preparation on the phone can
+  simply run again when the resources are lost. The zip generation, the bundled APK copy and
+  the automatic unpacking are gone.

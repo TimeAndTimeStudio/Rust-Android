@@ -157,20 +157,6 @@ fn asset(name: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-/// Streams asset `name` into `path` (a bundled archive may be far larger than memory).
-fn asset_to_file(name: &str, path: &Path) -> bool {
-    let Some(name) = std::ffi::CString::new(name).ok() else {
-        return false;
-    };
-    let Some(mut asset) = APP.get().and_then(|app| app.asset_manager().open(&name)) else {
-        return false;
-    };
-    let Ok(mut file) = std::fs::File::create(path) else {
-        return false;
-    };
-    std::io::copy(&mut asset, &mut file).is_ok()
-}
-
 /// `data` sealed by StarlingActivity.sealSecret (the Android Keystore's key).
 fn seal_secret(data: &[u8]) -> Option<Vec<u8>> {
     secret_call("sealSecret", data)
@@ -1170,120 +1156,6 @@ pub fn args() -> Vec<String> {
     ARGS.get().cloned().unwrap_or_default()
 }
 
-/// A prepared-resources zip kept beside the game files (`resources.zip`, or any top-level
-/// `.zip` holding `horizon-resources.json`) is unpacked into `resources` when the folder is
-/// missing, or when the zip changed. The zip is kept, so a resources folder that goes bad is
-/// unpacked again on the next start.
-pub fn unpack_resources(home: &Path, private: &Path, resources: &Path) -> Option<String> {
-    if let Some(zip) = resource_zip(home, private) {
-        return unpack_zip(&zip, private, resources);
-    }
-    // Nothing beside the game files: the copy the APK itself carries (read-only, so clearing
-    // the app's data cannot lose it). Unpacked only when the resources are not there, never
-    // over good ones.
-    if resources.join("horizon-resources.json").is_file() {
-        return None;
-    }
-    let temporary = private.join("bundled-resources.zip");
-    if !asset_to_file("resources.zip", &temporary) {
-        return None;
-    }
-    let (kind, prefix) = crate::import::classify(&temporary);
-    let result = if kind == crate::import::Kind::Resources {
-        crate::import::install_resources(&temporary, &prefix, resources)
-    } else {
-        Err("the archive carries no horizon-resources.json".into())
-    };
-    let _ = std::fs::remove_file(&temporary);
-    match result {
-        Ok(()) => Some("TML: unpacked the game files the app carries".into()),
-        Err(e) => Some(format!("TML: could not unpack the app's game files: {e}")),
-    }
-}
-
-/// `zip` unpacked into `resources`, its stamp remembered so the same archive is not unpacked
-/// again while the resources are good.
-fn unpack_zip(zip: &Path, private: &Path, resources: &Path) -> Option<String> {
-    let stamp = zip_stamp(zip);
-    let marker = private.join("resources-zip.stamp");
-    let recorded = std::fs::read_to_string(&marker).unwrap_or_default();
-    let valid = resources.join("horizon-resources.json").is_file();
-    // Done already, or a zip that failed while good resources were there: nothing to redo.
-    if valid && (recorded == stamp || recorded == format!("{stamp}:failed")) {
-        return None;
-    }
-    let (kind, prefix) = crate::import::classify(zip);
-    if kind != crate::import::Kind::Resources {
-        return None;
-    }
-    match crate::import::install_resources(zip, &prefix, resources) {
-        Ok(()) => {
-            let _ = std::fs::write(&marker, &stamp);
-            Some(format!(
-                "TML: unpacked {} into {}",
-                zip.display(),
-                resources.display()
-            ))
-        }
-        Err(e) => {
-            if valid {
-                // The good files stay; do not unpack this zip again until it changes.
-                let _ = std::fs::write(&marker, format!("{stamp}:failed"));
-            } else {
-                let _ = std::fs::remove_file(&marker);
-            }
-            Some(format!("TML: could not unpack {}: {e}", zip.display()))
-        }
-    }
-}
-
-/// The prepared-resources zip to unpack: `resources.zip`, else a top-level `.zip` of the game
-/// folder or the app's own files whose archive holds `horizon-resources.json` (a resource pack
-/// zip does not).
-fn resource_zip(home: &Path, private: &Path) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-    for base in [home, private] {
-        candidates.push(base.join("resources.zip"));
-        if let Ok(entries) = std::fs::read_dir(base) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file()
-                    && path
-                        .extension()
-                        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("zip"))
-                {
-                    candidates.push(path);
-                }
-            }
-        }
-    }
-    candidates.sort();
-    candidates.dedup();
-    // A zip named for resources first, then any other that turns out to hold them.
-    candidates.sort_by_key(|path| {
-        let named = path
-            .file_name()
-            .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("resource"));
-        (!named, path.clone())
-    });
-    candidates.into_iter().find(|path| {
-        crate::import::classify(path).0 == crate::import::Kind::Resources
-    })
-}
-
-/// The zip's size and write time: different when the file was replaced.
-fn zip_stamp(path: &Path) -> String {
-    let Ok(meta) = std::fs::metadata(path) else {
-        return String::new();
-    };
-    let modified = meta
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_nanos());
-    format!("{}-{modified}", meta.len())
-}
-
 /// Where the game's prepared files are: the shared game folder's `resources`, or the app's own
 /// when the move to shared storage did not finish (the game still has to find them).
 fn resources_dir(home: &Path, private: &Path) -> PathBuf {
@@ -1600,15 +1472,11 @@ pub fn main(app: AndroidApp) {
         .internal_data_path()
         .unwrap_or_else(|| PathBuf::from("/data/local/tmp/horizon"));
     let _ = std::fs::create_dir_all(&private);
-    // Before the resources are looked for: a zip the APK carries is read through the asset
-    // manager, and `unpack_resources` runs before the game starts.
+    // The activity is available before anything asks the platform hooks for it.
     let _ = APP.set(app.clone());
     let mut notes = Vec::new();
     let home = game_folder(&private, &mut notes);
     let resources = resources_dir(&home, &private);
-    if let Some(note) = unpack_resources(&home, &private, &resources) {
-        notes.push(note);
-    }
     let (args, env) = command_line(&home, &resources);
     // SAFETY: no other thread of ours runs yet; the game reads these from its threads afterwards.
     unsafe {
