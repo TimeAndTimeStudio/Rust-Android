@@ -8,6 +8,95 @@ use horizon_assets::model::Direction as D;
 /// `LightCoordsUtil.FULL_BRIGHT`.
 pub(super) const FULL_BRIGHT: u32 = 0x00F0_00F0;
 
+/// Per-state AO and light facts read on every neighbour sample inside
+/// [`ambient_occlusion`], packed into one byte so the whole state table stays in cache instead
+/// of striding across `Info` (upstream's `AoInfo`, #20199).
+///
+/// Bits: 0..4 emission, 4 `shade` is 0.2 (else 1.0), 5 permeable, 6 solid, 7 emissive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct AoInfo(u8);
+
+impl AoInfo {
+    const EMISSION: u8 = 0x0F;
+    const SHADE_DARK: u8 = 1 << 4;
+    const PERMEABLE: u8 = 1 << 5;
+    const SOLID: u8 = 1 << 6;
+    const EMISSIVE: u8 = 1 << 7;
+
+    /// `info` packed, when `emission <= 15` and `shade` is vanilla's 0.2 or 1.0; `None` falls
+    /// back to the full [`Info`].
+    pub(super) fn from_info(info: &Info) -> Option<Self> {
+        if info.emission > 15 {
+            return None;
+        }
+        let shade_dark = if info.shade.to_bits() == 0.2f32.to_bits() {
+            Self::SHADE_DARK
+        } else if info.shade.to_bits() == 1.0f32.to_bits() {
+            0
+        } else {
+            return None;
+        };
+        Some(Self(
+            info.emission
+                | shade_dark
+                | if info.permeable { Self::PERMEABLE } else { 0 }
+                | if info.solid { Self::SOLID } else { 0 }
+                | if info.emissive { Self::EMISSIVE } else { 0 },
+        ))
+    }
+
+    /// The compact table of every state, or empty when one cannot be packed (`from_info`).
+    pub(super) fn build_table(info: &[Info]) -> Vec<Self> {
+        let mut table = Vec::with_capacity(info.len());
+        for state in info {
+            match Self::from_info(state) {
+                Some(packed) => table.push(packed),
+                None => return Vec::new(),
+            }
+        }
+        table
+    }
+
+    #[inline]
+    const fn emission(self) -> u8 {
+        self.0 & Self::EMISSION
+    }
+
+    #[inline]
+    const fn shade(self) -> f32 {
+        if self.0 & Self::SHADE_DARK != 0 {
+            0.2
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    const fn permeable(self) -> bool {
+        self.0 & Self::PERMEABLE != 0
+    }
+
+    #[inline]
+    const fn solid(self) -> bool {
+        self.0 & Self::SOLID != 0
+    }
+
+    #[inline]
+    const fn emissive(self) -> bool {
+        self.0 & Self::EMISSIVE != 0
+    }
+
+    /// `LightCoordsUtil.getLightCoords` from a stored light byte.
+    #[inline]
+    pub(super) fn packed_coords(self, packed: u8) -> u32 {
+        if self.emissive() {
+            return FULL_BRIGHT;
+        }
+        let block = u32::from((packed & 15).max(self.emission()));
+        block << 4 | u32::from(packed >> 4) << 20
+    }
+}
+
 /// `CardinalLighting.DEFAULT`/`NETHER` by face.
 pub(super) fn cardinal(nether: bool, face: D) -> f32 {
     match face {
@@ -355,6 +444,81 @@ pub(super) fn ambient_occlusion(
     } else {
         own.shade
     };
+    let ao = [
+        (shade3 + shade0 + shade03 + shade_center) * 0.25,
+        (shade2 + shade0 + shade02 + shade_center) * 0.25,
+        (shade2 + shade1 + shade12 + shade_center) * 0.25,
+        (shade3 + shade1 + shade13 + shade_center) * 0.25,
+    ];
+    let blended = [
+        smooth_blend(light3, light0, light03, light_center),
+        smooth_blend(light2, light0, light02, light_center),
+        smooth_blend(light2, light1, light12, light_center),
+        smooth_blend(light3, light1, light13, light_center),
+    ];
+    let mut brightness = [0f32; 4];
+    let mut light = [0u32; 4];
+    for (k, &vertex) in adjacency.remap.iter().enumerate() {
+        if shape.partial {
+            let f = |i: usize| shape.bounds[adjacency.weights[k][i] as usize];
+            let w = [f(0) * f(1), f(2) * f(3), f(4) * f(5), f(6) * f(7)];
+            brightness[vertex] =
+                (ao[0] * w[0] + ao[1] * w[1] + ao[2] * w[2] + ao[3] * w[3]).clamp(0.0, 1.0);
+            light[vertex] = weighted_blend(blended, w);
+        } else {
+            brightness[vertex] = ao[k];
+            light[vertex] = blended[k];
+        }
+    }
+    (brightness, light)
+}
+
+/// `ambient_occlusion` over the packed table: the same samples, read from one byte a state
+/// instead of the whole `Info`.
+pub(super) fn ambient_occlusion_packed(
+    pad: &Padded,
+    ao: &[AoInfo],
+    own: AoInfo,
+    full: bool,
+    pos: [i32; 3],
+    positions: &[[f32; 3]; 4],
+    face: D,
+) -> ([f32; 4], [u32; 4]) {
+    let at = |p: [i32; 3]| ao[pad.blocks[pi(p[0], p[1], p[2])] as usize];
+    let coords_at = |s: AoInfo, p: [i32; 3]| s.packed_coords(pad.light[pi(p[0], p[1], p[2])]);
+    let shape = shape(positions, face, full);
+    let base = if shape.cubic { step(pos, face) } else { pos };
+    let adjacency = &ADJACENCY[face as usize];
+    let corner = |i: usize| step(base, adjacency.corners[i]);
+    let sample = |p: [i32; 3]| {
+        let s = at(p);
+        (coords_at(s, p), s.shade())
+    };
+    let (light0, shade0) = sample(corner(0));
+    let (light1, shade1) = sample(corner(1));
+    let (light2, shade2) = sample(corner(2));
+    let (light3, shade3) = sample(corner(3));
+    let permeable = |i: usize| at(step(corner(i), face)).permeable();
+    let (p0, p1, p2, p3) = (permeable(0), permeable(1), permeable(2), permeable(3));
+    let diagonal = |a: usize, b: usize, open: bool| {
+        if open {
+            sample(step(corner(a), adjacency.corners[b]))
+        } else {
+            (light0, shade0)
+        }
+    };
+    let (light02, shade02) = diagonal(0, 2, p2 || p0);
+    let (light03, shade03) = diagonal(0, 3, p3 || p0);
+    let (light12, shade12) = diagonal(1, 2, p2 || p1);
+    let (light13, shade13) = diagonal(1, 3, p3 || p1);
+    let next = step(pos, face);
+    let next_state = at(next);
+    let light_center = if shape.cubic || !next_state.solid() {
+        coords_at(next_state, next)
+    } else {
+        coords_at(own, pos)
+    };
+    let shade_center = if shape.cubic { at(base).shade() } else { own.shade() };
     let ao = [
         (shade3 + shade0 + shade03 + shade_center) * 0.25,
         (shade2 + shade0 + shade02 + shade_center) * 0.25,

@@ -199,3 +199,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   the common frame (part of upstream's OIT coalescing).
 - HUD, more: the batch's glyph patches, blend runs and inline profiles are kept from frame to
   frame too (`HudReuse`, `HudBatch::into_reuse`), not only its vertices.
+- Mesher: the ambient-occlusion samples read one compact byte a block state (`lighting::AoInfo`,
+  upstream #20199) instead of the whole `Info` (a few hundred bytes of table that then stays in
+  cache); a state that cannot be packed falls back to `Info`, and the table is empty then.

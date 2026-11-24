@@ -559,6 +559,10 @@ pub struct MeshFacts {
 }
 pub struct MeshTables {
     info: Vec<Info>,
+    /// The states' AO and light facts, one byte each (upstream's `AoInfo`): the ambient
+    /// occlusion samples read this instead of striding across `Info`. Empty when a state does
+    /// not pack (an emission above 15, another shade), and the mesher reads `info` then.
+    ao: Vec<lighting::AoInfo>,
     /// `Info::solid` by state, packed apart: the opacity mask of a section
     /// reads 8,000 states, and a few bytes each stay in cache where `Info`
     /// does not.
@@ -739,6 +743,7 @@ impl MeshTables {
                 .iter()
                 .map(|i| (0..6).fold(0, |bits, d| bits | u8::from(i.face[d] == 1) << d))
                 .collect(),
+            ao: lighting::AoInfo::build_table(&info),
             info,
             visibility,
             water_still: layer("minecraft:block/water_still")?,
@@ -1606,8 +1611,18 @@ impl Mesher<'_> {
         // Grey level per vertex before tinting, vanilla light coords, and ambient occlusion factor.
         let (gray, coords, ao_factor) = if ao {
             let info = &self.tables.info;
-            let (brightness, coords) =
-                lighting::ambient_occlusion(pad, info, state, pos, &q.positions, q.facing);
+            let (brightness, coords) = match lighting::AoInfo::from_info(state) {
+                Some(own) if !self.tables.ao.is_empty() => lighting::ambient_occlusion_packed(
+                    pad,
+                    &self.tables.ao,
+                    own,
+                    state.full,
+                    pos,
+                    &q.positions,
+                    q.facing,
+                ),
+                _ => lighting::ambient_occlusion(pad, info, state, pos, &q.positions, q.facing),
+            };
             let gray = if self.separate_ao {
                 [lighting::gray(directional); 4]
             } else {
