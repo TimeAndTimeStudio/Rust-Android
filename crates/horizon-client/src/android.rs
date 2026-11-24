@@ -157,6 +157,20 @@ fn asset(name: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+/// Streams asset `name` into `path` (a bundled archive may be far larger than memory).
+fn asset_to_file(name: &str, path: &Path) -> bool {
+    let Some(name) = std::ffi::CString::new(name).ok() else {
+        return false;
+    };
+    let Some(mut asset) = APP.get().and_then(|app| app.asset_manager().open(&name)) else {
+        return false;
+    };
+    let Ok(mut file) = std::fs::File::create(path) else {
+        return false;
+    };
+    std::io::copy(&mut asset, &mut file).is_ok()
+}
+
 /// `data` sealed by StarlingActivity.sealSecret (the Android Keystore's key).
 fn seal_secret(data: &[u8]) -> Option<Vec<u8>> {
     secret_call("sealSecret", data)
@@ -1164,8 +1178,36 @@ pub fn args() -> Vec<String> {
 /// missing, or when the zip changed. The zip is kept, so a resources folder that goes bad is
 /// unpacked again on the next start.
 pub fn unpack_resources(home: &Path, private: &Path, resources: &Path) -> Option<String> {
-    let zip = resource_zip(home, private)?;
-    let stamp = zip_stamp(&zip);
+    if let Some(zip) = resource_zip(home, private) {
+        return unpack_zip(&zip, private, resources);
+    }
+    // Nothing beside the game files: the copy the APK itself carries (read-only, so clearing
+    // the app's data cannot lose it). Unpacked only when the resources are not there, never
+    // over good ones.
+    if resources.join("horizon-resources.json").is_file() {
+        return None;
+    }
+    let temporary = private.join("bundled-resources.zip");
+    if !asset_to_file("resources.zip", &temporary) {
+        return None;
+    }
+    let (kind, prefix) = crate::import::classify(&temporary);
+    let result = if kind == crate::import::Kind::Resources {
+        crate::import::install_resources(&temporary, &prefix, resources)
+    } else {
+        Err("the archive carries no horizon-resources.json".into())
+    };
+    let _ = std::fs::remove_file(&temporary);
+    match result {
+        Ok(()) => Some("TML: unpacked the game files the app carries".into()),
+        Err(e) => Some(format!("TML: could not unpack the app's game files: {e}")),
+    }
+}
+
+/// `zip` unpacked into `resources`, its stamp remembered so the same archive is not unpacked
+/// again while the resources are good.
+fn unpack_zip(zip: &Path, private: &Path, resources: &Path) -> Option<String> {
+    let stamp = zip_stamp(zip);
     let marker = private.join("resources-zip.stamp");
     let recorded = std::fs::read_to_string(&marker).unwrap_or_default();
     let valid = resources.join("horizon-resources.json").is_file();
@@ -1173,11 +1215,11 @@ pub fn unpack_resources(home: &Path, private: &Path, resources: &Path) -> Option
     if valid && (recorded == stamp || recorded == format!("{stamp}:failed")) {
         return None;
     }
-    let (kind, prefix) = crate::import::classify(&zip);
+    let (kind, prefix) = crate::import::classify(zip);
     if kind != crate::import::Kind::Resources {
         return None;
     }
-    match crate::import::install_resources(&zip, &prefix, resources) {
+    match crate::import::install_resources(zip, &prefix, resources) {
         Ok(()) => {
             let _ = std::fs::write(&marker, &stamp);
             Some(format!(
@@ -1561,6 +1603,9 @@ pub fn main(app: AndroidApp) {
         .internal_data_path()
         .unwrap_or_else(|| PathBuf::from("/data/local/tmp/horizon"));
     let _ = std::fs::create_dir_all(&private);
+    // Before the resources are looked for: a zip the APK carries is read through the asset
+    // manager, and `unpack_resources` runs before the game starts.
+    let _ = APP.set(app.clone());
     let mut notes = Vec::new();
     let home = game_folder(&private, &mut notes);
     let resources = resources_dir(&home, &private);
@@ -1615,7 +1660,6 @@ pub fn main(app: AndroidApp) {
     }
     horizon_protocol::set_name_servers(dns_servers);
     let _ = ARGS.set(args.clone());
-    let _ = APP.set(app);
     if let Err(error) =
         crate::diagnostics::initialize(&private, serde_json::json!({"abi":std::env::consts::ARCH}))
     {

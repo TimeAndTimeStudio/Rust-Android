@@ -97,3 +97,7 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Resources zip: a `resources.zip` (or any top-level zip holding `horizon-resources.json`) left
   in the game folder is unpacked into `resources` at start — and unpacked again when the files
   are missing or the zip was replaced. "Try again" also unpacks it, so no file picker is needed.
+- Bundled resources: a `packaging/resources.zip` (or `TML_RESOURCES_ZIP`) is stored in the APK's
+  assets; when the phone has no resources, it is streamed out and unpacked, and unpacked again
+  whenever they go missing. Clearing app data cannot lose it. CI takes the zip from the
+  `TML_RESOURCES_URL` secret.

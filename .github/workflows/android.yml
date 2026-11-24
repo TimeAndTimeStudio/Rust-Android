@@ -48,6 +48,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: android-${{ matrix.abi }}
+      - name: Bundle prepared resources (optional)
+        env:
+          TML_RESOURCES_URL: ${{ secrets.TML_RESOURCES_URL }}
+        run: |
+          if [ -n "$TML_RESOURCES_URL" ]; then
+            curl -fL --retry 3 "$TML_RESOURCES_URL" -o packaging/resources.zip
+            ls -lh packaging/resources.zip
+          fi
       - name: Build TML APK (ARM64 Only)
         run: |
           python3 packaging/android/build_apk.py --abi ${{ matrix.abi }} --profile quick

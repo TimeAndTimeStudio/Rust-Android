@@ -40,3 +40,6 @@
 .horizon-mod-data/
 # Release-only compiled original exporter bundle.
 /exporters/
+# A prepared resources zip to carry in the APK (too large for Git: give its URL as the
+# TML_RESOURCES_URL Actions secret, or a local path as TML_RESOURCES_ZIP).
+/packaging/resources.zip
