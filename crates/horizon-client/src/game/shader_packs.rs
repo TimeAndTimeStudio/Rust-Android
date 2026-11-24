@@ -372,6 +372,18 @@ impl Game<'_> {
                     Ok(mut pack) => {
                         let mut macros = Macros::standard();
                         renderer.define_pack_macros(&mut macros);
+                        // The dimension a pack's own programs can test, as their `world0`,
+                        // `world-1` and `world1` folders do with NETHER and END (TML Visuals
+                        // Lite's sky reads it).
+                        macros.define("TML_DIMENSION", dimension.to_string());
+                        macros.define(
+                            match dimension {
+                                -1 => "TML_NETHER",
+                                1 => "TML_END",
+                                _ => "TML_OVERWORLD",
+                            },
+                            "",
+                        );
                         // Its conditionals test the pack's options too.
                         let (mut properties, notes) =
                             horizon_shaders::read_properties(&pack, &mut macros);

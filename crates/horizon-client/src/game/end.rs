@@ -1070,9 +1070,18 @@ impl Game<'_> {
     /// End crystals (on the spikes, or placed in any dimension) and thrown
     /// eyes of ender, as camera-relative entity geometry (End portals and
     /// gateways are block entities).
-    pub(super) fn end_geometry(&self, camera: glam::DVec3, out: &mut Vec<Vertex>) {
+    /// The vertex counts of the crystals (with their beams) and the eyes it added, so the
+    /// caller can mark each run for a shader pack's `gbuffers_entities` (`EntitySpan`).
+    pub(super) fn end_geometry(
+        &self,
+        camera: glam::DVec3,
+        out: &mut Vec<Vertex>,
+    ) -> (usize, usize) {
+        let first = out.len();
         self.end_crystal_geometry(camera, out);
+        let crystals = out.len() - first;
         self.eye_geometry(camera, out);
+        (crystals, out.len() - first - crystals)
     }
 
     /// EndCrystalRenderer and EndCrystalModel for the end crystals, and the

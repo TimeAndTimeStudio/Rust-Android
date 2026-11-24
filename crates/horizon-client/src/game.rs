@@ -16067,7 +16067,17 @@ impl Game<'_> {
             self.screen_quads(alpha as f32, size, scale)
         };
         if !title {
-            self.end_geometry(camera, &mut entities);
+            // End crystals and thrown eyes of ender are made outside `entity_geometry` too:
+            // without their spans a shader pack never draws them, and its deferred pass paints
+            // over the geometry Horizon drew itself (the eyes were invisible with Solas).
+            let start = entities.len();
+            let (crystals, eyes) = self.end_geometry(camera, &mut entities);
+            if crystals > 0 {
+                self.mark_entity_part(start, "minecraft:end_crystal", false);
+            }
+            if eyes > 0 {
+                self.mark_entity_part(start + crystals, "minecraft:eye_of_ender", false);
+            }
         }
         let weather = if !title && self.dim == Dim::Overworld && self.settings.horizon.weather {
             horizon_client::spans::time("weather", || self.weather_geometry(camera, alpha))

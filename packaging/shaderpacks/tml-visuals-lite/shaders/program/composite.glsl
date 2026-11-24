@@ -77,22 +77,27 @@ float cloudNoise(vec2 p) {
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
+// Three octaves, each turned a little, so the lattice never lines up into squares: the same
+// noise reads as soft billows rather than one flat sheet.
 float cloudFbm(vec2 p) {
     float sum = 0.0;
     float amp = 0.5;
-    for (int i = 0; i < 2; i++) {
+    mat2 turn = mat2(0.80, -0.60, 0.60, 0.80);
+    for (int i = 0; i < 3; i++) {
         sum += amp * cloudNoise(p);
-        p = p * 2.03 + vec2(17.1, 9.2);
+        p = turn * p * 2.03 + vec2(17.1, 9.2);
         amp *= 0.5;
     }
-    return sum;
+    return sum * 1.14;
 }
 
 // One detail octave under the billows: wisps at the edges, not another full fbm.
 float cloudDensity(vec2 p, float t) {
-    float base = cloudFbm(p) * 0.72 + 0.14;
+    float base = cloudFbm(p) * 0.78 + 0.11;
     float detail = cloudNoise(p * 3.1 + vec2(t * 0.0035, -t * 0.0012));
-    return base + (detail - 0.5) * 0.16;
+    // Thinner at the edges of a billow, as real cloud is: the detail cuts the contour instead
+    // of drawing over a flat alpha.
+    return base + (detail - 0.5) * 0.22 * smoothstep(0.0, 0.35, base);
 }
 
 // The cloud colour and how much of the sky it covers along `dir`, at `height`. `maxDistance`
@@ -113,9 +118,10 @@ vec4 cloudLayer(vec3 dir, vec3 s, float height, float maxDistance,
     q += vec2(frameTimeCounter * CLOUD_SPEED * 0.0027,
               frameTimeCounter * CLOUD_SPEED * 0.0009) * speed;
     float n = cloudDensity(q, frameTimeCounter);
-    // More coverage lowers the threshold: the same sky, more or fewer clouds.
-    float threshold = mix(0.68, 0.34, CLOUD_COVERAGE);
-    float cover = smoothstep(threshold, threshold + 0.15, n) * CLOUDS_AMOUNT * opacity;
+    // More coverage lowers the threshold: the same sky, more or fewer clouds. The edge is wide:
+    // a cloud thins out into the sky instead of ending on a hard contour.
+    float threshold = mix(0.66, 0.33, CLOUD_COVERAGE);
+    float cover = smoothstep(threshold - 0.05, threshold + 0.28, n) * CLOUDS_AMOUNT * opacity;
     // Show the layer down to the horizon, and fade only a very long ray: the layer is above the
     // world, so the render distance must not cut it to a patch overhead.
     cover *= smoothstep(0.0, 0.055, dir.y);
@@ -124,16 +130,19 @@ vec4 cloudLayer(vec3 dir, vec3 s, float height, float maxDistance,
         return vec4(0.0);
     }
     float day = daylight(s);
-    vec3 shadowColor = mix(vec3(0.30, 0.35, 0.46), vec3(0.55, 0.58, 0.66), day);
-    vec3 litColor = mix(vec3(1.0, 0.68, 0.46), vec3(1.0, 0.99, 0.96),
+    vec3 shadowColor = mix(vec3(0.26, 0.30, 0.42), vec3(0.50, 0.55, 0.66), day);
+    vec3 litColor = mix(vec3(1.0, 0.66, 0.44), vec3(1.0, 0.99, 0.97),
                         smoothstep(-0.05, 0.35, s.y));
-    float lit = smoothstep(threshold + 0.02, threshold + 0.30, n);
-    vec3 color = mix(shadowColor, litColor, lit);
-    // Darker undersides where another cloud sits between this one and the sun.
+    float lit = smoothstep(threshold + 0.02, threshold + 0.26, n);
+    // The noise a step towards the sun: what sits between this point and the light shades it,
+    // so a billow has a bright face and a soft dark one.
     vec2 towardSun = normalize(vec2(s.x, s.z) + vec2(0.0001));
+    float ahead = cloudNoise((q + towardSun * 0.14) * 1.7);
+    lit *= mix(1.0, 0.66, smoothstep(0.42, 0.92, ahead));
+    vec3 color = mix(shadowColor, litColor, lit);
     float under = cloudNoise(q * 0.9 + towardSun * 0.35);
-    color *= mix(0.76, 1.0, smoothstep(0.30, 0.82, under));
-    color *= mix(0.55, 1.0, max(s.y, 0.0) * 0.6 + 0.4);
+    color *= mix(0.80, 1.0, smoothstep(0.30, 0.82, under));
+    color *= mix(0.60, 1.0, max(s.y, 0.0) * 0.6 + 0.4);
     // A silver lining on the sunward edge, brighter through thinner cloud.
     float sunward = pow(max(dot(dir, s), 0.0), 12.0);
     color += sunlight(s) * sunward * mix(0.55, 0.18, lit);
@@ -145,10 +154,46 @@ vec4 cloudLayer(vec3 dir, vec3 s, float height, float maxDistance,
 // The two sheets the default look draws: the vanilla layer's height and a higher, thinner one
 // whose slower drift makes the sky read as depth rather than a single flat band.
 vec4 cloudsAlong(vec3 dir, vec3 s, float maxDistance) {
+    // The Nether's sky is rock, not air: it has no cloud sheet at all.
+#ifdef TML_NETHER
+    return vec4(0.0);
+#endif
     vec4 low = cloudLayer(dir, s, 192.33, maxDistance, 1.0, 1.0, 1.0);
     vec4 high = cloudLayer(dir, s, 258.0, maxDistance, 1.55, 0.55, 0.62);
     return vec4(mix(low.rgb, high.rgb, high.a), low.a + high.a * (1.0 - low.a));
 }
+
+#ifdef TML_NETHER
+// The Nether's air: embers drifting through a warm haze, thickest near the lava below.
+vec3 netherAir(vec3 dir, vec3 color) {
+    vec2 p = vec2(atan(dir.z, dir.x) * 3.0, dir.y * 6.0 - frameTimeCounter * 0.02);
+    float ember = cloudNoise(p * 3.1 + 11.0);
+    ember = smoothstep(0.74, 0.97, ember) * smoothstep(-0.15, 0.6, dir.y);
+    vec3 warm = vec3(1.0, 0.38, 0.07);
+    color = mix(color, color * vec3(1.25, 0.85, 0.70), 0.55);
+    return color + warm * ember * 0.7;
+}
+#endif
+
+#ifdef TML_END
+// A black hole over the End's island: a black disc, a hot ring and a violet halo, where the
+// vanilla sky is empty. Fixed in the world, so it moves as the player does.
+void endBlackHole(inout vec3 color, vec3 dir) {
+    vec3 to = vec3(0.0, 240.0, 0.0) - cameraPosition;
+    float d = length(to);
+    if (d < 1.0) return;
+    float angle = acos(clamp(dot(dir, to / d), -1.0, 1.0));
+    const float R = 0.085;
+    float disc = 1.0 - smoothstep(R * 0.90, R, angle);
+    float ring = exp(-pow((angle - R * 1.05) / (R * 0.14), 2.0));
+    float halo = exp(-angle / (R * 0.85)) * (1.0 - disc);
+    vec3 hot = vec3(1.0, 0.58, 0.20);
+    vec3 cool = vec3(0.62, 0.24, 0.98);
+    color += (hot + cool * 0.7) * ring * 1.7;
+    color += cool * halo * 0.30;
+    color = mix(color, vec3(0.0), disc);
+}
+#endif
 
 void main() {
     vec3 color = texture2D(colortex0, texcoord).rgb;
@@ -162,6 +207,12 @@ void main() {
         // A round sun, soft at its rim (the bloom makes its glow), and the moon and stars.
         float disk = smoothstep(0.99895, 0.99935, dot(dir, s)) * (1.0 - rainStrength);
         color = skyRadiance(dir, s) + sunlight(s) * disk * 8.0 + texture2D(colortex2, texcoord).rgb;
+#ifdef TML_END
+        endBlackHole(color, dir);
+#endif
+#ifdef TML_NETHER
+        color = netherAir(dir, color);
+#endif
         vec4 clouds = cloudsAlong(dir, s, 1.0e30);
         color = mix(color, clouds.rgb, clouds.a);
         if (isEyeInWater == 1) color = vec3(0.02, 0.11, 0.15) * (0.15 + 0.85 * daylight(s));

@@ -161,3 +161,11 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   additive geometry the pack never drew — join the entities as translucent draws when the pack
   draws entities. With Solas the dragon was invisible: the pack's deferred pass painted over the
   geometry Horizon drew on its own.
+- Shaders: end crystals and thrown eyes of ender are marked for a pack's `gbuffers_entities`
+  like the dragon's geometry is; a pack's deferred pass was painting over them (the Eye of Ender
+  was invisible with Solas).
+- TML Visuals Lite: clouds get a third, turned octave, a density that thins at the billows'
+  edges, softer coverage and a shaded face from the noise towards the sun.
+- TML Visuals Lite: `TML_DIMENSION`/`TML_OVERWORLD`/`TML_NETHER`/`TML_END` are defined for every
+  pack's programs. In the Nether the cloud sheet is gone and embers drift through warm air; in
+  the End a black hole hangs over the island — a black disc with a hot ring and a violet halo.
