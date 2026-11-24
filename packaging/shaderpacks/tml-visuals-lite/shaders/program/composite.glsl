@@ -158,9 +158,17 @@ vec4 cloudsAlong(vec3 dir, vec3 s, float maxDistance) {
 #ifdef TML_NETHER
     return vec4(0.0);
 #endif
+#if CLOUD_STYLE == 0
+    // Vanilla's cloud mesh, drawn by the pack's own `gbuffers_clouds`.
+    return vec4(0.0);
+#elif CLOUD_STYLE == 1
+    // One flat sheet: half the lookups of the two-layer version, and no depth between them.
+    return cloudLayer(dir, s, 192.33, maxDistance, 1.0, 1.0, 1.0);
+#else
     vec4 low = cloudLayer(dir, s, 192.33, maxDistance, 1.0, 1.0, 1.0);
     vec4 high = cloudLayer(dir, s, 258.0, maxDistance, 1.55, 0.55, 0.62);
     return vec4(mix(low.rgb, high.rgb, high.a), low.a + high.a * (1.0 - low.a));
+#endif
 }
 
 #ifdef TML_NETHER

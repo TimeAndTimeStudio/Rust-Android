@@ -221,3 +221,7 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Pack culling: back to the packs TML ships by default (a third-party pack may read reflections
   or volumetrics, where a skipped section shows as missing geometry); `HORIZON_PACK_CULL=1`
   turns it on for any pack. The box test runs every other frame, a result outliving a frame.
+- TML Visuals Lite, clouds as an option: `CLOUD_STYLE` 0 draws vanilla's own cloud mesh with the
+  pack's shading (the default: cheapest, and what most players want), 1 one flat layer of the
+  pack's, 2 the two soft layers. With 1 or 2 the game's mesh is discarded as before; with 0 the
+  composite's cloud code never runs.
