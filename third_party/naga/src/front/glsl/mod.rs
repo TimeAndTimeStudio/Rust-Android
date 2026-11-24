@@ -42,7 +42,13 @@ type Result<T> = core::result::Result<T, Error>;
 // tokens, statements, or arguments in a shader. Leave room on ordinary Rust
 // loader/test thread stacks for the large debug-build lowering frames and the
 // uncounted calls between guarded steps.
-const NESTING_LIMIT: u8 = 32;
+//
+// Horizon: shader packs chain their arithmetic to save calls (`pow32(x)` is 32
+// multiplications in a row, Solas v3.9 lib/common.glsl), and the chain is one
+// recursive step a level: 32 refused the pack. The pack's programs are translated
+// on a thread of its own with a 16 MiB stack (gfx.rs `start_shader_pack`), which
+// leaves room for this.
+const NESTING_LIMIT: u8 = 128;
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Nesting(u8);

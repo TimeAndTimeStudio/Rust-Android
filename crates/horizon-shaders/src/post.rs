@@ -1085,13 +1085,25 @@ impl Loader<'_> {
         self.post
             .notes
             .extend([&vertex, &fragment].iter().flat_map(|pp| warnings(pp)));
+        // One line per program: a pack that takes the app down while translating (Photon's
+        // compute-heavy set) leaves the name of the program it was on in the log.
+        let started = std::time::Instant::now();
+        log::info!("shader pack: program {name}: translating");
         let program = match contained(&fsh, || translate(&vertex, &fragment)) {
             Ok(p) => p,
             Err(errors) => {
+                log::info!(
+                    "shader pack: program {name}: not translated in {} ms",
+                    started.elapsed().as_millis()
+                );
                 skip(self.post, &name, located_errors(&errors));
                 return None;
             }
         };
+        log::info!(
+            "shader pack: program {name}: translated in {} ms",
+            started.elapsed().as_millis()
+        );
         self.post.config.read(&vertex);
         self.post.config.read(&fragment);
         let mut buffers = config::draw_buffers(&fragment).unwrap_or_else(|| (0..8).collect());

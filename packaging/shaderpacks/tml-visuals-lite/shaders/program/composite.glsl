@@ -91,7 +91,7 @@ float cloudFbm(vec2 p) {
 // One detail octave under the billows: wisps at the edges, not another full fbm.
 float cloudDensity(vec2 p, float t) {
     float base = cloudFbm(p) * 0.72 + 0.14;
-    float detail = cloudNoise(p * 3.1 + vec2(t * 0.012, -t * 0.004));
+    float detail = cloudNoise(p * 3.1 + vec2(t * 0.0035, -t * 0.0012));
     return base + (detail - 0.5) * 0.16;
 }
 
@@ -108,8 +108,10 @@ vec4 cloudLayer(vec3 dir, vec3 s, float height, float maxDistance,
         return vec4(0.0);
     }
     vec2 q = (cameraPosition.xz + dir.xz * t) * 0.0045 * scale;
-    q += vec2(frameTimeCounter * CLOUD_SPEED * 0.8,
-              frameTimeCounter * CLOUD_SPEED * 0.18) * speed;
+    // Vanilla's drift (about 0.6 blocks a second here, 0.2 across): `q` is world blocks times
+    // 0.0045, so this was 178 blocks a second and the whole sky raced past.
+    q += vec2(frameTimeCounter * CLOUD_SPEED * 0.0027,
+              frameTimeCounter * CLOUD_SPEED * 0.0009) * speed;
     float n = cloudDensity(q, frameTimeCounter);
     // More coverage lowers the threshold: the same sky, more or fewer clouds.
     float threshold = mix(0.68, 0.34, CLOUD_COVERAGE);

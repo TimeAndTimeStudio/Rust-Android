@@ -2132,6 +2132,9 @@ impl PackPost {
             stage_written: &stage_written,
         };
         let mut build = |mut p: horizon_shaders::PostProgram, geometry: Option<&Geometry<'_>>| {
+            // One line per pass, before the driver sees it: a pipeline that takes the app down
+            // (the Adreno and Mali drivers both do, on some programs) leaves its name behind.
+            log::info!("shader pack: pass {}: building", p.name);
             let in_shadow = p.group.shadow();
             let mut compute = std::mem::take(&mut p.compute);
             if !gpu.compute {

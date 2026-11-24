@@ -124,3 +124,11 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   app's own `minecraft`, and the TML folder keeps only the player's files (saves, packs, options).
   The All-files-access gate is gone: nothing needs it to play. A copy an older build moved into
   TML/resources or TML/minecraft is no longer read; the log says how many MB it can free.
+- Shaders: naga's GLSL nesting limit is 128 (was 32): Solas v3.9's `pow32`/`pow24` helpers are
+  chains of 32 multiplications and every program was refused ("GLSL nesting limit exceeded").
+  The pack's programs are translated on a 16 MiB stack, which leaves room for it.
+- Shaders: every program logs "translating"/"translated in N ms" and every pass logs "building"
+  before the driver sees it, so a pack that takes the app down (Photon) leaves the program it
+  was on in the log.
+- TML Visuals Lite: the cloud sheets drift at about 0.6 blocks a second (they were scrolling at
+  178 blocks a second, the whole sky racing past), and the detail wisps drift with them.
