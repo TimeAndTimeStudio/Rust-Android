@@ -413,6 +413,12 @@ impl Cull {
         !self.probe || self.stamp.is_multiple_of(PROBE)
     }
 
+    /// Whether the last result read back found the section in resident `slot` hidden. A slot no
+    /// result has covered yet is not hidden: the first frames draw everything.
+    pub fn hidden_slot(&self, slot: u32) -> bool {
+        self.seen.get(slot as usize).is_some_and(|seen| !*seen)
+    }
+
     /// Whether phase 1 draws the section in resident `slot`.
     pub fn first(&self, slot: u32) -> bool {
         self.seen.get(slot as usize).copied().unwrap_or(false)

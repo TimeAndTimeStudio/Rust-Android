@@ -186,3 +186,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   way while a pack draws terrain (culling cannot reach a pack's own terrain programs). A fresh
   renderer's hidden share is 0 (was 1, "everything hidden"), and the twenty-second line says "no
   test result back yet" instead of "hid 0 of 0 boxes, 100%".
+- Shader packs and occlusion culling: a pack draws terrain with its own program, so the test now
+  reaches it by skipping the sections the last result found hidden (a frame of latency, no
+  indirect draws), with the box test run after the pack's terrain pass on the depth it drew.
+  Opt-in for now (`HORIZON_PACK_CULL=1` in horizon-args.txt): a pack's reflections or volumetrics
+  may want what the camera cannot see.

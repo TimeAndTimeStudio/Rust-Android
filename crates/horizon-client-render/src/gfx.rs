@@ -183,6 +183,18 @@ fn indirect_draws_wanted() -> bool {
     !cfg!(target_os = "android")
 }
 
+/// Whether a shader pack's terrain is occlusion culled by skipping the sections the last test
+/// found hidden (`HORIZON_PACK_CULL=1`): a pack's own passes may need geometry the camera cannot
+/// see (reflections, volumetrics), so this is not on by itself.
+fn pack_culling_requested() -> bool {
+    std::env::var("HORIZON_PACK_CULL").as_deref() == Ok("1")
+}
+
+/// The test runs for packs only when they asked for it (see `pack_culling_requested`).
+fn pack_cull_on() -> bool {
+    pack_culling_requested()
+}
+
 /// Two solid passes only where a discard costs the GPU its hidden surface removal: Apple's tiled
 /// GPUs, behind Metal, and Adreno (Vasysik's Android fork measured 25-27% less GPU time on an
 /// Adreno 710). A Mali-G57 gained no GPU time from it, and PowerVR hasn't been measured. Elsewhere
@@ -7317,14 +7329,18 @@ impl Renderer {
                 .as_ref()
                 .and_then(|p| p.1.as_ref())
                 .is_some_and(|p| p.has_terrain());
+        // A pack draws terrain with its own program: culling reaches it by skipping the
+        // sections its last result found hidden (a frame of latency, no indirect draws).
+        // Opt-in (`HORIZON_PACK_CULL=1`): a pack's passes may need what the camera cannot see.
+        let pack_cull = pack_terrain && pack_culling_requested();
         let mut cull = self
             .cull
             .as_mut()
             .filter(|c| {
                 self.cull_on
                     && !frame.title
-                    && !pack_terrain
-                    && self.multi_draw
+                    && (!pack_terrain || pack_cull)
+                    && (self.multi_draw || pack_cull)
                     // Occlusion is found from the camera, not the mirror's eye.
                     && mirror.is_none()
                     && visible.len() >= c.min_sections
@@ -7348,7 +7364,13 @@ impl Renderer {
         let mut opaque_draws = 0;
         for (i, v) in visible.iter().enumerate() {
             let s = self.sections.get(v.slot);
-            let first_phase = cull.as_ref().is_none_or(|c| c.first(v.slot));
+            // A pack's frame: the test hid it last time, so its draws go.
+            if pack_cull && cull.as_ref().is_some_and(|c| c.hidden_slot(v.slot)) {
+                continue;
+            }
+            // A pack draws the list in one go: every section is phase 1 (there is no phase 2
+            // pass to draw behind the test), and `drawn` gathers this frame's boxes.
+            let first_phase = pack_cull || cull.as_ref().is_none_or(|c| c.first(v.slot));
             let (draws, pages) = if first_phase {
                 (&mut self.draws, &mut self.draw_pages)
             } else {
@@ -7656,8 +7678,9 @@ impl Renderer {
                 shadow_visible.len(),
                 self.section_draw_calls,
             );
-            // The test only runs through indirect multi-draws: without them nothing culls.
-            let testing = self.cull_on && self.multi_draw;
+            // The test runs through indirect multi-draws, or for a pack that asked for it
+            // (`HORIZON_PACK_CULL=1`, skipping sections between frames).
+            let testing = self.cull_on && (self.multi_draw || pack_culling_requested());
             match self.cull.as_ref().filter(|_| testing).map(|cull| cull.hidden) {
                 // What the last test hid: the boxes it saw and did not, and the share of solid
                 // indices those boxes kept out of the passes.
@@ -9684,6 +9707,12 @@ impl Renderer {
                 &pages,
                 &mut terrain,
             );
+            // The box test against the depth the pack just drew (a pass of its own, on the
+            // shader's side), for the next frames' skips.
+            if pack_cull_on() && let Some(cull) = self.cull.as_mut() {
+                cull.bind_depth(&self.device, depth);
+                cull.test_pass(&mut encoder, self.own_timing.as_mut());
+            }
             self.pack_post = Some((dimension, Some(post)));
             if upscale {
                 self.world_post
