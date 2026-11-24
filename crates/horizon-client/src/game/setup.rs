@@ -271,9 +271,10 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
         Step::Start => (
             "Set up TML",
             "The game files are prepared on a computer: Horizon's launcher (or `horizon-prepare`) \
-             turns your own Minecraft: Java Edition into a `resources` folder. Copy that folder \
-             into the TML folder on this phone (allow All files access so TML can read it), then \
-             tap Try again (or restart TML). Sign in to play on servers, or play offline."
+             turns your own Minecraft: Java Edition into a `resources` folder. Copy that folder, \
+             or a zip of it, into the TML folder on this phone (allow All files access so TML can \
+             read it), then tap Try again: a zip is unpacked for you, and unpacked again if the \
+             files ever go bad. Sign in to play on servers, or play offline."
                 .into(),
             None,
         ),
@@ -831,6 +832,19 @@ impl Loading {
                 }
             }
             Action::Reload => {
+                // A zip copied beside the game files is unpacked before the load is tried.
+                #[cfg(target_os = "android")]
+                {
+                    let home = std::env::current_dir().unwrap_or_default();
+                    let private = horizon_client::logging::private_home();
+                    if let Some(note) = crate::android::unpack_resources(
+                        &home,
+                        &private,
+                        &self.vanilla_root,
+                    ) {
+                        log::info!("{note}");
+                    }
+                }
                 if let Err(e) = self.retry() {
                     self.failure = Some(e.to_string());
                 }

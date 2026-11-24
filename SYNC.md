@@ -94,3 +94,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   the TML folder and offers "Try again" (the game folder is looked at again). No empty
   `resources`/media folders are made at start, and an empty one left by an older build is
   removed, so a folder with no files no longer looks like lost resources.
+- Resources zip: a `resources.zip` (or any top-level zip holding `horizon-resources.json`) left
+  in the game folder is unpacked into `resources` at start — and unpacked again when the files
+  are missing or the zip was replaced. "Try again" also unpacks it, so no file picker is needed.

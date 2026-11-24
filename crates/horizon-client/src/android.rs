@@ -1159,6 +1159,92 @@ pub fn args() -> Vec<String> {
     ARGS.get().cloned().unwrap_or_default()
 }
 
+/// A prepared-resources zip kept beside the game files (`resources.zip`, or any top-level
+/// `.zip` holding `horizon-resources.json`) is unpacked into `resources` when the folder is
+/// missing, or when the zip changed. The zip is kept, so a resources folder that goes bad is
+/// unpacked again on the next start.
+pub fn unpack_resources(home: &Path, private: &Path, resources: &Path) -> Option<String> {
+    let zip = resource_zip(home, private)?;
+    let stamp = zip_stamp(&zip);
+    let marker = private.join("resources-zip.stamp");
+    let recorded = std::fs::read_to_string(&marker).unwrap_or_default();
+    let valid = resources.join("horizon-resources.json").is_file();
+    // Done already, or a zip that failed while good resources were there: nothing to redo.
+    if valid && (recorded == stamp || recorded == format!("{stamp}:failed")) {
+        return None;
+    }
+    let (kind, prefix) = crate::import::classify(&zip);
+    if kind != crate::import::Kind::Resources {
+        return None;
+    }
+    match crate::import::install_resources(&zip, &prefix, resources) {
+        Ok(()) => {
+            let _ = std::fs::write(&marker, &stamp);
+            Some(format!(
+                "TML: unpacked {} into {}",
+                zip.display(),
+                resources.display()
+            ))
+        }
+        Err(e) => {
+            if valid {
+                // The good files stay; do not unpack this zip again until it changes.
+                let _ = std::fs::write(&marker, format!("{stamp}:failed"));
+            } else {
+                let _ = std::fs::remove_file(&marker);
+            }
+            Some(format!("TML: could not unpack {}: {e}", zip.display()))
+        }
+    }
+}
+
+/// The prepared-resources zip to unpack: `resources.zip`, else a top-level `.zip` of the game
+/// folder or the app's own files whose archive holds `horizon-resources.json` (a resource pack
+/// zip does not).
+fn resource_zip(home: &Path, private: &Path) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    for base in [home, private] {
+        candidates.push(base.join("resources.zip"));
+        if let Ok(entries) = std::fs::read_dir(base) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file()
+                    && path
+                        .extension()
+                        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("zip"))
+                {
+                    candidates.push(path);
+                }
+            }
+        }
+    }
+    candidates.sort();
+    candidates.dedup();
+    // A zip named for resources first, then any other that turns out to hold them.
+    candidates.sort_by_key(|path| {
+        let named = path
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("resource"));
+        (!named, path.clone())
+    });
+    candidates.into_iter().find(|path| {
+        crate::import::classify(path).0 == crate::import::Kind::Resources
+    })
+}
+
+/// The zip's size and write time: different when the file was replaced.
+fn zip_stamp(path: &Path) -> String {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return String::new();
+    };
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos());
+    format!("{}-{modified}", meta.len())
+}
+
 /// Where the game's prepared files are: the shared game folder's `resources`, or the app's own
 /// when the move to shared storage did not finish (the game still has to find them).
 fn resources_dir(home: &Path, private: &Path) -> PathBuf {
@@ -1478,6 +1564,9 @@ pub fn main(app: AndroidApp) {
     let mut notes = Vec::new();
     let home = game_folder(&private, &mut notes);
     let resources = resources_dir(&home, &private);
+    if let Some(note) = unpack_resources(&home, &private, &resources) {
+        notes.push(note);
+    }
     let (args, env) = command_line(&home, &resources);
     // SAFETY: no other thread of ours runs yet; the game reads these from its threads afterwards.
     unsafe {
