@@ -2533,6 +2533,9 @@ struct Game<'a> {
     /// The pack-crash marker has been looked at this run: a build that is under way writes it,
     /// and looking again would take a running build for the crash it guards against.
     pack_guard_checked: bool,
+    /// The HUD's vertex buffer, kept from the last frame (`HudBatch::new_with`): the HUD is
+    /// rebuilt every frame, and a fresh vector would grow back to the same size each time.
+    hud_vertices: Vec<horizon_client::hud::HudVertex>,
     /// The trial of indirect multi-draws with occlusion culling on Android: when to start it,
     /// the frame time before it, and when it began (`trial_gpu_culling`).
     draws_trial_at: Option<Instant>,
@@ -8287,7 +8290,7 @@ impl Game<'_> {
             || self.dialog_open())
             && self.player.is_none()
         {
-            HudBatch::new(size)
+            HudBatch::new_with(size, std::mem::take(&mut self.hud_vertices))
         } else {
             self.hud_layers(size)
         };
@@ -8322,7 +8325,7 @@ impl Game<'_> {
         batch
     }
     fn hud_layers(&mut self, size: [u32; 2]) -> HudBatch {
-        let mut batch = HudBatch::new(size);
+        let mut batch = HudBatch::new_with(size, std::mem::take(&mut self.hud_vertices));
         // GlobalSettingsUniform's GameTime, for a resource pack's text shader.
         batch.game_time = ((self.world.game_time.rem_euclid(24000)) as f32
             + self.clock.fraction() as f32)
@@ -16278,7 +16281,9 @@ impl Game<'_> {
         };
         // A frame the surface refused (occluded, lost, timed out) is `Ok(false)`.
         self.frame_drawn = matches!(result, Ok(true));
-        // Restore storage even when rendering fails (for example, a lost surface).
+        // The HUD's vertex buffer goes back for the next frame (the frame above was its last
+        // reader).
+        self.hud_vertices = std::mem::take(&mut hud.vertices);
         self.entity_vertices = entities;
         *self.entity_spans.get_mut() = entity_spans;
         *self.entity_motion.get_mut() = entity_motion;
@@ -19128,6 +19133,7 @@ impl<'a> Game<'a> {
             pack_making: None,
             shader_choice: None,
             pack_guard_checked: false,
+            hud_vertices: Vec::new(),
             draws_trial_at: None,
             draws_trial_baseline: 0.0,
             draws_trial_started: None,

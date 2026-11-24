@@ -191,3 +191,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   indirect draws), with the box test run after the pack's terrain pass on the depth it drew.
   Opt-in for now (`HORIZON_PACK_CULL=1` in horizon-args.txt): a pack's reflections or volumetrics
   may want what the camera cannot see.
+- HUD: the vertex buffer is kept from frame to frame (`HudBatch::new_with`), as upstream's
+  reusable HudBatch does. A fresh vector grew back to the same size every frame and the whole
+  batch was copied into the upload buffer again each time.

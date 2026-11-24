@@ -2150,6 +2150,13 @@ impl HudBatch {
     /// Window.calculateScale: the largest scale keeping >= 320x240 GUI pixels,
     /// capped by the GUI Scale option (0 = auto).
     pub fn new(window: [u32; 2]) -> Self {
+        Self::new_with(window, Vec::new())
+    }
+    /// Like `new`, over a vertex buffer kept from the last frame: the HUD is rebuilt every frame,
+    /// and a fresh vector grows its way back to the same size each time (and copies the whole
+    /// batch into the upload buffer again).
+    pub fn new_with(window: [u32; 2], mut vertices: Vec<HudVertex>) -> Self {
+        vertices.clear();
         let limit = GUI_SCALE.load(std::sync::atomic::Ordering::Relaxed);
         let mut scale = 1;
         while (limit == 0 || scale < limit)
@@ -2159,7 +2166,7 @@ impl HudBatch {
             scale += 1;
         }
         Self {
-            vertices: Vec::new(),
+            vertices,
             scale: scale as f32,
             width: (window[0] as f32 / scale as f32).ceil(),
             height: (window[1] as f32 / scale as f32).ceil(),
