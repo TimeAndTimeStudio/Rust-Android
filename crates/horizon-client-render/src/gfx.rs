@@ -1302,6 +1302,9 @@ pub struct Renderer {
     /// and the draw calls the backend issued for them.
     pub section_draws: usize,
     pub section_draw_calls: usize,
+    /// When the next line of section and draw counts goes to the log: they say what occlusion
+    /// culling is worth on a device (`HORIZON_GPU_CULL=0` for the other side of the A/B).
+    stats_at: Instant,
     pub uploaded_bytes: u64,
     started: Instant,
     /// The next frame to write to a PNG path (control socket, F2, world icon).
@@ -4534,6 +4537,7 @@ impl Renderer {
             drawn_sections: 0,
             section_draws: 0,
             section_draw_calls: 0,
+            stats_at: Instant::now() + std::time::Duration::from_secs(10),
             uploaded_bytes: 0,
             started: Instant::now(),
             screenshot: None,
@@ -7216,6 +7220,16 @@ impl Renderer {
             self.animate(&mut encoder, frame.ticks, !frame.title);
         }
         self.drawn_sections = visible.len() + visible_lods.len();
+        if now >= self.stats_at {
+            self.stats_at = now + std::time::Duration::from_secs(20);
+            log::info!(
+                "Horizon renderer: {} sections and {} shadow casters drawn with {} draw calls                  (occlusion culling {})",
+                self.drawn_sections,
+                shadow_visible.len(),
+                self.section_draw_calls,
+                on_off(self.cull.is_some()),
+            );
+        }
         let instances = self.drawn_sections + shadow_visible.len();
         if instances as u64 > self.instance_capacity {
             self.instance_capacity = (instances as u64).next_power_of_two();

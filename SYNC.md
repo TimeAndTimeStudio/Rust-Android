@@ -153,3 +153,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Shaders: the crash marker is read once a run, before the first build. Read every frame, it saw
   the marker the build under way had just written and turned good packs (Solas, TML Visuals Lite)
   off mid-build.
+- Culling, measured: every 20 s the log says how many sections and shadow casters were drawn and
+  with how many draw calls, and whether occlusion culling ran — the A/B is `HORIZON_GPU_CULL=0`
+  in horizon-args.txt.
