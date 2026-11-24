@@ -324,10 +324,16 @@ impl Game<'_> {
             self.settings.horizon.shader_pack = name.clone();
             self.settings.save(&Self::options_path());
         }
-        // The last attempt at this pack took the app down while its programs were building: it
-        // is turned off rather than loaded into the same crash. Choosing it again in the shader
-        // settings tries once more.
-        if !horizon_shader_api::package::is_pack(&path) && pack_crashed(&path) {
+        // The last run took the app down while this pack's programs were building: it is turned
+        // off rather than loaded into the same crash. Choosing it again in the shader settings
+        // tries once more. Looked at once a run: the build under way writes the marker again.
+        let crashed = if self.pack_guard_checked {
+            false
+        } else {
+            self.pack_guard_checked = true;
+            !horizon_shader_api::package::is_pack(&path) && pack_crashed(&path)
+        };
+        if crashed {
             log::error!(
                 "shader pack {name}: turned off: it took the app down while loading (pick it \
                  again to retry)"

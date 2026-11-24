@@ -2530,6 +2530,9 @@ struct Game<'a> {
     pack_making: Option<shader_packs::Making>,
     /// The shader pack and profile the renderer's pack was loaded for (`shader_pack_inputs`).
     shader_choice: Option<(String, String)>,
+    /// The pack-crash marker has been looked at this run: a build that is under way writes it,
+    /// and looking again would take a running build for the crash it guards against.
+    pack_guard_checked: bool,
     started: Instant,
     /// `SpectatorGui`: the menu a spectator opens with the hotbar keys.
     spectator_gui: horizon_client::spectator_menu::SpectatorGui,
@@ -19085,6 +19088,7 @@ impl<'a> Game<'a> {
             pack_ids: None,
             pack_making: None,
             shader_choice: None,
+            pack_guard_checked: false,
             health_hud: hud_layout::HealthHud::default(),
             started: now,
             spectator_gui: Default::default(),

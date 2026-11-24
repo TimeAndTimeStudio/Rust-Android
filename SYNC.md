@@ -150,3 +150,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   Photon's `gbuffers_water` on Mali-G57) is turned off at the next start instead of loading into
   the same crash; picking it again in the settings tries once more. The pack thread's stack is
   64 MiB.
+- Shaders: the crash marker is read once a run, before the first build. Read every frame, it saw
+  the marker the build under way had just written and turned good packs (Solas, TML Visuals Lite)
+  off mid-build.
