@@ -141,3 +141,12 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   program's deepest expressions while a pipeline is made, which is where Photon's terrain died.
 - Shaders: a pipeline refused for that reason now says so in words (a storage buffer or image in
   a vertex stage this GPU cannot bind).
+- GPU culling is on by default on Android (`HORIZON_GPU_CULL=0` for A/B): the boxes are tested
+  in the fragment shader there, the way Metal and DirectX 12 do, because Adreno's Vulkan driver
+  left sections out for a frame with the early depth test (upstream `a09d036f50`). Tiled GPUs
+  (all phones) skip the test below 1600 sections. A device that cannot run it says so in the log,
+  with which capability is missing.
+- Shaders: a pack whose build took the app down (a driver dying in `create_render_pipeline`,
+  Photon's `gbuffers_water` on Mali-G57) is turned off at the next start instead of loading into
+  the same crash; picking it again in the settings tries once more. The pack thread's stack is
+  64 MiB.

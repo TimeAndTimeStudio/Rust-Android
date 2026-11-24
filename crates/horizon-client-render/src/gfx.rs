@@ -4223,7 +4223,7 @@ impl Renderer {
         // frame however few its draws and little it hides, `shader` tests in
         // the shader as on Metal (A/B checks).
         let cull_env = std::env::var("HORIZON_GPU_CULL");
-        let cull = cull::Cull::supported(&adapter, &device)
+        let cull = cull::Cull::supported(&adapter, &device, cfg!(target_os = "android"))
             .filter(|_| gpu_culling_requested(&adapter_info, cull_env.as_deref().ok()))
             .map(|depth_test| match cull_env.as_deref() {
                 Ok("shader") => cull::DepthTest::InShader,
@@ -4233,15 +4233,29 @@ impl Renderer {
                 let mut cull =
                     cull::Cull::new(&device, config.format.remove_srgb_suffix(), depth_test);
                 cull.always = cull_env.as_deref() == Ok("all");
-                if !cull.always && adapter_info.backend == wgpu::Backend::Metal {
+                // Tiled GPUs: testing a few sections costs more than drawing them.
+                if !cull.always
+                    && (adapter_info.backend == wgpu::Backend::Metal
+                        || cfg!(target_os = "android"))
+                {
                     cull.min_sections = cull::TILED_MIN_SECTIONS;
                 }
                 cull
             });
-        // Android starts with it off (`section-cull on` or HORIZON_GPU_CULL=1 for A/B): on the
-        // tiled GPU measured (Adreno 740) it saved no GPU time, and a block the player placed or
-        // broke now and then left most of the terrain out of a frame, or a chunk out for longer.
-        let cull_on = cull.is_some() && (!cfg!(target_os = "android") || cull_env.is_ok());
+        // On from the start wherever the device takes it (`HORIZON_GPU_CULL=0` for A/B). It was
+        // off on Android while Adreno's early depth test left sections out for a frame; the test
+        // now runs in the shader there (upstream `a09d036f50`), which Adreno keeps right.
+        let cull_on = cull.is_some();
+        if cull.is_none() {
+            let flags = adapter.get_downlevel_capabilities().flags;
+            log::info!(
+                "Horizon renderer: no occlusion culling on this device (storage in vertex {}, \
+                 in fragment {}, indirect multi-draw {})",
+                on_off(flags.contains(wgpu::DownlevelFlags::VERTEX_STORAGE)),
+                on_off(flags.contains(wgpu::DownlevelFlags::FRAGMENT_WRITABLE_STORAGE)),
+                on_off(device.features().contains(wgpu::Features::INDIRECT_FIRST_INSTANCE)),
+            );
+        }
         let depth = Self::depth(&device, &config);
         let world_post = world_post::Post::new(
             &device,
@@ -6024,10 +6038,10 @@ impl Renderer {
         let (device, queue) = (self.device.clone(), self.queue.clone());
         let (send, receive) = std::sync::mpsc::channel();
         // naga's GLSL front end recurses into a pack's longest expressions, and its SPIR-V
-        // writer into theirs again while a pipeline is made (Photon's terrain).
+        // writer into theirs again while a pipeline is made (Photon's terrain and water).
         let spawned = std::thread::Builder::new()
             .name("shader pack".into())
-            .stack_size(32 << 20)
+            .stack_size(64 << 20)
             .spawn(move || {
                 // A pack is not the game's own code: a panic while translating or building it
                 // is logged with its message and the pack turns off, instead of the thread

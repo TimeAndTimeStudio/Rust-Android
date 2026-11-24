@@ -186,6 +186,49 @@ pub(super) struct Making {
     started: std::time::Instant,
 }
 
+/// Taken while a pack's programs are making: a start that finds it unchanged knows the app
+/// died inside that build (a driver that takes the process down in `create_render_pipeline`,
+/// as Mali-G57 does with Photon's water program).
+fn pack_marker() -> std::path::PathBuf {
+    horizon_client::logging::private_home().join("pack-loading")
+}
+
+/// Which pack, and which version of its file (a replaced or updated pack is a new one).
+fn pack_stamp(path: &std::path::Path) -> String {
+    let meta = std::fs::metadata(path).ok();
+    let len = meta.as_ref().map_or(0, |m| m.len());
+    let time = meta
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos());
+    format!(
+        "{}-{time}-{len}",
+        path.file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+    )
+}
+
+/// Before a pack's programs are made.
+fn write_pack_marker(path: &std::path::Path) {
+    let _ = std::fs::write(pack_marker(), pack_stamp(path));
+}
+
+/// Once the pack is made (or failed with an error we could see), the marker goes.
+fn clear_pack_marker() {
+    let _ = std::fs::remove_file(pack_marker());
+}
+
+/// The app died in this pack's build last time: do not load it again into the same crash.
+/// Picking it in the settings after this tries once more (the marker is gone).
+fn pack_crashed(path: &std::path::Path) -> bool {
+    let marker = std::fs::read_to_string(pack_marker()).unwrap_or_default();
+    if marker == pack_stamp(path) {
+        let _ = std::fs::remove_file(pack_marker());
+        return true;
+    }
+    false
+}
+
 /// The pack's option values: the profile the player chose (`LOW`; empty is the pack's own
 /// defaults), then what they chose on the Shader Options page, then `HORIZON_SHADER_OPTIONS`
 /// lists values over it (`shadowDistance=64.0 SHADOW_QUALITY=0 !BLOOM`). Nothing here picks a
@@ -281,6 +324,30 @@ impl Game<'_> {
             self.settings.horizon.shader_pack = name.clone();
             self.settings.save(&Self::options_path());
         }
+        // The last attempt at this pack took the app down while its programs were building: it
+        // is turned off rather than loaded into the same crash. Choosing it again in the shader
+        // settings tries once more.
+        if !horizon_shader_api::package::is_pack(&path) && pack_crashed(&path) {
+            log::error!(
+                "shader pack {name}: turned off: it took the app down while loading (pick it \
+                 again to retry)"
+            );
+            if self.settings.horizon.shader_pack == name {
+                self.settings.horizon.shader_pack.clear();
+                self.settings.save(&Self::options_path());
+            }
+            self.shader_choice = None;
+            self.pack_ids = None;
+            self.pack_making = None;
+            if let Some(renderer) = &mut self.renderer {
+                renderer.set_shader_pack(dimension, None, &[]);
+            }
+            self.system_message(Text::colored(
+                format!("Shader pack {name} crashed TML while loading and was turned off"),
+                0xFF5555,
+            ));
+            return PackInputs::default();
+        }
         if horizon_shader_api::package::is_pack(&path) {
             // One of Horizon's own packs (game/native_shaders.rs).
             self.tick_native_shader_pack(&path);
@@ -291,6 +358,7 @@ impl Game<'_> {
             let started = std::time::Instant::now();
             self.pack_ids = None;
             self.pack_making = None;
+            write_pack_marker(&path);
             // A pack is not the game's own code: one that makes the shader compiler (or our
             // translation of it) panic is turned off instead of crashing every world load (#3525).
             let loaded = horizon_client::crash::contain(|| {
@@ -456,6 +524,8 @@ impl Game<'_> {
                 }
             });
             if let Err(panic) = loaded {
+                // Caught: the app lives, so the build is not a crash to remember.
+                clear_pack_marker();
                 self.shader_pack_failed(name, dimension, &panic);
             }
         }
@@ -485,6 +555,7 @@ impl Game<'_> {
                 }
                 Err(e) => self.shader_pack_failed(&name, dimension, &e),
             }
+            clear_pack_marker();
         }
         let lerp = |(old, new): (f32, f32)| old + (new - old) * partial;
         let at = camera.floor().as_ivec3();

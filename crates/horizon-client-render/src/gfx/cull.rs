@@ -187,17 +187,29 @@ impl Cull {
     /// depth tests, or Metal, both drawing an indirect multi-draw's entries
     /// with the instance counts the GPU wrote, with fragment shaders that
     /// write storage.
-    pub fn supported(adapter: &wgpu::Adapter, device: &wgpu::Device) -> Option<DepthTest> {
-        let depth_test = match adapter.get_info().backend {
-            wgpu::Backend::Vulkan
-                if device
-                    .features()
-                    .contains(wgpu::Features::SHADER_EARLY_DEPTH_TEST) =>
-            {
-                DepthTest::Early
+    /// `in_shader`: test the boxes in the fragment shader itself, as Metal and DirectX 12 do.
+    /// Android asks for it: with the early depth test, Adreno's Vulkan driver left sections out
+    /// for a frame now and then (upstream `a09d036f50`), and the shader's test is the one the
+    /// driver keeps right.
+    pub fn supported(
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        in_shader: bool,
+    ) -> Option<DepthTest> {
+        let depth_test = if in_shader {
+            DepthTest::InShader
+        } else {
+            match adapter.get_info().backend {
+                wgpu::Backend::Vulkan
+                    if device
+                        .features()
+                        .contains(wgpu::Features::SHADER_EARLY_DEPTH_TEST) =>
+                {
+                    DepthTest::Early
+                }
+                wgpu::Backend::Metal => DepthTest::InShader,
+                _ => return None,
             }
-            wgpu::Backend::Metal => DepthTest::InShader,
-            _ => return None,
         };
         (device
             .features()
