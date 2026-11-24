@@ -213,3 +213,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   on, which Android measured slower, for the rest of the run. A pack taking over now resets
   section draws to the platform's choice (`Renderer::reset_indirect_draws`), and the trial ends
   there.
+- Shaders, dimension folders: a program a `world0`/`world-1`/`world1` folder does not hold falls
+  back to the base `shaders/` one, as Iris reads them (Solas' End folder has no
+  `gbuffers_weather`, so rain drew with `gbuffers_textured` there). Compute stages fall back too.

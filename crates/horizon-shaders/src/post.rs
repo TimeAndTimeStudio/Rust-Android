@@ -1012,12 +1012,22 @@ impl Loader<'_> {
         group: Group,
         translate: impl FnOnce(&Preprocessed, &Preprocessed) -> Result<Program, Vec<crate::Error>>,
     ) -> Option<PostProgram> {
-        let path = |ext: &str| match self.folder {
-            "" => format!("{name}.{ext}"),
-            f => format!("{f}/{name}.{ext}"),
+        // A dimension's folder (`world1`) only overrides the programs it holds: the base
+        // folder's stage stands in for the rest, as Iris reads them (Solas' End folder has no
+        // `gbuffers_weather`, and the base one is what draws rain there).
+        let path = |ext: &str| -> Option<String> {
+            let own = match self.folder {
+                "" => format!("{name}.{ext}"),
+                f => format!("{f}/{name}.{ext}"),
+            };
+            if self.pack.exists(&own) {
+                return Some(own);
+            }
+            let base = format!("{name}.{ext}");
+            (base != own && self.pack.exists(&base)).then_some(base)
         };
         let (vsh, fsh) = (path("vsh"), path("fsh"));
-        if group == Group::Setup || !self.pack.exists(&fsh) || !self.pack.exists(&vsh) {
+        if group == Group::Setup || fsh.is_none() || vsh.is_none() {
             let on = enabled(
                 self.properties,
                 self.folder,
@@ -1062,16 +1072,17 @@ impl Loader<'_> {
         ) {
             return None;
         }
-        if self.pack.exists(&path("gsh")) {
+        if let Some(gsh) = path("gsh") {
             let Some(inputs) = self.geometry.clone() else {
                 self.post.notes.push(format!(
                     "{name}: uses a geometry stage (supported for terrain's shadow only); skipped"
                 ));
                 return None;
             };
-            let (vsh, gsh) = (path("vsh"), path("gsh"));
+            let (vsh, fsh) = (vsh.unwrap(), fsh.unwrap());
             return self.load_geometry(name, group, &vsh, &gsh, &fsh, &inputs);
         }
+        let (vsh, fsh) = (vsh.unwrap(), fsh.unwrap());
         let vertex = self.preprocess(&vsh);
         let fragment = self.preprocess(&fsh);
         let problems: Vec<String> = [&vertex, &fragment]
@@ -1251,12 +1262,21 @@ impl Loader<'_> {
         let names =
             std::iter::once(name.to_owned()).chain(('a'..='z').map(|c| format!("{name}_{c}")));
         for name in names {
-            let path = match self.folder {
+            // As for the other stages: the dimension folder's compute program, else the base
+            // folder's.
+            let own = match self.folder {
                 "" => format!("{name}.csh"),
                 f => format!("{f}/{name}.csh"),
             };
-            if !self.pack.exists(&path)
-                || !enabled(
+            let base = format!("{name}.csh");
+            let path = if self.pack.exists(&own) {
+                own
+            } else if base != own && self.pack.exists(&base) {
+                base
+            } else {
+                continue;
+            };
+            if !enabled(
                     self.properties,
                     self.folder,
                     &name,
