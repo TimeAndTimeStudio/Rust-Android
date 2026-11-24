@@ -1276,6 +1276,10 @@ pub struct Renderer {
     own_timing: Option<pack_timing::PassTiming>,
     /// The entity vertices Horizon draws itself while a shader pack draws the others.
     pack_entity_rest: Vec<Vertex>,
+    /// Whether the pack drawing now has its terrain occlusion culled (the sections the last test
+    /// found hidden are skipped): set by the client for the packs it ships that can take it
+    /// (`set_pack_culling`), or `HORIZON_PACK_CULL=1`.
+    pack_cull: bool,
     /// Set 1 of the cloud pipeline, for a shader pack's `gbuffers_clouds`.
     cloud_bindings: wgpu::BindGroupLayout,
     /// Rain and snow handed to a shader pack's `gbuffers_weather`, once a pack draws them.
@@ -4979,13 +4983,6 @@ impl Renderer {
     pub fn native_shadow(&self) -> bool {
         self.native.as_ref().is_some_and(|n| n.shadow.is_some())
     }
-    /// Whether a shader pack runs now (one of Horizon's own, or a `shaders/` pack): the game
-    /// then leaves out vanilla's round entity shadow, shaders replacing the way the world is
-    /// lit — and drawing their own under the entities when the pack has a shadow pass.
-    /// Whether the pack drawing now has its terrain occlusion culled (the sections the last test
-    /// found hidden are skipped): set by the client for the packs it ships that can take it
-    /// (`set_pack_culling`), or `HORIZON_PACK_CULL=1`.
-    pack_cull: bool,
     /// Whether the pack drawing now draws entities itself (`gbuffers_entities`): the game then
     /// marks the entities it makes outside `entity_geometry` (the dragon) for the pack.
     pub fn pack_draws_entities(&self) -> bool {
@@ -4995,6 +4992,9 @@ impl Renderer {
             .is_some_and(pack_post::PackPost::has_entities)
     }
 
+    /// Whether a shader pack runs now (one of Horizon's own, or a `shaders/` pack): the game
+    /// then leaves out vanilla's round entity shadow, shaders replacing the way the world is
+    /// lit — and drawing their own under the entities when the pack has a shadow pass.
     pub fn shader_pack_active(&self) -> bool {
         self.native.is_some()
             || self
