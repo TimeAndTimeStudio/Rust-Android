@@ -108,3 +108,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - No `resources.zip`: it doubled the space the game used, and preparation on the phone can
   simply run again when the resources are lost. The zip generation, the bundled APK copy and
   the automatic unpacking are gone.
+- Fetched files live only in `TML/minecraft`: without All files access the setup asks for it
+  (and offers the restart that applies it) before anything is downloaded or prepared, downloads
+  refuse to start, and a private `minecraft/` left by an older build is removed.

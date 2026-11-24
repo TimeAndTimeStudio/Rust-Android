@@ -406,10 +406,30 @@ const NO_MEDIA: &[&str] = &[
 /// starts after. GameFolder.choose (Java) makes the same choice for the Files app.
 fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     let Some(shared) = SHARED_FOLDER.get() else {
-        // No shared folder: everything stays in the app's files, but what the phone can no
-        // longer use (the fetched jars, Java's preparation files) still goes.
+        // No All files access: the fetched game files have no TML folder to live in, and they
+        // are never kept in the app's own files. Downloads and preparation wait for the setting
+        // (game/setup.rs), and an old private copy goes.
+        let minecraft = private.join("minecraft");
+        if minecraft.is_dir() {
+            let freed = tree_size(&minecraft);
+            match std::fs::remove_dir_all(&minecraft) {
+                Ok(()) => notes.push(format!(
+                    "TML: removed {} ({} MB): the game files belong in the TML folder",
+                    minecraft.display(),
+                    mib(freed)
+                )),
+                Err(e) => notes.push(format!(
+                    "TML: could not remove {}: {e}",
+                    minecraft.display()
+                )),
+            }
+        }
         move_heavy_dirs(private, private, notes);
         free_dead_space(private, private, notes);
+        notes.push(
+            "TML: All files access is off: the game files are kept in the TML folder only"
+                .to_string(),
+        );
         return private.to_path_buf();
     };
     let earlier = shared.with_file_name("Horizon");

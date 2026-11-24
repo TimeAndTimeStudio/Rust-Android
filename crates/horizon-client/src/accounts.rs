@@ -545,6 +545,13 @@ pub fn sign_out() -> Result<(), String> {
 /// file checked against its hash, into [`files_root`]. A second call resumes what an
 /// interrupted one left.
 pub fn download_files() {
+    // The fetched files belong in the TML folder: without All files access they would land in
+    // the app's own storage, which is exactly what the player was asked not to fill.
+    #[cfg(target_os = "android")]
+    if crate::logging::game_home() == crate::logging::private_home() {
+        log::warn!("Horizon: the game files need the TML folder: allow All files access for TML");
+        return;
+    }
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut s = shared();
