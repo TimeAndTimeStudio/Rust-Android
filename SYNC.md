@@ -194,3 +194,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - HUD: the vertex buffer is kept from frame to frame (`HudBatch::new_with`), as upstream's
   reusable HudBatch does. A fresh vector grew back to the same size every frame and the whole
   batch was copied into the upload buffer again each time.
+- OIT: the feature stage is skipped whole when a frame has nothing for it (no text, particles,
+  items, entities, weather, border or lightning in the translucent layers) — one pass fewer in
+  the common frame (part of upstream's OIT coalescing).
