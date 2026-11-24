@@ -197,3 +197,5 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - OIT: the feature stage is skipped whole when a frame has nothing for it (no text, particles,
   items, entities, weather, border or lightning in the translucent layers) — one pass fewer in
   the common frame (part of upstream's OIT coalescing).
+- HUD, more: the batch's glyph patches, blend runs and inline profiles are kept from frame to
+  frame too (`HudReuse`, `HudBatch::into_reuse`), not only its vertices.

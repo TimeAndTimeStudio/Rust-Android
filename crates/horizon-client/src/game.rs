@@ -2535,7 +2535,7 @@ struct Game<'a> {
     pack_guard_checked: bool,
     /// The HUD's vertex buffer, kept from the last frame (`HudBatch::new_with`): the HUD is
     /// rebuilt every frame, and a fresh vector would grow back to the same size each time.
-    hud_vertices: Vec<horizon_client::hud::HudVertex>,
+    hud_reuse: horizon_client::hud::HudReuse,
     /// The trial of indirect multi-draws with occlusion culling on Android: when to start it,
     /// the frame time before it, and when it began (`trial_gpu_culling`).
     draws_trial_at: Option<Instant>,
@@ -8290,7 +8290,7 @@ impl Game<'_> {
             || self.dialog_open())
             && self.player.is_none()
         {
-            HudBatch::new_with(size, std::mem::take(&mut self.hud_vertices))
+            HudBatch::new_with(size, std::mem::take(&mut self.hud_reuse))
         } else {
             self.hud_layers(size)
         };
@@ -8325,7 +8325,7 @@ impl Game<'_> {
         batch
     }
     fn hud_layers(&mut self, size: [u32; 2]) -> HudBatch {
-        let mut batch = HudBatch::new_with(size, std::mem::take(&mut self.hud_vertices));
+        let mut batch = HudBatch::new_with(size, std::mem::take(&mut self.hud_reuse));
         // GlobalSettingsUniform's GameTime, for a resource pack's text shader.
         batch.game_time = ((self.world.game_time.rem_euclid(24000)) as f32
             + self.clock.fraction() as f32)
@@ -16283,7 +16283,7 @@ impl Game<'_> {
         self.frame_drawn = matches!(result, Ok(true));
         // The HUD's vertex buffer goes back for the next frame (the frame above was its last
         // reader).
-        self.hud_vertices = std::mem::take(&mut hud.vertices);
+        self.hud_reuse = hud.into_reuse();
         self.entity_vertices = entities;
         *self.entity_spans.get_mut() = entity_spans;
         *self.entity_motion.get_mut() = entity_motion;
@@ -19133,7 +19133,7 @@ impl<'a> Game<'a> {
             pack_making: None,
             shader_choice: None,
             pack_guard_checked: false,
-            hud_vertices: Vec::new(),
+            hud_reuse: Default::default(),
             draws_trial_at: None,
             draws_trial_baseline: 0.0,
             draws_trial_started: None,

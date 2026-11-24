@@ -2093,6 +2093,16 @@ fn take_seed(x: f32, y: f32, i: usize) -> u32 {
 }
 /// The GUI Scale option (0 = auto).
 pub static GUI_SCALE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// The buffers a [`HudBatch`] hands back for the next frame (`game.rs` keeps one): the HUD is
+/// rebuilt every frame, and fresh vectors grow back to the same size each time.
+#[derive(Default)]
+pub struct HudReuse {
+    vertices: Vec<HudVertex>,
+    patches: Vec<crate::font::Patch>,
+    blends: Vec<(std::ops::Range<u32>, Blend)>,
+    inline_profiles: Vec<serde_json::Value>,
+}
+
 /// One frame of overlay geometry in GUI pixels.
 pub struct HudBatch {
     pub vertices: Vec<HudVertex>,
@@ -2150,12 +2160,13 @@ impl HudBatch {
     /// Window.calculateScale: the largest scale keeping >= 320x240 GUI pixels,
     /// capped by the GUI Scale option (0 = auto).
     pub fn new(window: [u32; 2]) -> Self {
-        Self::new_with(window, Vec::new())
+        Self::new_with(window, HudReuse::default())
     }
     /// Like `new`, over a vertex buffer kept from the last frame: the HUD is rebuilt every frame,
     /// and a fresh vector grows its way back to the same size each time (and copies the whole
     /// batch into the upload buffer again).
-    pub fn new_with(window: [u32; 2], mut vertices: Vec<HudVertex>) -> Self {
+    pub fn new_with(window: [u32; 2], reuse: HudReuse) -> Self {
+        let mut vertices = reuse.vertices;
         vertices.clear();
         let limit = GUI_SCALE.load(std::sync::atomic::Ordering::Relaxed);
         let mut scale = 1;
@@ -2170,13 +2181,27 @@ impl HudBatch {
             scale: scale as f32,
             width: (window[0] as f32 / scale as f32).ceil(),
             height: (window[1] as f32 / scale as f32).ceil(),
-            patches: Vec::new(),
-            blends: Vec::new(),
+            patches: reuse.patches,
+            blends: reuse.blends,
             end_portal: EndPortalFill::default(),
             glint_alpha: 0.75,
             game_time: 0.0,
             blur_at: 0,
-            inline_profiles: Vec::new(),
+            inline_profiles: reuse.inline_profiles,
+        }
+    }
+    /// The batch's buffers for the next frame (`new_with` takes them back), the HUD being
+    /// rebuilt in full every frame.
+    pub fn into_reuse(mut self) -> HudReuse {
+        self.vertices.clear();
+        self.patches.clear();
+        self.blends.clear();
+        self.inline_profiles.clear();
+        HudReuse {
+            vertices: std::mem::take(&mut self.vertices),
+            patches: std::mem::take(&mut self.patches),
+            blends: std::mem::take(&mut self.blends),
+            inline_profiles: std::mem::take(&mut self.inline_profiles),
         }
     }
     /// Draw the vertices added since `start` with the inverting blend.
