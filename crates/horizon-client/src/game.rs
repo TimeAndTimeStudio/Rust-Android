@@ -23350,8 +23350,19 @@ impl Game<'_> {
         }
         let now = Instant::now();
         // A shader pack draws terrain with its own programs, which occlusion culling (indirect
-        // draws of the game's terrain) does not reach: the pair would only cost there.
+        // draws of the game's terrain) does not reach: the pair would only cost there. A trial
+        // that began before the pack arrived ends here, back on the platform's choice.
         if self.pack_ids.is_some() {
+            if self.draws_trial_started.is_some_and(|at| at < Instant::now()) {
+                if let Some(renderer) = self.renderer.as_mut() {
+                    renderer.reset_indirect_draws();
+                }
+                log::info!(
+                    "Horizon renderer: a shader pack took over; back to the platform's section \
+                     draws"
+                );
+            }
+            self.draws_trial_started = Some(Instant::now() + Duration::from_secs(86_400));
             return;
         }
         let Some(renderer) = self.renderer.as_mut() else {

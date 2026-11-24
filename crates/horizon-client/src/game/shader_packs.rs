@@ -578,6 +578,12 @@ impl Game<'_> {
                         self.shader_pack_failed(&name, dimension, "none of its programs loaded");
                     } else {
                         self.pack_ids = Some(making.ids);
+                        // The pack draws terrain with its own programs: the trial of indirect
+                        // draws (which only ever concerned the game's own terrain) goes back to
+                        // the platform's choice, or a slower one would stay on.
+                        if let Some(renderer) = &mut self.renderer {
+                            renderer.reset_indirect_draws();
+                        }
                     }
                 }
                 Err(e) => self.shader_pack_failed(&name, dimension, &e),

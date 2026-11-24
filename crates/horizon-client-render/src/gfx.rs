@@ -4914,6 +4914,13 @@ impl Renderer {
     pub fn set_indirect_draws(&mut self, on: bool) {
         self.multi_draw = on && self.indirect_capable;
     }
+
+    /// Back to the platform's own choice of section draws: indirect multi-draws where they
+    /// measured faster, a call a section on Android. A pack taking over ends the trial that was
+    /// trying the other way (`game.rs trial_gpu_culling`).
+    pub fn reset_indirect_draws(&mut self) {
+        self.multi_draw = self.indirect_capable && indirect_draws_wanted();
+    }
     /// Whether frames that may take it draw the sky after solid terrain (`late_sky`).
     pub fn late_sky_on(&self) -> bool {
         self.late_sky_on

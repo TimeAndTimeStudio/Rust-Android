@@ -208,3 +208,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Occlusion culling now covers every shader pack's terrain by default (Solas included): the
   sections it skips are the ones behind other geometry, which no program can see either. TML
   Visuals Lite is no longer a special case; `HORIZON_PACK_CULL=0` turns it off.
+- Regression: the indirect-draws trial could start while a pack was reloading (its choice had
+  briefly cleared), and once the pack was back the trial returned early — leaving indirect draws
+  on, which Android measured slower, for the rest of the run. A pack taking over now resets
+  section draws to the platform's choice (`Renderer::reset_indirect_draws`), and the trial ends
+  there.
