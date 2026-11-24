@@ -1280,6 +1280,9 @@ pub struct Renderer {
     /// found hidden are skipped): set by the client for the packs it ships that can take it
     /// (`set_pack_culling`), or `HORIZON_PACK_CULL=1`.
     pack_cull: bool,
+    /// Frames since the last pack-occlusion test: a pack's boxes are tested every other frame,
+    /// the results outliving a frame.
+    pack_cull_frame: u32,
     /// Set 1 of the cloud pipeline, for a shader pack's `gbuffers_clouds`.
     cloud_bindings: wgpu::BindGroupLayout,
     /// Rain and snow handed to a shader pack's `gbuffers_weather`, once a pack draws them.
@@ -4534,7 +4537,11 @@ impl Renderer {
             hdr_marker: None,
             start_marker: None,
             pack_post: None,
-            pack_cull: pack_culling_override().unwrap_or(true),
+            // Off until a pack asks for it (`set_pack_culling`): a pack's passes may read what
+            // the camera cannot see (reflections, volumetrics), and a wrong skip shows as
+            // missing geometry.
+            pack_cull: pack_culling_override().unwrap_or(false),
+            pack_cull_frame: 0,
             native: None,
             pass_timing: pack_timing::PassTiming::logging(),
             own_timing: None,
@@ -9744,9 +9751,17 @@ impl Renderer {
             );
             // The box test against the depth the pack just drew (a pass of its own, on the
             // shader's side), for the next frames' skips.
-            if self.pack_cull && let Some(cull) = self.cull.as_mut() {
-                cull.bind_depth(&self.device, depth);
-                cull.test_pass(&mut encoder, self.own_timing.as_mut());
+            if self.pack_cull {
+                // Every other frame: a box test reads the depth the pack just drew, and a result
+                // a frame old is enough for the skip (the sections behind geometry stay behind
+                // it for longer than that).
+                self.pack_cull_frame = self.pack_cull_frame.wrapping_add(1);
+                if self.pack_cull_frame.is_multiple_of(2)
+                    && let Some(cull) = self.cull.as_mut()
+                {
+                    cull.bind_depth(&self.device, depth);
+                    cull.test_pass(&mut encoder, self.own_timing.as_mut());
+                }
             }
             self.pack_post = Some((dimension, Some(post)));
             if upscale {

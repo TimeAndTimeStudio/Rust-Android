@@ -186,6 +186,11 @@ pub(super) struct Making {
     started: std::time::Instant,
 }
 
+/// Whether a pack's terrain may be occlusion culled by default: the ones TML ships.
+fn pack_takes_culling(name: &str) -> bool {
+    name.to_ascii_lowercase().contains("tmlvisuals")
+}
+
 /// Taken while a pack's programs are making: a start that finds it unchanged knows the app
 /// died inside that build (a driver that takes the process down in `create_render_pipeline`,
 /// as Mali-G57 does with Photon's water program).
@@ -306,11 +311,11 @@ impl Game<'_> {
             }
             return PackInputs::default();
         };
-        // A pack's terrain is occlusion culled like the game's own: the sections skipped are the
-        // ones behind other geometry, which no program can see either (`HORIZON_PACK_CULL=0`
-        // turns it off).
+        // The packs TML ships never read what the camera cannot see, so their terrain takes
+        // occlusion culling; other packs opt in with `HORIZON_PACK_CULL=1` (a wrong skip shows
+        // as missing geometry in a pack that reads reflections or volumetrics).
         if let Some(renderer) = &mut self.renderer {
-            renderer.set_pack_culling(true);
+            renderer.set_pack_culling(pack_takes_culling(&name));
         }
         let dimension = match self.dim {
             Dim::Overworld => 0,

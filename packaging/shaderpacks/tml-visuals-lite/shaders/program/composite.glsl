@@ -201,6 +201,13 @@ void main() {
     vec3 s = sunDir();
     float sky = 1.0;
     if (depth >= 1.0) {
+#ifdef TML_NETHER
+        // The Nether has no sky: what lies past the fog is the game's own, the haze adds no sun,
+        // stars or sky colour there (it was drawing one).
+        /* DRAWBUFFERS:0 */
+        gl_FragData[0] = vec4(color, 0.0);
+        return;
+#endif
         // The near plane: the far one is at infinity, where w is 0.
         vec4 view = gbufferProjectionInverse * vec4(texcoord * 2.0 - 1.0, -1.0, 1.0);
         vec3 dir = normalize(mat3(gbufferModelViewInverse) * (view.xyz / view.w));

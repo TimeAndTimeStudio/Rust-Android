@@ -216,3 +216,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Shaders, dimension folders: a program a `world0`/`world-1`/`world1` folder does not hold falls
   back to the base `shaders/` one, as Iris reads them (Solas' End folder has no
   `gbuffers_weather`, so rain drew with `gbuffers_textured` there). Compute stages fall back too.
+- TML Visuals Lite: the Nether has no sky again — its composite drew a sky past the fog there
+  (sun, stars, the lot); the game's own colour stands, with no sky coverage.
+- Pack culling: back to the packs TML ships by default (a third-party pack may read reflections
+  or volumetrics, where a skipped section shows as missing geometry); `HORIZON_PACK_CULL=1`
+  turns it on for any pack. The box test runs every other frame, a result outliving a frame.
