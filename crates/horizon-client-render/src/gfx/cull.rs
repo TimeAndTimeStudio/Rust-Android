@@ -55,6 +55,10 @@ const PROBE: u32 = 64;
 /// 2.2 to 2.5 per section; a section's draw count now depends on the sides
 /// it shows the eye (`mesher::Sides`), so the bar counts sections.
 pub const TILED_MIN_SECTIONS: usize = 1600;
+/// Phones draw sections directly (no indirect multi-draws) unless a trial turns them on, and a
+/// phone's render distance leaves a few hundred sections in view: testing them is cheap, and
+/// the tiled threshold above would leave occlusion culling never running at all.
+pub const PHONE_MIN_SECTIONS: usize = 96;
 /// Boxes over more than this share of the screen count as seen untested.
 const BIG: f32 = 0.25;
 /// Results read back at once, some frames late so the CPU never waits.

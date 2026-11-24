@@ -4236,12 +4236,17 @@ impl Renderer {
                 let mut cull =
                     cull::Cull::new(&device, config.format.remove_srgb_suffix(), depth_test);
                 cull.always = cull_env.as_deref() == Ok("all");
-                // Tiled GPUs: testing a few sections costs more than drawing them.
-                if !cull.always
-                    && (adapter_info.backend == wgpu::Backend::Metal
-                        || cfg!(target_os = "android"))
-                {
-                    cull.min_sections = cull::TILED_MIN_SECTIONS;
+                // Tiled GPUs: testing a few sections costs more than drawing them. A phone's
+                // render distance leaves a few hundred in view, so its threshold is low (the
+                // trial in `game.rs` keeps the pair only when the frame time holds).
+                if !cull.always {
+                    cull.min_sections = if cfg!(target_os = "android") {
+                        cull::PHONE_MIN_SECTIONS
+                    } else if adapter_info.backend == wgpu::Backend::Metal {
+                        cull::TILED_MIN_SECTIONS
+                    } else {
+                        0
+                    };
                 }
                 cull
             });
@@ -4877,6 +4882,13 @@ impl Renderer {
     }
     /// Switches per-section draws between indirect multi-draws, where the device takes them,
     /// and one call per section, for A/B checks.
+    /// Whether the device can run occlusion culling at all (it draws through indirect
+    /// multi-draws, which are off on Android until a trial says otherwise: `game.rs`
+    /// `trial_gpu_culling`).
+    pub fn cull_available(&self) -> bool {
+        self.cull.is_some()
+    }
+
     pub fn set_indirect_draws(&mut self, on: bool) {
         self.multi_draw = on && self.indirect_capable;
     }
@@ -7644,7 +7656,9 @@ impl Renderer {
                 shadow_visible.len(),
                 self.section_draw_calls,
             );
-            match self.cull.as_ref().map(|cull| cull.hidden) {
+            // The test only runs through indirect multi-draws: without them nothing culls.
+            let testing = self.cull_on && self.multi_draw;
+            match self.cull.as_ref().filter(|_| testing).map(|cull| cull.hidden) {
                 // What the last test hid: the boxes it saw and did not, and the share of solid
                 // indices those boxes kept out of the passes.
                 Some(([hidden, seen], share)) => log::info!(
@@ -7656,7 +7670,8 @@ impl Renderer {
                 ),
                 None => log::info!(
                     "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \
-                     {calls} draw calls (occlusion culling off)",
+                     {calls} draw calls (occlusion culling {})",
+                    on_off(testing),
                 ),
             }
         }

@@ -2533,6 +2533,11 @@ struct Game<'a> {
     /// The pack-crash marker has been looked at this run: a build that is under way writes it,
     /// and looking again would take a running build for the crash it guards against.
     pack_guard_checked: bool,
+    /// The trial of indirect multi-draws with occlusion culling on Android: when to start it,
+    /// the frame time before it, and when it began (`trial_gpu_culling`).
+    draws_trial_at: Option<Instant>,
+    draws_trial_baseline: f32,
+    draws_trial_started: Option<Instant>,
     started: Instant,
     /// `SpectatorGui`: the menu a spectator opens with the hotbar keys.
     spectator_gui: horizon_client::spectator_menu::SpectatorGui,
@@ -18676,6 +18681,7 @@ impl Game<'_> {
                         r.gpu_times.clear();
                         self.platform_frame_hint(rendered, cpu);
                     }
+                    self.trial_gpu_culling();
                     if let Some(sample) = diagnostic_sample {
                         let context = self.diagnostic_context();
                         crate::performance::submit(sample, context);
@@ -19122,6 +19128,9 @@ impl<'a> Game<'a> {
             pack_making: None,
             shader_choice: None,
             pack_guard_checked: false,
+            draws_trial_at: None,
+            draws_trial_baseline: 0.0,
+            draws_trial_started: None,
             health_hud: hud_layout::HealthHud::default(),
             started: now,
             spectator_gui: Default::default(),
@@ -23325,6 +23334,71 @@ impl Game<'_> {
             self.modifiers = horizon_client::input_mode::held_modifiers(&self.physical_keys);
         }
     }
+    /// Android: indirect multi-draws are off (they measured slower on an Adreno 710), and with
+    /// them occlusion culling never runs. Once the world has run a while, the pair is tried for
+    /// ten seconds and kept only if the frame time holds (the spirit of upstream's GPU Culling
+    /// Auto): the log says which way it went.
+    fn trial_gpu_culling(&mut self) {
+        if !cfg!(target_os = "android") {
+            return;
+        }
+        let now = Instant::now();
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        if renderer.multi_draw || !renderer.cull_available() {
+            return;
+        }
+        if self.draws_trial_started.is_none() {
+            let at = *self
+                .draws_trial_at
+                .get_or_insert(now + Duration::from_secs(25));
+            if now < at {
+                return;
+            }
+        }
+        let Some(summary) = self.frame_graph.summary() else {
+            return;
+        };
+        let ms = if summary.gpu_ms > 0.0 {
+            summary.gpu_ms
+        } else {
+            summary.frame_ms
+        };
+        let Some(started) = self.draws_trial_started else {
+            if ms <= 0.0 {
+                return;
+            }
+            self.draws_trial_baseline = ms;
+            self.draws_trial_started = Some(now);
+            renderer.set_indirect_draws(true);
+            log::info!(
+                "Horizon renderer: trying indirect multi-draws with occlusion culling ({ms:.1} ms \
+                 a frame before)"
+            );
+            return;
+        };
+        if now.duration_since(started) < Duration::from_secs(10) {
+            return;
+        }
+        let keep = ms <= self.draws_trial_baseline * 1.02;
+        if !keep {
+            renderer.set_indirect_draws(false);
+        }
+        log::info!(
+            "Horizon renderer: {} ({:.1} ms a frame before, {ms:.1} ms in the trial)",
+            if keep {
+                "kept indirect multi-draws with occlusion culling"
+            } else {
+                "dropped indirect multi-draws; sections are drawn directly"
+            },
+            self.draws_trial_baseline,
+        );
+        // Once a run: the trial's answer stands until the next start.
+        self.draws_trial_started = Some(now + Duration::from_secs(86_400));
+        self.draws_trial_at = Some(now + Duration::from_secs(86_400));
+    }
+
     fn platform_frame_hint(&self, _rendered: bool, _cpu: Duration) {
         #[cfg(target_os = "android")]
         if _rendered {
