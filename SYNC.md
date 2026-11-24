@@ -90,3 +90,7 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   hand, weather) were skipped and the pack drew with a plain texture and no shadows.
 - Shadows: vanilla's round entity shadow is left out whenever any shader pack runs (not only a
   pack with a loaded shadow pass), so it can no longer stay on under Mellow, Fantasy or others.
+- Setup: the import button is gone. The card says to copy the prepared `resources` folder into
+  the TML folder and offers "Try again" (the game folder is looked at again). No empty
+  `resources`/media folders are made at start, and an empty one left by an older build is
+  removed, so a folder with no files no longer looks like lost resources.

@@ -460,9 +460,11 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     let _ = std::fs::remove_dir_all(private.join("native"));
     move_heavy_dirs(private, shared, notes);
     free_dead_space(private, shared, notes);
+    // Hide what is there from the gallery; a folder the game has not made yet stays absent (an
+    // empty `resources/` only looked like the prepared files were lost).
     for name in NO_MEDIA {
         let dir = shared.join(name);
-        if std::fs::create_dir_all(&dir).is_ok() && !dir.join(".nomedia").exists() {
+        if dir.is_dir() && !dir.join(".nomedia").exists() {
             let _ = std::fs::write(dir.join(".nomedia"), b"");
         }
     }
@@ -490,6 +492,17 @@ fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
                     minecraft.display()
                 )),
             }
+        }
+    }
+    // An empty `resources` left by an older build (it made every media folder) only looked
+    // like the prepared files were lost: it goes when it holds nothing but its marker.
+    let emptied = shared.join("resources");
+    if emptied.is_dir() && !emptied.join("horizon-resources.json").is_file() {
+        let only_marker = std::fs::read_dir(&emptied).is_ok_and(|entries| {
+            entries.flatten().all(|e| e.file_name().to_string_lossy() == ".nomedia")
+        });
+        if only_marker {
+            let _ = std::fs::remove_dir_all(&emptied);
         }
     }
     let from = private.join("resources");
@@ -545,6 +558,7 @@ fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
                 return;
             }
             let _ = std::fs::remove_dir_all(&old);
+            let _ = std::fs::write(to.join(".nomedia"), b"");
             match std::fs::remove_dir_all(&from) {
                 Ok(()) => notes.push(format!(
                     "TML: moved resources to {} and freed the private copy",

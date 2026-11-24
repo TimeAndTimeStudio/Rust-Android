@@ -80,8 +80,9 @@ enum Action {
     NotOffline,
     OpenLink,
     CopyCode,
-    /// Pick the resources prepared on a computer (as the loading failure did).
-    Pick,
+    /// Look for the prepared files again: they were copied into the game folder while this
+    /// screen was open.
+    Reload,
     /// After a failure: the step that failed, again.
     Retry,
     /// While it waits: to the water, back from it, or to the game's settings.
@@ -270,8 +271,9 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
         Step::Start => (
             "Set up TML",
             "The game files are prepared on a computer: Horizon's launcher (or `horizon-prepare`) \
-             turns your own Minecraft: Java Edition into a `resources` folder. Zip that folder, \
-             then tap Import and choose the zip. Sign in to play on servers, or play offline."
+             turns your own Minecraft: Java Edition into a `resources` folder. Copy that folder \
+             into the TML folder on this phone (allow All files access so TML can read it), then \
+             tap Try again (or restart TML). Sign in to play on servers, or play offline."
                 .into(),
             None,
         ),
@@ -321,7 +323,7 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             literal("Pick the folder again", Action::Horizon),
         ],
         Step::Start => vec![
-            literal("Import game files", Action::Pick),
+            literal("Try again", Action::Reload),
             (tr("setup.microsoft"), Action::SignIn),
             (tr("setup.offline_title"), Action::Offline),
         ],
@@ -828,9 +830,9 @@ impl Loading {
                     let _ = horizon_client::platform::clipboard_set(&code);
                 }
             }
-            Action::Pick => {
-                if !horizon_client::platform::pick_file() {
-                    log::warn!("Horizon: no file picker to import resources with");
+            Action::Reload => {
+                if let Err(e) = self.retry() {
+                    self.failure = Some(e.to_string());
                 }
             }
             Action::Fish => self.setup.fishing_open = true,
@@ -863,9 +865,9 @@ impl Loading {
 mod account_tests {
     use super::*;
     #[test]
-    fn first_start_offers_both_providers_offline_and_import_without_losing_diagnostics_slot() {
+    fn first_start_offers_the_way_to_load_the_files_and_both_providers() {
         let actions: Vec<_> = buttons(&Step::Start).into_iter().map(|(_, a)| a).collect();
-        assert!(actions.contains(&Action::Pick));
+        assert!(actions.contains(&Action::Reload));
         assert!(actions.contains(&Action::SignIn));
         assert!(actions.contains(&Action::Offline));
         assert_eq!(actions.len(), 3);
