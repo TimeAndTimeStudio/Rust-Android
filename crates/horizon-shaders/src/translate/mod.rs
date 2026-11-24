@@ -197,6 +197,20 @@ impl AlphaTest {
     }
 }
 
+/// Whether the device lets a vertex shader use storage images (`VERTEX_WRITABLE_STORAGE`;
+/// Mali-G57 has no vertex stores and atomics). A program that writes one there has its writes
+/// dropped (`drop_vertex_image_writes`): the pack's voxel lighting reads zero, the rest runs.
+static VERTEX_STORAGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// The renderer's device, before any pack is translated.
+pub fn set_vertex_storage(supported: bool) {
+    VERTEX_STORAGE.store(supported, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn vertex_storage() -> bool {
+    VERTEX_STORAGE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Translates a composite-style program (`composite`, `deferred`, `final`...).
 pub fn translate_composite(
     vertex: &Preprocessed,
@@ -236,6 +250,87 @@ const GBUFFERS_MATRICES: &str = "    hz_ModelViewMatrix = gbufferModelView;\n   
      hz_ProjectionMatrixInverse = gbufferProjectionInverse;\n    \
      hz_NormalMatrix = mat3(gbufferModelView);\n";
 
+/// The vertex stage's `imageStore` and `imageAtomic*` calls taken out, for a device without
+/// vertex-stage storage images. Solas v3.9 voxelizes from its shadow vertex stage, and Iris
+/// (OpenGL) allows it; wgpu on Mali does not, and the pipeline would never build, taking the
+/// pack's shadows with it. Only the writes go: the pack's voxel lighting then reads zero.
+fn drop_vertex_image_writes(pp: &Preprocessed) -> Result<Option<Preprocessed>, String> {
+    // Byte indexes walk the line: a stage with other scripts in it is left alone (its writes
+    // then fail the pipeline as before, rather than the scan panicking here).
+    if !pp.code.is_ascii()
+        || (!pp.code.contains("imageStore") && !pp.code.contains("imageAtomic"))
+    {
+        return Ok(None);
+    }
+    let mut code = String::with_capacity(pp.code.len());
+    for line in pp.code.split_inclusive('\n') {
+        code.push_str(&neutralize_image_writes(line));
+    }
+    Ok(Some(Preprocessed { code, ..pp.clone() }))
+}
+
+/// One line with every `imageStore(...)` and `imageAtomic*(...)` call taken out, its
+/// parentheses matched. An atomic's value becomes `0u`.
+fn neutralize_image_writes(line: &str) -> String {
+    let mut text = line.to_owned();
+    let mut from = 0;
+    while let Some(start) = image_call(&text, from) {
+        let Some(open) = text[start..].find('(').map(|o| start + o) else {
+            break;
+        };
+        let Some(close) = matching_paren(&text, open) else {
+            break;
+        };
+        let atomic = text[start..].starts_with("imageAtomic");
+        let replacement = if atomic { "0u" } else { "" };
+        text.replace_range(start..=close, replacement);
+        from = start + replacement.len();
+    }
+    text
+}
+
+/// Where the next `imageStore`/`imageAtomic*` call starts at or after `from` (an identifier,
+/// not a longer name's tail).
+fn image_call(text: &str, from: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut i = from;
+    while i < bytes.len() {
+        let rest = &text[i..];
+        let hit = ["imageStore", "imageAtomic"]
+            .iter()
+            .find(|name| rest.starts_with(*name));
+        if let Some(name) = hit {
+            let before = i == 0 || !ident(bytes[i - 1]);
+            let after = bytes.get(i + name.len()).is_some_and(|b| *b == b'(' || ident(*b));
+            if before && after {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// The `)` matching the `(` at `open`, both indexes.
+fn matching_paren(text: &str, open: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut depth = 0usize;
+    for (i, b) in bytes.iter().enumerate().skip(open) {
+        match b {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn translate(
     vertex: &Preprocessed,
     fragment: &Preprocessed,
@@ -262,6 +357,20 @@ fn translate(
     let (vertex_flat, fragment_flat) = (flat(vertex), flat(fragment));
     let vertex = vertex_flat.as_ref().unwrap_or(vertex);
     let fragment = fragment_flat.as_ref().unwrap_or(fragment);
+    // A device without vertex-stage storage images (Mali-G57): the vertex stage's writes go
+    // before naga sees them, or its pipeline never builds.
+    let scrubbed = if vertex_storage() {
+        None
+    } else {
+        drop_vertex_image_writes(vertex).map_err(|message| {
+            vec![Error {
+                file: vertex.files.first().cloned().unwrap_or_default(),
+                line: 0,
+                message,
+            }]
+        })?
+    };
+    let vertex = scrubbed.as_ref().unwrap_or(vertex);
     let mut v = Stage::scan(vertex, ShaderStage::Vertex);
     let mut f = Stage::scan(fragment, ShaderStage::Fragment);
     v.gbuffers = gbuffers.is_some();

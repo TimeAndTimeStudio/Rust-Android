@@ -1806,6 +1806,17 @@ fn build_pass(
     let (layout, pipeline, prepass) = match created {
         Ok(created) => created,
         Err(e) => {
+            // The one wgpu error worth explaining: some mobile GPUs (Mali-G57 among them) have
+            // no vertex-stage storage buffers or images, and a pack that uses one there
+            // (Solas' voxel buffer, Photon's LPV) cannot run that program.
+            let e = if e.contains("Visibility flags don't include the shader stage") {
+                format!(
+                    "{e}: it uses a storage buffer or image in its vertex stage, which this GPU \
+                     cannot bind"
+                )
+            } else {
+                e
+            };
             notes.push(format!("{}: skipped: {e}", p.name));
             return None;
         }

@@ -132,3 +132,12 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   was on in the log.
 - TML Visuals Lite: the cloud sheets drift at about 0.6 blocks a second (they were scrolling at
   178 blocks a second, the whole sky racing past), and the detail wisps drift with them.
+- Shaders: on a GPU without vertex-stage storage images (Mali-G57; `VERTEX_WRITABLE_STORAGE` is
+  absent) the vertex stage's `imageStore`/`imageAtomic*` calls are dropped before naga sees them.
+  Solas v3.9 voxelizes from its shadow vertex stage and Iris (OpenGL) allows it; wgpu refused the
+  pipeline ("Visibility flags don't include the shader stage"), so the pack loaded without
+  shadows. Its voxel lighting now reads zero; everything else runs.
+- Shaders: the pack thread's stack is 32 MiB (was 16): naga's SPIR-V writer recurses into a
+  program's deepest expressions while a pipeline is made, which is where Photon's terrain died.
+- Shaders: a pipeline refused for that reason now says so in words (a storage buffer or image in
+  a vertex stage this GPU cannot bind).

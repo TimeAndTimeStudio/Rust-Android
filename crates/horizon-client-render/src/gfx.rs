@@ -2074,6 +2074,12 @@ async fn open_backend(
                 | wgpu::Features::CLEAR_TEXTURE
                 | wgpu::Features::TEXTURE_ATOMIC
                 | wgpu::Features::DEPTH_CLIP_CONTROL));
+    // What a pack's programs may do: Mali-G57 (and other mobile GPUs without vertex stores)
+    // has no storage images in a vertex shader; the translator drops such writes instead of
+    // letting the pipeline fail (Solas' shadow voxelization).
+    horizon_shaders::set_vertex_storage(
+        features.contains(wgpu::Features::VERTEX_WRITABLE_STORAGE),
+    );
     let driver = format!("{} {}", info.driver, info.driver_info);
     crate::hud::set_gpu_texture_side(adapter.limits().max_texture_dimension_2d);
     startup_step(format_args!(
@@ -6017,10 +6023,11 @@ impl Renderer {
         let world = self.pack_world();
         let (device, queue) = (self.device.clone(), self.queue.clone());
         let (send, receive) = std::sync::mpsc::channel();
-        // naga's GLSL front end recurses into a pack's longest expressions.
+        // naga's GLSL front end recurses into a pack's longest expressions, and its SPIR-V
+        // writer into theirs again while a pipeline is made (Photon's terrain).
         let spawned = std::thread::Builder::new()
             .name("shader pack".into())
-            .stack_size(16 << 20)
+            .stack_size(32 << 20)
             .spawn(move || {
                 // A pack is not the game's own code: a panic while translating or building it
                 // is logged with its message and the pack turns off, instead of the thread

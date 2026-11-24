@@ -37,6 +37,7 @@ mod translate;
 mod values;
 
 pub use biomes::{category as biome_category, precipitation as biome_precipitation};
+pub use translate::{set_vertex_storage, vertex_storage};
 pub use block_ids::BlockIds;
 pub use condition::eval_condition;
 pub use config::{BUFFERS, Buffer, Config, Format, Kind, Shadow, buffer_index, draw_buffers};
