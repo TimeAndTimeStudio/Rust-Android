@@ -23343,13 +23343,22 @@ impl Game<'_> {
             return;
         }
         let now = Instant::now();
+        // A shader pack draws terrain with its own programs, which occlusion culling (indirect
+        // draws of the game's terrain) does not reach: the pair would only cost there.
+        if self.pack_ids.is_some() {
+            return;
+        }
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
-        if renderer.multi_draw || !renderer.cull_available() {
+        if !renderer.cull_available() {
             return;
         }
         if self.draws_trial_started.is_none() {
+            // Already indirect (another run's choice): nothing to trial.
+            if renderer.multi_draw {
+                return;
+            }
             let at = *self
                 .draws_trial_at
                 .get_or_insert(now + Duration::from_secs(25));

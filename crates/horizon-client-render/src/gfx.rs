@@ -7661,12 +7661,16 @@ impl Renderer {
             match self.cull.as_ref().filter(|_| testing).map(|cull| cull.hidden) {
                 // What the last test hid: the boxes it saw and did not, and the share of solid
                 // indices those boxes kept out of the passes.
-                Some(([hidden, seen], share)) => log::info!(
+                Some(([hidden, seen], share)) if hidden + seen > 0 => log::info!(
                     "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \
                      {calls} draw calls; occlusion culling hid {hidden} of {} boxes, {:.0}% of \
                      solid indices",
                     hidden + seen,
                     share * 100.0,
+                ),
+                Some(_) => log::info!(
+                    "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \
+                     {calls} draw calls; occlusion culling on (no test result back yet)",
                 ),
                 None => log::info!(
                     "Horizon renderer: {drawn} sections and {casters} shadow casters drawn with \

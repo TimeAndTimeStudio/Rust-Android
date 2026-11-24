@@ -181,3 +181,8 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   the pair for ten seconds after the world settles and keeps it only if the frame time holds
   (`game.rs trial_gpu_culling`), with the threshold at 96 sections, and the log says which way it
   went.
+- The draws trial now finishes: it returned early once the trial itself turned indirect draws on,
+  so the ten-second comparison never ran and a slower choice stayed on. It also stays out of the
+  way while a pack draws terrain (culling cannot reach a pack's own terrain programs). A fresh
+  renderer's hidden share is 0 (was 1, "everything hidden"), and the twenty-second line says "no
+  test result back yet" instead of "hid 0 of 0 boxes, 100%".

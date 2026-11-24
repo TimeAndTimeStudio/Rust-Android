@@ -364,7 +364,7 @@ impl Cull {
             current: None,
             seen: Vec::new(),
             stamp: 0,
-            hidden: ([0; 2], 1.0),
+            hidden: ([0; 2], 0.0),
             always: false,
             min_sections: 0,
         }
