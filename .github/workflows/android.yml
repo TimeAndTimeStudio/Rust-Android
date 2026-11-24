@@ -55,6 +55,16 @@ jobs:
           if [ -n "$TML_RESOURCES_URL" ]; then
             curl -fL --retry 3 "$TML_RESOURCES_URL" -o packaging/resources.zip
             ls -lh packaging/resources.zip
+            python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile("packaging/resources.zip") as z:
+              names = z.namelist()
+              if not any(n == "horizon-resources.json" or n.endswith("/horizon-resources.json") for n in names):
+                  raise SystemExit("resources.zip has no horizon-resources.json")
+              print(f"resources.zip: {len(names)} entries")
+          PY
+          else
+            echo "::warning::TML_RESOURCES_URL is not set: this APK carries no resources.zip"
           fi
       - name: Build TML APK (ARM64 Only)
         run: |
