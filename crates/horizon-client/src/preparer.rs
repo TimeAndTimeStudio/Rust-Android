@@ -359,8 +359,16 @@ pub fn put_resource_packs(game_folder: &Path) {
         };
         let stamp = format!("{}-{:08x}", bytes.len(), crc32(&bytes));
         let target = dir.join(pack_name);
-        let marker = crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
-        if target.exists() && std::fs::read_to_string(&marker).ok().as_deref() == Some(&stamp) {
+        let marker =
+            crate::logging::private_home().join(format!(".pack-{}", crc32(pack_name.as_bytes())));
+        let recorded = std::fs::read_to_string(&marker).ok();
+        // This version is already there.
+        if recorded.as_deref() == Some(&stamp) {
+            continue;
+        }
+        // An update replaces a pack that is still there; one the player deleted stays deleted
+        // (it was being put back on every start).
+        if !target.exists() && recorded.is_some() {
             continue;
         }
         match std::fs::create_dir_all(&dir)
@@ -374,38 +382,49 @@ pub fn put_resource_packs(game_folder: &Path) {
             ),
         }
     }
-    // Activate TML UI Pack by default in options.txt if not yet specified
+    put_tml_ui_pack(game_folder);
+}
+
+/// TML UI (`TML.zip`) is turned on for a new install, once: its marker is written after that,
+/// and the player's own pack list is left alone (it was being added back on every start, so the
+/// pack could not be removed).
+fn put_tml_ui_pack(game_folder: &Path) {
+    const PACK: &str = "file/TML.zip";
+    let applied = crate::logging::private_home().join(".tml-ui-default");
+    if applied.exists() {
+        return;
+    }
     let options_file = game_folder.join("options.txt");
-    if let Ok(content) = std::fs::read_to_string(&options_file) {
-        if !content.contains("TML.zip") {
-            let tml_pack = "file/TML.zip";
-            let mut new_lines = Vec::new();
-            let mut found_packs = false;
-            for line in content.lines() {
-                if line.starts_with("resourcePacks:") {
-                    found_packs = true;
-                    if let Some(list_part) = line.strip_prefix("resourcePacks:") {
-                        let trimmed = list_part.trim();
-                        if trimmed == "[]" {
-                            new_lines.push(format!("resourcePacks:[\"vanilla\",\"{tml_pack}\"]"));
-                        } else if trimmed.ends_with(']') {
-                            let without_closing = &trimmed[..trimmed.len() - 1];
-                            new_lines.push(format!("resourcePacks:{without_closing},\"{tml_pack}\"]"));
-                        } else {
-                            new_lines.push(line.to_string());
-                        }
-                    } else {
-                        new_lines.push(line.to_string());
-                    }
-                } else {
-                    new_lines.push(line.to_string());
-                }
+    let Ok(content) = std::fs::read_to_string(&options_file) else {
+        // No options yet: the first start writes them, and this runs again then.
+        return;
+    };
+    if content.contains(PACK) {
+        let _ = std::fs::write(&applied, b"1");
+        return;
+    }
+    let mut found_packs = false;
+    let mut new_lines = Vec::new();
+    for line in content.lines() {
+        if let Some(list) = line.strip_prefix("resourcePacks:") {
+            found_packs = true;
+            let trimmed = list.trim();
+            if trimmed == "[]" {
+                new_lines.push(format!("resourcePacks:[\"vanilla\",\"{PACK}\"]"));
+            } else if let Some(without) = trimmed.strip_suffix(']') {
+                new_lines.push(format!("resourcePacks:{without},\"{PACK}\"]"));
+            } else {
+                new_lines.push(line.to_string());
             }
-            if !found_packs {
-                new_lines.push(format!("resourcePacks:[\"vanilla\",\"{tml_pack}\"]"));
-            }
-            let _ = std::fs::write(&options_file, new_lines.join("\n") + "\n");
+        } else {
+            new_lines.push(line.to_string());
         }
+    }
+    if !found_packs {
+        new_lines.push(format!("resourcePacks:[\"vanilla\",\"{PACK}\"]"));
+    }
+    if std::fs::write(&options_file, new_lines.join("\n") + "\n").is_ok() {
+        let _ = std::fs::write(&applied, b"1");
     }
 }
 

@@ -172,3 +172,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Culling, measured properly: the line is written after the frame's draw calls are counted, and
   it says what the last test hid — boxes hidden out of those tested, and the share of solid
   indices kept out of the passes.
+- TML UI (`TML.zip`): turned on for a new install only. After that the player's pack list is
+  left alone, and a packaged pack the player deleted stays deleted — the zip was being put back
+  and the pack re-added to `resourcePacks` on every start, so it could not be removed.
