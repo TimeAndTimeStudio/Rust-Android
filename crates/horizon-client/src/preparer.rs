@@ -24,6 +24,13 @@ pub enum Stage {
     Failed(String),
 }
 
+/// A stage line from wherever the setup is waiting: the copy into shared storage reports its
+/// own progress (`preparer_install.rs`).
+pub fn report(line: String) {
+    log::info!("Horizon: preparing: {line}");
+    *shared() = Stage::Preparing(line);
+}
+
 fn shared() -> MutexGuard<'static, Stage> {
     static STAGE: OnceLock<Mutex<Stage>> = OnceLock::new();
     STAGE
@@ -170,6 +177,7 @@ fn run(resources: &Path) -> Result<(), String> {
     // The sounds: `prepare` leaves them out (the desktop launcher copies them after it,
     // backend.rs). Without them the game plays, silent.
     copy_sounds(&kit)?;
+    *shared() = Stage::Preparing("Verifying the prepared files".into());
     let missing = horizon_prepare::check(&kit, &made)?;
     if !missing.is_empty() {
         return Err(format!(
@@ -177,8 +185,10 @@ fn run(resources: &Path) -> Result<(), String> {
             missing.join("; ")
         ));
     }
+    *shared() = Stage::Preparing("Putting the game files in place".into());
     install::activate(&made, resources)?;
     // Bedrock's touch buttons, from Mojang too, so the first game already has them.
+    *shared() = Stage::Preparing("Touch buttons from Mojang".into());
     crate::bedrock_touch::fetch_logged(resources);
     // Preparation replaces the resource directory. Fetch the original control
     // overlay afterwards so the first game, not just a restart, receives it.

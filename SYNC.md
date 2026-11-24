@@ -111,3 +111,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Fetched files live only in `TML/minecraft`: without All files access the setup asks for it
   (and offers the restart that applies it) before anything is downloaded or prepared, downloads
   refuse to start, and a private `minecraft/` left by an older build is removed.
+- Setup progress: every step after the sounds now has a line — verifying the prepared files,
+  putting them in the TML folder (n/total while the copy runs), touch buttons from Mojang, then
+  control textures — so preparation no longer sits silent on the last sounds line for minutes.

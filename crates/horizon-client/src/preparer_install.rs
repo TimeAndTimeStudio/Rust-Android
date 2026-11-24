@@ -75,16 +75,46 @@ pub(super) fn activate(made: &Path, destination: &Path) -> Result<(), String> {
 }
 
 /// `from`'s folders and files under `to` (a destination that does not exist yet), for the
-/// rename across filesystems shared storage forces.
+/// rename across filesystems shared storage forces. The count goes to the setup's stage as it
+/// goes: copying the whole prepared set takes minutes on a phone, and with no word on screen it
+/// looked hung on the last line the preparation printed.
 fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    let total = count_files(from)?;
+    let mut done = 0;
+    copy_with_progress(from, to, total, &mut done)
+}
+
+/// The files below `from` (the copy's whole length, for the progress line).
+fn count_files(path: &Path) -> Result<u64, String> {
+    let meta = fs::symlink_metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if meta.is_dir() {
+        let mut total = 0;
+        for entry in fs::read_dir(path).map_err(|e| format!("{}: {e}", path.display()))? {
+            total += count_files(&entry.map_err(|e| e.to_string())?.path())?;
+        }
+        Ok(total)
+    } else if meta.is_file() {
+        Ok(1)
+    } else {
+        Ok(0)
+    }
+}
+
+fn copy_with_progress(from: &Path, to: &Path, total: u64, done: &mut u64) -> Result<(), String> {
     let meta = fs::symlink_metadata(from).map_err(|e| format!("{}: {e}", from.display()))?;
     if meta.is_dir() {
         fs::create_dir_all(to).map_err(|e| format!("{}: {e}", to.display()))?;
         for entry in fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))? {
             let entry = entry.map_err(|e| e.to_string())?;
-            copy_tree(&entry.path(), &to.join(entry.file_name()))?;
+            copy_with_progress(&entry.path(), &to.join(entry.file_name()), total, done)?;
         }
     } else if meta.is_file() {
+        *done += 1;
+        if *done == 1 || *done % 100 == 0 || *done == total {
+            crate::preparer::report(format!(
+                "Moving the game files to the TML folder: {done}/{total}"
+            ));
+        }
         fs::copy(from, to).map_err(|e| format!("{}: {e}", to.display()))?;
         if fs::metadata(to).map_err(|e| e.to_string())?.len() != meta.len() {
             return Err(format!("{} came out short", to.display()));
