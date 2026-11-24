@@ -406,30 +406,10 @@ const NO_MEDIA: &[&str] = &[
 /// starts after. GameFolder.choose (Java) makes the same choice for the Files app.
 fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     let Some(shared) = SHARED_FOLDER.get() else {
-        // No All files access: the fetched game files have no TML folder to live in, and they
-        // are never kept in the app's own files. Downloads and preparation wait for the setting
-        // (game/setup.rs), and an old private copy goes.
-        let minecraft = private.join("minecraft");
-        if minecraft.is_dir() {
-            let freed = tree_size(&minecraft);
-            match std::fs::remove_dir_all(&minecraft) {
-                Ok(()) => notes.push(format!(
-                    "TML: removed {} ({} MB): the game files belong in the TML folder",
-                    minecraft.display(),
-                    mib(freed)
-                )),
-                Err(e) => notes.push(format!(
-                    "TML: could not remove {}: {e}",
-                    minecraft.display()
-                )),
-            }
-        }
-        move_heavy_dirs(private, private, notes);
+        // No All files access: the player's files (and the game's own) stay in the app's files.
+        // Everything works there; the TML folder only makes worlds and packs reachable.
+        clean_heavy_dirs(private, private, notes);
         free_dead_space(private, private, notes);
-        notes.push(
-            "TML: All files access is off: the game files are kept in the TML folder only"
-                .to_string(),
-        );
         return private.to_path_buf();
     };
     let earlier = shared.with_file_name("Horizon");
@@ -478,7 +458,7 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
         }
     }
     let _ = std::fs::remove_dir_all(private.join("native"));
-    move_heavy_dirs(private, shared, notes);
+    clean_heavy_dirs(private, shared, notes);
     free_dead_space(private, shared, notes);
     // Hide what is there from the gallery; a folder the game has not made yet stays absent (an
     // empty `resources/` only looked like the prepared files were lost).
@@ -491,122 +471,47 @@ fn game_folder(private: &Path, notes: &mut Vec<String>) -> PathBuf {
     shared.clone()
 }
 
-/// The big folders that only take space: the fetched Minecraft files and the resources prepared
-/// from them. The resources go to shared storage (the game reads them there) and the private copy
-/// is removed once the copy is whole, so a phone's app storage gets the space back.
-fn move_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
-    // The fetched Minecraft files are read by the preparation on the phone: they move to shared
-    // storage too (a copy that is already there makes the private one only space to free).
-    let fetched = private.join("minecraft");
-    if fetched.is_dir() && private != shared {
-        let to = shared.join("minecraft");
-        if to.is_dir() {
-            let freed = tree_size(&fetched);
-            if std::fs::remove_dir_all(&fetched).is_ok() {
-                notes.push(format!(
-                    "TML: removed a redundant private minecraft copy ({} MB)",
-                    mib(freed)
-                ));
-            }
-        } else {
-            let partial = shared.join("minecraft.partial");
-            let _ = std::fs::remove_dir_all(&partial);
-            match copy_tree(&fetched, &partial).and_then(|()| std::fs::rename(&partial, &to)) {
-                Ok(()) => {
-                    let _ = std::fs::remove_dir_all(&fetched);
-                    notes.push(format!("TML: moved minecraft to {}", to.display()));
-                }
-                Err(e) => {
-                    let _ = std::fs::remove_dir_all(&partial);
-                    notes.push(format!(
-                        "TML: could not move minecraft to {}: {e}",
-                        to.display()
-                    ));
-                }
-            }
-        }
-    }
-    // An empty `resources` left by an older build (it made every media folder) only looked
-    // like the prepared files were lost: it goes when it holds nothing but its marker.
-    let emptied = shared.join("resources");
-    if emptied.is_dir() && !emptied.join("horizon-resources.json").is_file() {
-        let only_marker = std::fs::read_dir(&emptied).is_ok_and(|entries| {
-            entries.flatten().all(|e| e.file_name().to_string_lossy() == ".nomedia")
-        });
-        if only_marker {
-            let _ = std::fs::remove_dir_all(&emptied);
-        }
-    }
-    let from = private.join("resources");
-    if !from.is_dir() {
-        return;
-    }
-    // A preparation cut short left no manifest: nothing to keep.
-    if !from.join("horizon-resources.json").is_file() {
-        let freed = tree_size(&from);
-        match std::fs::remove_dir_all(&from) {
+/// The heavy folders — the fetched Minecraft files and the resources prepared from them — stay
+/// in the app's own files. Copying them into the TML folder meant a cross-filesystem copy of
+/// hundreds of megabytes on every preparation (minutes on a phone, and it looked hung); the TML
+/// folder now carries only the player's own files. What is dead still goes: a private
+/// `resources` a stopped preparation left without its manifest, and an empty one an older build
+/// made in shared storage.
+fn clean_heavy_dirs(private: &Path, shared: &Path, notes: &mut Vec<String>) {
+    let own = private.join("resources");
+    if own.is_dir() && !own.join("horizon-resources.json").is_file() {
+        let freed = tree_size(&own);
+        match std::fs::remove_dir_all(&own) {
             Ok(()) => notes.push(format!(
-                "TML: removed an incomplete private resources copy ({} MB)",
+                "TML: removed an incomplete resources copy ({} MB)",
                 mib(freed)
             )),
-            Err(e) => notes.push(format!("TML: could not remove {}: {e}", from.display())),
+            Err(e) => notes.push(format!("TML: could not remove {}: {e}", own.display())),
         }
-        return;
     }
     if private == shared {
         return;
     }
-    let to = shared.join("resources");
-    // Both there: the newer manifest is the one to keep. A private copy that is not newer is
-    // only the space the player asked back.
-    if to.join("horizon-resources.json").is_file()
-        && !modified_after(&from.join("horizon-resources.json"), &to.join("horizon-resources.json"))
-    {
-        let freed = tree_size(&from);
-        if std::fs::remove_dir_all(&from).is_ok() {
-            notes.push(format!(
-                "TML: removed a redundant private resources copy ({} MB)",
-                mib(freed)
-            ));
+    let theirs = shared.join("resources");
+    if theirs.is_dir() && !theirs.join("horizon-resources.json").is_file() {
+        let only_marker = std::fs::read_dir(&theirs).is_ok_and(|entries| {
+            entries.flatten().all(|e| e.file_name().to_string_lossy() == ".nomedia")
+        });
+        if only_marker {
+            let _ = std::fs::remove_dir_all(&theirs);
         }
-        return;
     }
-    let partial = shared.join("resources.partial");
-    let _ = std::fs::remove_dir_all(&partial);
-    match copy_tree(&from, &partial) {
-        Ok(()) => {
-            // Replace the shared copy: the private one is the one the game read until now.
-            let old = shared.join("resources.old");
-            let _ = std::fs::remove_dir_all(&old);
-            if to.exists() && std::fs::rename(&to, &old).is_err() {
-                let _ = std::fs::remove_dir_all(&partial);
-                notes.push(format!("TML: could not replace {}", to.display()));
-                return;
-            }
-            if let Err(e) = std::fs::rename(&partial, &to) {
-                let _ = std::fs::remove_dir_all(&partial);
-                let _ = std::fs::rename(&old, &to);
-                notes.push(format!("TML: could not move resources to {}: {e}", to.display()));
-                return;
-            }
-            let _ = std::fs::remove_dir_all(&old);
-            let _ = std::fs::write(to.join(".nomedia"), b"");
-            match std::fs::remove_dir_all(&from) {
-                Ok(()) => notes.push(format!(
-                    "TML: moved resources to {} and freed the private copy",
-                    to.display()
-                )),
-                Err(e) => notes.push(format!(
-                    "TML: moved resources to {}; the private copy could not be removed: {e}",
-                    to.display()
-                )),
-            }
-        }
-        Err(e) => {
-            let _ = std::fs::remove_dir_all(&partial);
+    // A copy an older build moved into the TML folder is not read any more: the game keeps its
+    // own. It is only space; the app does not delete it on its own (that is minutes of deleting
+    // in a folder the player can open), and the log says it can go.
+    for name in ["resources", "minecraft"] {
+        let stale = shared.join(name);
+        if stale.is_dir() && private.join(name).is_dir() {
             notes.push(format!(
-                "TML: could not copy resources to {}: {e}",
-                to.display()
+                "TML: {} is not used any more; the game keeps {} ({} MB can be freed)",
+                stale.display(),
+                private.join(name).display(),
+                mib(tree_size(&stale))
             ));
         }
     }
@@ -660,15 +565,6 @@ fn free_dead_space(private: &Path, shared: &Path, notes: &mut Vec<String>) {
             "TML: the game folder is {} (shared storage)",
             shared.display()
         ));
-    }
-}
-
-/// Whether `a` was written after `b` (either missing: `a` wins).
-fn modified_after(a: &Path, b: &Path) -> bool {
-    let time = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    match (time(a), time(b)) {
-        (Some(a), Some(b)) => a > b,
-        _ => true,
     }
 }
 
@@ -1178,16 +1074,10 @@ pub fn args() -> Vec<String> {
 
 /// Where the game's prepared files are: the shared game folder's `resources`, or the app's own
 /// when the move to shared storage did not finish (the game still has to find them).
-fn resources_dir(home: &Path, private: &Path) -> PathBuf {
-    let shared = home.join("resources");
-    if home == private || shared.join("horizon-resources.json").is_file() {
-        return shared;
-    }
-    let own = private.join("resources");
-    if own.join("horizon-resources.json").is_file() {
-        return own;
-    }
-    shared
+fn resources_dir(_home: &Path, private: &Path) -> PathBuf {
+    // The app's own files, never the TML folder: preparation installs them with a rename (the
+    // kit is there too), where shared storage needed a whole copy first.
+    private.join("resources")
 }
 
 /// The game's command line and environment: `--resources` in the game folder, then

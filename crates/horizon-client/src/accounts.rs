@@ -30,20 +30,19 @@ pub fn dir() -> PathBuf {
 }
 
 /// Where the official files go, in the official launcher's layout (`versions/`, `libraries/`,
-/// `assets/`): stored in the game home (`~/TML/minecraft`), or private storage if shared is unavailable.
+/// `assets/`): the app's own files, beside the resources prepared from them — the preparation
+/// installs with a rename there, where the TML folder needed a copy of the whole set first. A
+/// copy an older build moved into the TML folder is still read in place (nothing is copied back).
 pub fn files_root() -> PathBuf {
-    let home = crate::logging::game_home().join("minecraft");
-    if home.exists() {
-        return home;
-    }
     let private = crate::logging::private_home().join("minecraft");
-    if private.exists() && private != home {
-        if std::fs::rename(&private, &home).is_ok() {
-            return home;
-        }
+    if private.exists() {
         return private;
     }
-    home
+    let home = crate::logging::game_home().join("minecraft");
+    if home.exists() && home != private {
+        return home;
+    }
+    private
 }
 
 /// The server jar the last complete download fetched, for the preparer (preparer.rs).
@@ -545,13 +544,6 @@ pub fn sign_out() -> Result<(), String> {
 /// file checked against its hash, into [`files_root`]. A second call resumes what an
 /// interrupted one left.
 pub fn download_files() {
-    // The fetched files belong in the TML folder: without All files access they would land in
-    // the app's own storage, which is exactly what the player was asked not to fill.
-    #[cfg(target_os = "android")]
-    if crate::logging::game_home() == crate::logging::private_home() {
-        log::warn!("Horizon: the game files need the TML folder: allow All files access for TML");
-        return;
-    }
     let cancel = Arc::new(AtomicBool::new(false));
     {
         let mut s = shared();
@@ -565,7 +557,9 @@ pub fn download_files() {
     std::thread::spawn(move || {
         let _working = working;
         let result = (|| {
-            let root = files_root();
+            // Fetched into the app's own files: what a preparation reads is beside its kit there.
+            let root = crate::logging::private_home().join("minecraft");
+            let _ = std::fs::create_dir_all(&root);
             let _ = std::fs::remove_file(root.join(FILES_DONE));
             let progress = |p: Progress| {
                 let mut s = shared();

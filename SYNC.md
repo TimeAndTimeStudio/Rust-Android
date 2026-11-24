@@ -118,3 +118,9 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
   the backup a stopped run left in the TML folder, minutes on shared storage), moving the files
   (n/total), and cleaning up the work files. "Putting the game files in place" no longer covers
   minutes of silent deleting.
+- The game files stay in the app's own storage again: `resources` and `minecraft` are never
+  copied into the TML folder (that cross-filesystem copy was minutes per preparation and looked
+  hung). Preparation installs with a rename beside its kit, the fetched files download into the
+  app's own `minecraft`, and the TML folder keeps only the player's files (saves, packs, options).
+  The All-files-access gate is gone: nothing needs it to play. A copy an older build moved into
+  TML/resources or TML/minecraft is no longer read; the log says how many MB it can free.

@@ -30,10 +30,6 @@ enum Step {
     /// (HorizonImport.java). True once its folder was asked for: they are arriving.
     #[cfg(target_os = "android")]
     Horizon(bool),
-    /// All files access, without which the fetched game files would sit in the app's own
-    /// files: true once it is allowed and only a restart is missing.
-    #[cfg(target_os = "android")]
-    Permission(bool),
     /// Nothing under way: sign in, play offline, or bring resources from a computer.
     Start,
     /// Play offline chosen: whether the player is sure (most servers need a sign-in).
@@ -90,12 +86,6 @@ enum Action {
     PlayOffline,
     /// Back from the question to the start.
     NotOffline,
-    /// Android's All files access screen for TML.
-    #[cfg(target_os = "android")]
-    FilesPermission,
-    /// Restart to use the TML folder the setting allowed.
-    #[cfg(target_os = "android")]
-    Restart,
     OpenLink,
     CopyCode,
     /// Pick the resources prepared on a computer (as the loading failure did).
@@ -166,22 +156,9 @@ fn waiting(step: &Step) -> bool {
     )
 }
 
-fn step(setup: &Setup, failure: &str, resources: &std::path::Path) -> Step {
-    #[cfg(not(target_os = "android"))]
-    let _ = resources;
+fn step(setup: &Setup, failure: &str) -> Step {
     if setup.starting {
         return Step::Done;
-    }
-    // The fetched files belong in the TML folder, never in the app's own: without All files
-    // access (or before the restart that applies it) nothing is downloaded or prepared.
-    #[cfg(target_os = "android")]
-    if !resources.join("horizon-resources.json").is_file() {
-        let allowed = crate::android::file_access_allowed();
-        let in_tml =
-            horizon_client::logging::game_home() != horizon_client::logging::private_home();
-        if !allowed || !in_tml {
-            return Step::Permission(allowed && !in_tml);
-        }
     }
     if setup.prepared && preparer::stage() == Stage::Idle {
         return Step::Failed(format!("The prepared game files did not load: {failure}"));
@@ -329,22 +306,6 @@ fn texts(step: &Step) -> (&'static str, String, Option<String>) {
                 .into(),
             None,
         ),
-        #[cfg(target_os = "android")]
-        Step::Permission(false) => (
-            "Allow access to files",
-            "TML keeps the game files it fetches in the TML folder on your phone's storage, not \
-             in the app's own files. On the screen that opens, allow All files access for TML, \
-             then come back here."
-                .into(),
-            None,
-        ),
-        #[cfg(target_os = "android")]
-        Step::Permission(true) => (
-            "Restart TML",
-            "All files access is allowed. Restart TML so its game files go to the TML folder."
-                .into(),
-            None,
-        ),
         Step::Start => ("Set up TML", tr("setup.intro"), None),
         Step::Offline => (
             "Are you sure?",
@@ -425,10 +386,6 @@ fn buttons(step: &Step) -> Vec<(String, Action)> {
             literal("Next", Action::HorizonDone),
             literal("Pick the folder again", Action::Horizon),
         ],
-        #[cfg(target_os = "android")]
-        Step::Permission(false) => vec![literal("Open settings", Action::FilesPermission)],
-        #[cfg(target_os = "android")]
-        Step::Permission(true) => vec![literal("Restart now", Action::Restart)],
         Step::Start => vec![
             (tr("setup.microsoft"), Action::SignIn),
             (tr("setup.offline_title"), Action::Offline),
@@ -570,7 +527,7 @@ impl Loading {
             );
             return;
         };
-        let step = step(&self.setup, failure, &self.vanilla_root);
+        let step = step(&self.setup, failure);
         let (title, body, note) = texts(&step);
         let mut ui = Ui::new(&gui.atlas, batch, (-1.0, -1.0));
         let (w, h) = (ui.w, ui.h);
@@ -959,10 +916,6 @@ impl Loading {
                     HORIZON_LATER.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             }
-            #[cfg(target_os = "android")]
-            Action::FilesPermission => crate::android::open_file_access_settings(),
-            #[cfg(target_os = "android")]
-            Action::Restart => crate::android::restart_app(),
             Action::SignIn => {
                 self.setup.form = None;
                 self.setup.provider = None;
