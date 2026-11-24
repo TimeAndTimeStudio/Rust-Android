@@ -114,3 +114,7 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Setup progress: every step after the sounds now has a line — verifying the prepared files,
   putting them in the TML folder (n/total while the copy runs), touch buttons from Mojang, then
   control textures — so preparation no longer sits silent on the last sounds line for minutes.
+- Setup progress, rest: the resource swap reports too — removing the previous game files (n/total,
+  the backup a stopped run left in the TML folder, minutes on shared storage), moving the files
+  (n/total), and cleaning up the work files. "Putting the game files in place" no longer covers
+  minutes of silent deleting.

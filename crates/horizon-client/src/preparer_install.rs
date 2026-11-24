@@ -41,7 +41,7 @@ pub(super) fn activate(made: &Path, destination: &Path) -> Result<(), String> {
             .map_err(|e| format!("Cannot restore previous resources: {e}"))?;
     }
     if backup.exists() {
-        fs::remove_dir_all(&backup)
+        remove_tree(&backup, "Removing the previous game files")
             .map_err(|e| format!("Cannot retire previous resource backup: {e}"))?;
     }
     let previous = destination.exists();
@@ -66,10 +66,13 @@ pub(super) fn activate(made: &Path, destination: &Path) -> Result<(), String> {
                  resources preserved"
             ));
         }
-        let _ = fs::remove_dir_all(made);
+        crate::preparer::report("Cleaning up the work files".into());
+        let _ = remove_tree(made, "Cleaning up the work files");
     }
-    if previous && let Err(error) = fs::remove_dir_all(&backup) {
-        log::warn!("Resources installed; old resource backup could not be removed: {error}");
+    if previous {
+        if let Err(error) = remove_tree(&backup, "Removing the previous game files") {
+            log::warn!("Resources installed; old resource backup could not be removed: {error}");
+        }
     }
     Ok(())
 }
@@ -79,9 +82,41 @@ pub(super) fn activate(made: &Path, destination: &Path) -> Result<(), String> {
 /// goes: copying the whole prepared set takes minutes on a phone, and with no word on screen it
 /// looked hung on the last line the preparation printed.
 fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    crate::preparer::report("Moving the game files to the TML folder".into());
     let total = count_files(from)?;
     let mut done = 0;
     copy_with_progress(from, to, total, &mut done)
+}
+
+/// A folder removed with its count on screen: taking tens of thousands of files out of shared
+/// storage takes minutes, and silence there read as a hang on the line before it.
+fn remove_tree(path: &Path, label: &str) -> Result<(), String> {
+    // A word before the count: walking a shared-storage tree to count it is not instant either.
+    crate::preparer::report(label.to_string());
+    let total = count_files(path)?;
+    let mut done = 0;
+    remove_with_progress(path, label, total, &mut done)
+}
+
+fn remove_with_progress(
+    path: &Path,
+    label: &str,
+    total: u64,
+    done: &mut u64,
+) -> Result<(), String> {
+    let meta = fs::symlink_metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if meta.is_dir() {
+        for entry in fs::read_dir(path).map_err(|e| format!("{}: {e}", path.display()))? {
+            remove_with_progress(&entry.map_err(|e| e.to_string())?.path(), label, total, done)?;
+        }
+        fs::remove_dir(path).map_err(|e| format!("{}: {e}", path.display()))
+    } else {
+        *done += 1;
+        if *done == 1 || *done % 100 == 0 || *done == total {
+            crate::preparer::report(format!("{label}: {done}/{total}"));
+        }
+        fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))
+    }
 }
 
 /// The files below `from` (the copy's whole length, for the progress line).
