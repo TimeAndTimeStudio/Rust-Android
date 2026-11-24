@@ -205,3 +205,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - TML Visuals Lite's terrain is occlusion culled by itself (the pack reads nothing the camera
   cannot see): the client turns `Renderer::set_pack_culling` on for the packs it ships, and other
   packs still opt in with `HORIZON_PACK_CULL=1` (`=0` turns it all off).
+- Occlusion culling now covers every shader pack's terrain by default (Solas included): the
+  sections it skips are the ones behind other geometry, which no program can see either. TML
+  Visuals Lite is no longer a special case; `HORIZON_PACK_CULL=0` turns it off.

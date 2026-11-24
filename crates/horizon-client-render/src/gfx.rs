@@ -4534,7 +4534,7 @@ impl Renderer {
             hdr_marker: None,
             start_marker: None,
             pack_post: None,
-            pack_cull: pack_culling_override().unwrap_or(false),
+            pack_cull: pack_culling_override().unwrap_or(true),
             native: None,
             pass_timing: pack_timing::PassTiming::logging(),
             own_timing: None,
