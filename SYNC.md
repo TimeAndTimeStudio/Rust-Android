@@ -202,3 +202,6 @@ common ancestor to merge from. Stable upstream changes that matter to phones are
 - Mesher: the ambient-occlusion samples read one compact byte a block state (`lighting::AoInfo`,
   upstream #20199) instead of the whole `Info` (a few hundred bytes of table that then stays in
   cache); a state that cannot be packed falls back to `Info`, and the table is empty then.
+- TML Visuals Lite's terrain is occlusion culled by itself (the pack reads nothing the camera
+  cannot see): the client turns `Renderer::set_pack_culling` on for the packs it ships, and other
+  packs still opt in with `HORIZON_PACK_CULL=1` (`=0` turns it all off).

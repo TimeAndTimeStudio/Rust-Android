@@ -183,16 +183,14 @@ fn indirect_draws_wanted() -> bool {
     !cfg!(target_os = "android")
 }
 
-/// Whether a shader pack's terrain is occlusion culled by skipping the sections the last test
-/// found hidden (`HORIZON_PACK_CULL=1`): a pack's own passes may need geometry the camera cannot
-/// see (reflections, volumetrics), so this is not on by itself.
-fn pack_culling_requested() -> bool {
-    std::env::var("HORIZON_PACK_CULL").as_deref() == Ok("1")
-}
-
-/// The test runs for packs only when they asked for it (see `pack_culling_requested`).
-fn pack_cull_on() -> bool {
-    pack_culling_requested()
+/// `HORIZON_PACK_CULL=1|0` forced, else `None` (the pack decides: `Renderer::set_pack_culling`,
+/// which the client sets for the packs it ships).
+fn pack_culling_override() -> Option<bool> {
+    match std::env::var("HORIZON_PACK_CULL").as_deref() {
+        Ok("1") => Some(true),
+        Ok("0") => Some(false),
+        _ => None,
+    }
 }
 
 /// Two solid passes only where a discard costs the GPU its hidden surface removal: Apple's tiled
@@ -4532,6 +4530,7 @@ impl Renderer {
             hdr_marker: None,
             start_marker: None,
             pack_post: None,
+            pack_cull: pack_culling_override().unwrap_or(false),
             native: None,
             pass_timing: pack_timing::PassTiming::logging(),
             own_timing: None,
@@ -4894,6 +4893,13 @@ impl Renderer {
     }
     /// Switches per-section draws between indirect multi-draws, where the device takes them,
     /// and one call per section, for A/B checks.
+    /// Turns occlusion culling of a shader pack's terrain on or off (the sections the last
+    /// result found hidden are skipped). The client sets it for the packs it ships that do not
+    /// read what the camera cannot see; `HORIZON_PACK_CULL` overrides.
+    pub fn set_pack_culling(&mut self, on: bool) {
+        self.pack_cull = pack_culling_override().unwrap_or(on);
+    }
+
     /// Whether the device can run occlusion culling at all (it draws through indirect
     /// multi-draws, which are off on Android until a trial says otherwise: `game.rs`
     /// `trial_gpu_culling`).
@@ -4976,6 +4982,10 @@ impl Renderer {
     /// Whether a shader pack runs now (one of Horizon's own, or a `shaders/` pack): the game
     /// then leaves out vanilla's round entity shadow, shaders replacing the way the world is
     /// lit — and drawing their own under the entities when the pack has a shadow pass.
+    /// Whether the pack drawing now has its terrain occlusion culled (the sections the last test
+    /// found hidden are skipped): set by the client for the packs it ships that can take it
+    /// (`set_pack_culling`), or `HORIZON_PACK_CULL=1`.
+    pack_cull: bool,
     /// Whether the pack drawing now draws entities itself (`gbuffers_entities`): the game then
     /// marks the entities it makes outside `entity_geometry` (the dragon) for the pack.
     pub fn pack_draws_entities(&self) -> bool {
@@ -7332,7 +7342,7 @@ impl Renderer {
         // A pack draws terrain with its own program: culling reaches it by skipping the
         // sections its last result found hidden (a frame of latency, no indirect draws).
         // Opt-in (`HORIZON_PACK_CULL=1`): a pack's passes may need what the camera cannot see.
-        let pack_cull = pack_terrain && pack_culling_requested();
+        let pack_cull = pack_terrain && self.pack_cull;
         let mut cull = self
             .cull
             .as_mut()
@@ -7680,7 +7690,7 @@ impl Renderer {
             );
             // The test runs through indirect multi-draws, or for a pack that asked for it
             // (`HORIZON_PACK_CULL=1`, skipping sections between frames).
-            let testing = self.cull_on && (self.multi_draw || pack_culling_requested());
+            let testing = self.cull_on && (self.multi_draw || self.pack_cull);
             match self.cull.as_ref().filter(|_| testing).map(|cull| cull.hidden) {
                 // What the last test hid: the boxes it saw and did not, and the share of solid
                 // indices those boxes kept out of the passes.
@@ -9727,7 +9737,7 @@ impl Renderer {
             );
             // The box test against the depth the pack just drew (a pass of its own, on the
             // shader's side), for the next frames' skips.
-            if pack_cull_on() && let Some(cull) = self.cull.as_mut() {
+            if self.pack_cull && let Some(cull) = self.cull.as_mut() {
                 cull.bind_depth(&self.device, depth);
                 cull.test_pass(&mut encoder, self.own_timing.as_mut());
             }
